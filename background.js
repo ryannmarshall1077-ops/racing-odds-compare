@@ -120,6 +120,18 @@ async function refreshRace(marketId) {
     fetchedAt: Date.now(),
   };
 
+  // This fetch may have taken a while (Betfair API latency varies), during
+  // which a newer race could have been selected. If so, don't overwrite it
+  // with this now-stale result — the newer request's own write wins.
+  if (targetMarketId) {
+    const { selectedMarketId: currentSelection } = await chrome.storage.local.get([
+      "selectedMarketId",
+    ]);
+    if (currentSelection !== targetMarketId) {
+      throw new Error("A different race was selected before this one finished loading.");
+    }
+  }
+
   await chrome.storage.local.set({ liveRace: race });
   return race;
 }

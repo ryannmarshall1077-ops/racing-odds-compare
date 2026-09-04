@@ -83,14 +83,25 @@ const refreshBtn = document.getElementById("refresh-btn");
 const scanBtn = document.getElementById("scan-btn");
 const noteEl = document.getElementById("data-source-note");
 
+// Two calls can be in flight at once if the user clicks races quickly, and
+// Betfair's response times aren't guaranteed to come back in request order
+// — so an earlier click can resolve after a later one and clobber it with
+// stale data. This token makes each call only apply its result if it's
+// still the most recent one requested; anything older is silently dropped.
+let latestRaceRequestId = 0;
+
 // marketId is optional — omitting it tells background.js to keep following
 // whatever race was last selected (falling back to "next race" if nothing
 // has been selected yet), which is what the plain Refresh button wants.
 function loadRaceIntoTable(marketId) {
+  const requestId = ++latestRaceRequestId;
+
   refreshBtn.disabled = true;
   refreshBtn.textContent = "Loading...";
 
   chrome.runtime.sendMessage({ type: "REFRESH_RACE", marketId }, (response) => {
+    if (requestId !== latestRaceRequestId) return; // superseded by a newer request
+
     refreshBtn.disabled = false;
     refreshBtn.textContent = "Refresh live odds";
 
