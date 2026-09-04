@@ -130,12 +130,21 @@ scanBtn.addEventListener("click", async () => {
       throw new Error("Click 'Refresh live odds' first to load a race.");
     }
 
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab) throw new Error("No active tab found.");
+    // Prefer the tab this race's Sportsbet link opened/reused, so scanning
+    // works without needing that tab focused first — falls back to the
+    // active tab if no race has been selected via Upcoming Races yet.
+    const { sportsbetTabId } = await chrome.storage.local.get(["sportsbetTabId"]);
+    let tabId = sportsbetTabId;
+
+    if (!tabId) {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab) throw new Error("No active tab found.");
+      tabId = tab.id;
+    }
 
     const response = await chrome.runtime.sendMessage({
       type: "SCRAPE_BOOKMAKER",
-      tabId: tab.id,
+      tabId,
     });
 
     if (!response.ok) throw new Error(response.error);

@@ -36,10 +36,24 @@ async function ensureAutoRefreshAlarm() {
 }
 ensureAutoRefreshAlarm();
 
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === AUTO_REFRESH_ALARM) {
-    refreshRace().catch((err) => console.warn("Auto-refresh skipped:", err.message));
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== AUTO_REFRESH_ALARM) return;
+
+  // Re-scrape the tracked Sportsbet tab (the one this race's "Upcoming
+  // Races" click opened/reused) before refreshing Betfair, so refreshRace()
+  // picks up fresh bookmaker prices instead of one aging up to 10 minutes.
+  // Best-effort: a missing/closed tab or a page that isn't a priced race
+  // right now shouldn't block the Betfair side from refreshing.
+  const { sportsbetTabId } = await chrome.storage.local.get(["sportsbetTabId"]);
+  if (sportsbetTabId) {
+    try {
+      await scrapeBookmakerTab(sportsbetTabId);
+    } catch (err) {
+      console.warn("Auto-scan of Sportsbet tab skipped:", err.message);
+    }
   }
+
+  refreshRace().catch((err) => console.warn("Auto-refresh skipped:", err.message));
 });
 
 function normalizeName(name) {
