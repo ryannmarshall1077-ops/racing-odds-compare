@@ -155,3 +155,12 @@ https://developer.betfair.com/.
       against a real matched-betting tool's numbers side by side, then
       confirmed directly: a live in-play market where only 1 of 12 runners
       had a scrapeable price.
+- [x] Fixed debounce starvation in both watchers — the MutationObserver
+      watches the whole page (subtree: true), so on a busy racing page
+      *something* is mutating almost continuously (countdown timers,
+      matched-volume tickers). Plain debounce keeps resetting its timer on
+      every one of those, and could go a long time without ever actually
+      flushing a price update. Both watchers now cap the wait since the
+      first pending mutation at 150ms, guaranteeing a flush at least that
+      often even under constant unrelated DOM churn, while still coalescing
+      rapid bursts with a 50ms debounce in between.
