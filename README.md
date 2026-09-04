@@ -84,3 +84,12 @@ https://developer.betfair.com/.
       scan above remains as a fallback for tabs that were already open
       before this watcher could attach (a fresh navigation is what triggers
       injection).
+- [x] Recovers automatically when the selected race finishes — once a race
+      jumps, Betfair closes its WIN market and it drops out of the API. This
+      used to leave the extension permanently frozen on that dead race,
+      silently failing every refresh with no visible error. Now it clears
+      the stale selection and falls back to the next upcoming race
+      automatically, with a note in the footer explaining what happened.
+      Known gap: the already-open Betfair/Sportsbet tabs don't auto-navigate
+      to the new race in this case — only clicking a race in Upcoming Races
+      does that.

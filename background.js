@@ -83,19 +83,29 @@ async function refreshRace(marketId) {
   }
 
   const { betfairAppKey: appKey, betfairSessionToken: sessionToken } = stored;
-  const targetMarketId = marketId || stored.selectedMarketId;
+  let targetMarketId = marketId || stored.selectedMarketId;
 
   if (marketId) {
     await chrome.storage.local.set({ selectedMarketId: marketId });
   }
 
-  let markets;
+  let markets = [];
+  let selectionExpired = false;
+
   if (targetMarketId) {
     markets = await listMarketsByIds(appKey, sessionToken, [targetMarketId]);
     if (markets.length === 0) {
-      throw new Error("That race is no longer available — pick another from Upcoming Races.");
+      // The selected race has jumped/closed and dropped out of Betfair's
+      // catalogue — rather than getting stuck forever re-throwing this on
+      // every refresh, clear the dead selection and fall through to "next
+      // upcoming race" below, same as if nothing had ever been selected.
+      selectionExpired = true;
+      targetMarketId = null;
+      await chrome.storage.local.set({ selectedMarketId: null });
     }
-  } else {
+  }
+
+  if (!targetMarketId) {
     const eventTypeId = await findEventTypeId(appKey, sessionToken, "Horse Racing");
     markets = await listWinMarkets(appKey, sessionToken, eventTypeId, 1);
     if (markets.length === 0) {
@@ -148,6 +158,9 @@ async function refreshRace(marketId) {
     source: "live-betfair",
     bookmakerSource: bookmakerMatched > 0 ? "live-sportsbet" : "placeholder",
     fetchedAt: Date.now(),
+    ...(selectionExpired && {
+      systemNote: "Your selected race has finished — showing the next upcoming race instead.",
+    }),
   };
 
   // This fetch may have taken a while (Betfair API latency varies), during
