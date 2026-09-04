@@ -6,6 +6,23 @@ function normalizeName(name) {
   return name.replace(/^\d+\.\s*/, "").trim().toLowerCase();
 }
 
+// Sportsbet sometimes appends extra info after the core name — a country
+// code, a handicap distance, "(ft)" for front-marker — that Betfair's plain
+// runner name doesn't include, e.g. Betfair "itz trixton time" vs
+// Sportsbet "itz trixton time nz (10m)". Treat one normalized name being a
+// whole-word prefix of the other as a match, not just exact equality.
+function namesMatch(a, b) {
+  if (a === b) return true;
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  return shorter.length > 0 && longer.startsWith(shorter + " ");
+}
+
+function findBookmakerPrice(runnerName, bookmakerRunners) {
+  const normalized = normalizeName(runnerName);
+  const match = bookmakerRunners.find((r) => namesMatch(normalized, normalizeName(r.name)));
+  return match?.price;
+}
+
 function noteFor(race) {
   const systemNotePart = race.systemNote ? `${race.systemNote} ` : "";
 
@@ -57,13 +74,9 @@ function renderRace(race) {
 }
 
 function mergeBookmakerOdds(race, bookmakerRunners) {
-  const bookmakerByName = new Map(
-    bookmakerRunners.map((r) => [normalizeName(r.name), r.price])
-  );
-
   let matched = 0;
   const runners = race.runners.map((runner) => {
-    const price = bookmakerByName.get(normalizeName(runner.name));
+    const price = findBookmakerPrice(runner.name, bookmakerRunners);
     if (price !== undefined) {
       matched++;
       return { ...runner, bookmaker: price };
