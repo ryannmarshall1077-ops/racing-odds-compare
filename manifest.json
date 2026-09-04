@@ -11,9 +11,10 @@
     "service_worker": "background.js"
   },
   "options_page": "options.html",
-  "permissions": ["storage"],
+  "permissions": ["storage", "scripting", "tabs"],
   "host_permissions": [
     "https://identitysso.betfair.com/*",
-    "https://api.betfair.com/*"
+    "https://api.betfair.com/*",
+    "https://*.sportsbet.com.au/*"
   ]
 }

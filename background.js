@@ -55,11 +55,36 @@ async function refreshRace() {
   return race;
 }
 
+// Scrapes Win odds off the given tab's currently displayed Sportsbet race
+// page. The tab must already be showing a Sportsbet racing page.
+async function scrapeBookmakerTab(tabId) {
+  const [{ result }] = await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["js/contentScripts/sportsbet.js"],
+  });
+
+  if (!result || result.runners.length === 0) {
+    throw new Error(
+      "No runners found on that tab — make sure it's a Sportsbet racing page with the market open."
+    );
+  }
+
+  await chrome.storage.local.set({ bookmakerOdds: result });
+  return result;
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "REFRESH_RACE") {
     refreshRace()
       .then((race) => sendResponse({ ok: true, race }))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true; // keep the message channel open for the async response
+  }
+
+  if (message.type === "SCRAPE_BOOKMAKER") {
+    scrapeBookmakerTab(message.tabId)
+      .then((odds) => sendResponse({ ok: true, odds }))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
   }
 });
