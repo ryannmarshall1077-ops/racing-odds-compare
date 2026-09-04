@@ -13,7 +13,7 @@
 }
 
 body {
-  margin: 0;
+  margin: 0 auto;
   width: 360px;
   background: var(--bg);
   color: var(--text);
@@ -21,14 +21,43 @@ body {
   font-size: 13px;
 }
 
+/* The popup itself is always narrow (its viewport IS the content size), but
+   when this same page is opened as a full tab there's real room to use —
+   this only kicks in there. */
+@media (min-width: 500px) {
+  body {
+    width: 640px;
+  }
+}
+
 header {
   padding: 12px 14px 8px;
   border-bottom: 1px solid var(--border);
 }
 
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 h1 {
   margin: 0;
   font-size: 15px;
+}
+
+#open-tab-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+#open-tab-btn:hover {
+  color: var(--text);
 }
 
 .subtitle {
