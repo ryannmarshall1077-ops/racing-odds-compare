@@ -4,7 +4,6 @@
   "version": "0.1.0",
   "description": "Compares horse racing odds between Betfair Exchange and a bookmaker.",
   "action": {
-    "default_popup": "popup.html",
     "default_title": "Racing Odds Compare"
   },
   "background": {
