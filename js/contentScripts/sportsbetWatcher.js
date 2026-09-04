@@ -70,12 +70,34 @@
     }
   }
 
-  // Debounced: a price update on a busy racing page can trigger a burst of
-  // DOM mutations, not just one.
+  // Plain debounce isn't enough: the observer watches the whole page
+  // (subtree: true), so on a busy racing page *something* is mutating the
+  // DOM almost continuously (a countdown, unrelated UI). Pure debounce
+  // keeps resetting its timer on every one of those and can go a long time
+  // without ever firing. Capping the wait since the first pending mutation
+  // guarantees a flush at least every MAX_WAIT_MS even under constant
+  // churn, while DEBOUNCE_MS still coalesces rapid bursts in between.
+  const DEBOUNCE_MS = 50;
+  const MAX_WAIT_MS = 150;
   let debounceTimer = null;
+  let pendingSince = null;
+
   function scheduleUpdate() {
+    const now = Date.now();
+    if (pendingSince === null) pendingSince = now;
+
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(sendUpdateIfChanged, 400);
+
+    if (now - pendingSince >= MAX_WAIT_MS) {
+      pendingSince = null;
+      sendUpdateIfChanged();
+      return;
+    }
+
+    debounceTimer = setTimeout(() => {
+      pendingSince = null;
+      sendUpdateIfChanged();
+    }, DEBOUNCE_MS);
   }
 
   new MutationObserver(scheduleUpdate).observe(document.body, {
