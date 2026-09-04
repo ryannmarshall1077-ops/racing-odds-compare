@@ -145,3 +145,13 @@ https://developer.betfair.com/.
       every single tick. `refreshRace()` now trusts the watcher's price if
       it updated within the last ~90 seconds, falling back to its own fetch
       only when the watcher hasn't supplied anything recent.
+- [x] Freshness is tracked per runner, not per race — a suspended runner
+      (common in-play, near jump) renders without a readable price on
+      Betfair's page at all, so the watcher's update simply omits it. The
+      previous race-wide freshness check meant one successfully-updated
+      runner would incorrectly "protect" every other runner's price —
+      including suspended ones the watcher never touched — from the REST
+      poll's correction, letting stale numbers linger. Found by comparing
+      against a real matched-betting tool's numbers side by side, then
+      confirmed directly: a live in-play market where only 1 of 12 runners
+      had a scrapeable price.
