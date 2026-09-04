@@ -65,3 +65,9 @@ https://developer.betfair.com/.
       persistent browser tab (reusing one if it's already open) instead of a
       small popup, since a popup closes as soon as you click into one of the
       race tabs it opens.
+- [x] Switching races reuses the same Betfair/Sportsbet tabs — navigates
+      them to the new race in place (chrome.tabs.update) instead of closing
+      and reopening. Any tab that needs to be created fresh (e.g. the user
+      closed one manually) opens in the background so it can't steal focus
+      away from the extension's own tab, which explicitly re-asserts its own
+      focus afterward as a safety net.

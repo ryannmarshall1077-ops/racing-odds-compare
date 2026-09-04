@@ -169,30 +169,46 @@ chrome.storage.local.get(["liveRace"], (stored) => {
 const racesListEl = document.getElementById("races-list");
 const racesRefreshBtn = document.getElementById("races-refresh-btn");
 
-// Tracked in storage (not a plain variable) since the popup's JS state is
-// thrown away every time it closes, but the tabs it opened live on.
-async function openRaceTabs(race) {
-  const { lastRaceTabIds } = await chrome.storage.local.get(["lastRaceTabIds"]);
-
-  for (const tabId of lastRaceTabIds || []) {
+// Navigates the given tab to a new URL in place if it still exists, or
+// opens a fresh (background — not stealing focus) tab if it doesn't. Either
+// way returns the tab id to remember for next time.
+async function openOrNavigateTab(tabId, url) {
+  if (tabId) {
     try {
-      await chrome.tabs.remove(tabId);
+      await chrome.tabs.update(tabId, { url });
+      return tabId;
     } catch {
-      // Already closed by the user — nothing to do.
+      // Closed by the user since we last used it — fall through to creating
+      // a new one below.
     }
   }
 
-  const newTabIds = [];
+  const tab = await chrome.tabs.create({ url, active: false });
+  return tab.id;
+}
 
-  const betfairTab = await chrome.tabs.create({ url: race.betfairUrl });
-  newTabIds.push(betfairTab.id);
+// The Betfair/Sportsbet tab ids are tracked in storage (not a plain
+// variable) since the popup's JS state is thrown away every time it closes,
+// but the tabs it opened live on. Reusing the same two tabs — navigating
+// them in place — instead of closing and recreating avoids the flicker of
+// old tabs disappearing and new ones appearing, and creating any new tab
+// `active: false` stops it from stealing focus away from this extension
+// tab. As a final safety net, this tab's own focus is explicitly
+// re-asserted afterward.
+async function openRaceTabs(race) {
+  const stored = await chrome.storage.local.get(["betfairTabId", "sportsbetTabId"]);
 
-  if (race.sportsbetUrl) {
-    const sportsbetTab = await chrome.tabs.create({ url: race.sportsbetUrl });
-    newTabIds.push(sportsbetTab.id);
+  const betfairTabId = await openOrNavigateTab(stored.betfairTabId, race.betfairUrl);
+  const sportsbetTabId = race.sportsbetUrl
+    ? await openOrNavigateTab(stored.sportsbetTabId, race.sportsbetUrl)
+    : stored.sportsbetTabId;
+
+  await chrome.storage.local.set({ betfairTabId, sportsbetTabId });
+
+  const ownTab = await chrome.tabs.getCurrent();
+  if (ownTab) {
+    await chrome.tabs.update(ownTab.id, { active: true });
   }
-
-  await chrome.storage.local.set({ lastRaceTabIds: newTabIds });
 }
 
 function renderRacesList(races) {
