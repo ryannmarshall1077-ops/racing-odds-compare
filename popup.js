@@ -149,3 +149,64 @@ chrome.storage.onChanged.addListener((changes, area) => {
 chrome.storage.local.get(["liveRace"], (stored) => {
   renderRace(stored.liveRace || MOCK_RACE);
 });
+
+const racesListEl = document.getElementById("races-list");
+const racesRefreshBtn = document.getElementById("races-refresh-btn");
+
+function renderRacesList(races) {
+  racesListEl.innerHTML = "";
+
+  if (races.length === 0) {
+    racesListEl.innerHTML = '<li class="races-status">No upcoming races found.</li>';
+    return;
+  }
+
+  for (const race of races) {
+    const li = document.createElement("li");
+    li.className = "race-row";
+
+    const time = new Date(race.startTime).toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+    li.innerHTML = `
+      <span class="race-track">${race.track} R${race.raceNumber}</span>
+      <span>
+        <span class="race-time">${time}</span>${
+      race.sportsbetUrl ? "" : '<span class="race-warn" title="No matching Sportsbet race found">!</span>'
+    }
+      </span>
+    `;
+
+    li.addEventListener("click", () => {
+      chrome.tabs.create({ url: race.betfairUrl });
+      if (race.sportsbetUrl) {
+        chrome.tabs.create({ url: race.sportsbetUrl });
+      }
+    });
+
+    racesListEl.appendChild(li);
+  }
+}
+
+function loadUpcomingRaces() {
+  racesListEl.innerHTML = '<li class="races-status">Loading...</li>';
+  racesRefreshBtn.disabled = true;
+
+  chrome.runtime.sendMessage({ type: "LIST_UPCOMING_RACES" }, (response) => {
+    racesRefreshBtn.disabled = false;
+
+    if (!response || !response.ok) {
+      racesListEl.innerHTML = `<li class="races-status">${
+        response ? response.error : "No response from background worker."
+      }</li>`;
+      return;
+    }
+
+    renderRacesList(response.races);
+  });
+}
+
+racesRefreshBtn.addEventListener("click", loadUpcomingRaces);
+loadUpcomingRaces();
