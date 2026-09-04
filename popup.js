@@ -3,7 +3,16 @@ function edgePercent(betfair, bookmaker) {
 }
 
 function normalizeName(name) {
-  return name.replace(/^\d+\.\s*/, "").trim().toLowerCase();
+  // Sportsbet's runner name markup splits the barrier/handicap suffix into
+  // a separate span starting with "&nbsp;" (U+00A0), not a regular space —
+  // collapsing all whitespace to plain spaces first means "(fr1)" etc. line
+  // up correctly whether the separator is a normal space or a non-breaking
+  // one (this is what silently broke namesMatch's " " check before).
+  return name
+    .replace(/^\d+\.\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 // Sportsbet sometimes appends extra info after the core name — a country
