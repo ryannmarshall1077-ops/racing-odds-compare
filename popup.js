@@ -7,6 +7,8 @@ function normalizeName(name) {
 }
 
 function noteFor(race) {
+  const systemNotePart = race.systemNote ? `${race.systemNote} ` : "";
+
   const betfairPart =
     race.source === "live-betfair"
       ? `Betfair: live${
@@ -14,14 +16,14 @@ function noteFor(race) {
         }.`
       : "Showing mock data — live odds not yet connected.";
 
-  if (race.source !== "live-betfair") return betfairPart;
+  if (race.source !== "live-betfair") return systemNotePart + betfairPart;
 
   const bookmakerPart =
     race.bookmakerSource === "live-sportsbet"
       ? " Bookmaker: live (Sportsbet)."
       : " Bookmaker: placeholder markup (not yet scanned).";
 
-  return betfairPart + bookmakerPart;
+  return systemNotePart + betfairPart + bookmakerPart;
 }
 
 let currentRace = null;
