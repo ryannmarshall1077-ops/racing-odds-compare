@@ -71,3 +71,8 @@ https://developer.betfair.com/.
       closed one manually) opens in the background so it can't steal focus
       away from the extension's own tab, which explicitly re-asserts its own
       focus afterward as a safety net.
+- [x] Sportsbet auto-scan — the 1-minute auto-refresh alarm now also
+      re-scrapes the tracked Sportsbet tab automatically, so the bookmaker
+      column updates on its own instead of needing a manual "Scan" click
+      every time. The manual scan button also now targets that same tracked
+      tab directly, so it works without needing that tab focused first.
