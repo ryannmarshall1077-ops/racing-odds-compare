@@ -30,9 +30,11 @@ https://developer.betfair.com/.
 ## Roadmap
 
 - [x] Betfair login (options page + session token)
-- [ ] Fetch real Betfair market odds (listMarketCatalogue / listMarketBook)
-      and feed them into the popup instead of mock data
+- [x] Fetch real Betfair market odds (listMarketCatalogue / listMarketBook) —
+      click "Refresh live odds" in the popup once Betfair is connected.
+      Betfair prices are real; the bookmaker column is still a placeholder
+      markup (`betfair * 1.08`) until a real bookmaker source exists.
 - [ ] Real bookmaker odds — needs a per-site content script once a specific
       bookmaker page's markup has been inspected
-- [ ] Auto-refresh via `background.js` instead of static mock data
+- [ ] Auto-refresh on an interval instead of a manual button
 - [ ] Harness and greyhound racing codes
