@@ -83,6 +83,10 @@ const refreshBtn = document.getElementById("refresh-btn");
 const scanBtn = document.getElementById("scan-btn");
 const noteEl = document.getElementById("data-source-note");
 
+document.getElementById("open-tab-btn").addEventListener("click", () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL("popup.html") });
+});
+
 // Two calls can be in flight at once if the user clicks races quickly, and
 // Betfair's response times aren't guaranteed to come back in request order
 // — so an earlier click can resolve after a later one and clobber it with

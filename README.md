@@ -61,3 +61,6 @@ https://developer.betfair.com/.
       comparison table below. The selected race is remembered (in storage),
       so both the manual "Refresh live odds" button and auto-refresh keep
       following it — until a different race is clicked.
+- [x] Open in a full tab — click the &#8599; icon next to the title to pop the
+      same page out into a persistent browser tab, which (unlike the popup)
+      doesn't close when you click into the race tabs it opens.
