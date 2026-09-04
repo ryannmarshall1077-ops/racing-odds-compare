@@ -57,6 +57,14 @@ async function listWinMarkets(appKey, sessionToken, eventTypeId, maxResults = 1)
   });
 }
 
+async function listMarketsByIds(appKey, sessionToken, marketIds) {
+  return betfairApiCall(appKey, sessionToken, "listMarketCatalogue", {
+    filter: { marketIds },
+    marketProjection: ["RUNNER_DESCRIPTION", "EVENT", "MARKET_START_TIME"],
+    maxResults: marketIds.length,
+  });
+}
+
 async function getMarketBook(appKey, sessionToken, marketIds) {
   return betfairApiCall(appKey, sessionToken, "listMarketBook", {
     marketIds,

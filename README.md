@@ -57,6 +57,7 @@ https://developer.betfair.com/.
       content script since every site's markup differs
 - [ ] Greyhound racing code (harness already appears to come through under
       the Horse Racing event type in AU)
-- [ ] Clicking a race in the Upcoming Races list could also load it into the
-      comparison table below, instead of the table always showing "whatever
-      Refresh live odds happened to find next"
+- [x] Clicking a race in the Upcoming Races list loads it into the
+      comparison table below. The selected race is remembered (in storage),
+      so both the manual "Refresh live odds" button and auto-refresh keep
+      following it — until a different race is clicked.
