@@ -1,4 +1,4 @@
-# Racing Odds Compare
+# RaceOdds
 
 A Chrome extension that compares horse racing odds between Betfair Exchange
 and a bookmaker, so you can spot where a fixed-odds price beats the exchange.
