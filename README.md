@@ -138,3 +138,10 @@ https://developer.betfair.com/.
       what a Live key would make more *accurate* — this watcher is what
       makes it *fast*; see the "Live key" discussion in this project's
       history for why both matter.
+- [x] REST poll no longer overwrites fresher DOM-watcher prices — the
+      1-minute auto-refresh alarm used to unconditionally rebuild every
+      runner's Betfair price from its own REST fetch, clobbering whatever
+      the watcher had just supplied with an older (Delayed-key) snapshot
+      every single tick. `refreshRace()` now trusts the watcher's price if
+      it updated within the last ~90 seconds, falling back to its own fetch
+      only when the watcher hasn't supplied anything recent.

@@ -102,6 +102,7 @@ async function refreshRace(marketId) {
     "betfairSessionToken",
     "bookmakerOdds",
     "selectedMarketId",
+    "liveRace",
   ]);
 
   if (!stored.betfairAppKey || !stored.betfairSessionToken) {
@@ -151,6 +152,21 @@ async function refreshRace(marketId) {
       ? stored.bookmakerOdds.runners
       : null;
 
+  // betfairWatcher.js keeps liveRace.runners[].betfair current in near
+  // real-time by reading Betfair's own page directly — genuinely fresher
+  // than this REST call, which (on a Delayed key) can lag up to 180s. If
+  // the watcher has updated within the last ~90s (comfortably longer than
+  // the 1-minute alarm interval that runs this function), trust its prices
+  // instead of clobbering them with this call's own older snapshot every
+  // single tick. Falls back to this call's own price when the watcher
+  // hasn't supplied anything recent (tab closed, not attached yet, etc.).
+  const domPricesAreFresh =
+    stored.liveRace?.betfairPricedAt &&
+    Date.now() - stored.liveRace.betfairPricedAt < 90 * 1000;
+  const domPriceBySelectionId = domPricesAreFresh
+    ? new Map(stored.liveRace.runners.map((r) => [r.selectionId, r.betfair]))
+    : null;
+
   let bookmakerMatched = 0;
   const runners = book.runners
     .filter((r) => r.status === "ACTIVE")
@@ -159,7 +175,10 @@ async function refreshRace(marketId) {
       // Lay price, not Back — the relevant comparison for matched betting
       // is "does the bookmaker's price beat what it costs to lay this off
       // on Betfair", not the Betfair back price.
-      const betfairPrice = r.ex?.availableToLay?.[0]?.price ?? null;
+      const restBetfairPrice = r.ex?.availableToLay?.[0]?.price ?? null;
+      const betfairPrice = domPriceBySelectionId?.has(String(r.selectionId))
+        ? domPriceBySelectionId.get(String(r.selectionId))
+        : restBetfairPrice;
       const scannedPrice = recentBookmakerRunners
         ? findBookmakerPrice(name, recentBookmakerRunners)
         : undefined;
@@ -366,7 +385,7 @@ async function applyBetfairOdds(odds) {
   if (matched === 0) return; // this update doesn't concern the loaded race
 
   await chrome.storage.local.set({
-    liveRace: { ...liveRace, runners, fetchedAt: Date.now() },
+    liveRace: { ...liveRace, runners, fetchedAt: Date.now(), betfairPricedAt: Date.now() },
   });
 }
 
