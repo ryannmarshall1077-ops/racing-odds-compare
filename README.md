@@ -115,3 +115,11 @@ https://developer.betfair.com/.
       whichever price container the very first price element belongs to
       (Win is always the first/leftmost column), verified directly against
       a live race page before shipping.
+- [x] Matches names with a non-breaking space before the barrier suffix —
+      Sportsbet's markup puts "(Fr1)" etc. in a separate span starting with
+      `&nbsp;` (U+00A0), not a normal space, so the whole-word-prefix check
+      from #19 was silently failing on a character that's visually
+      indistinguishable from a regular space. `normalizeName` now collapses
+      all whitespace to plain spaces first. Confirmed via the actual
+      character codes read off a live page (`...nz`, then char code 160,
+      then `(Fr1)`).
