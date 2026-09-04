@@ -225,7 +225,48 @@ async function scrapeBookmakerTab(tabId) {
   return result;
 }
 
+// Called whenever the Sportsbet DOM watcher (sportsbetWatcher.js) detects a
+// real odds change on the page and pushes it here unsolicited. Stores the
+// raw scrape (refreshRace()'s periodic Betfair polling re-applies this too)
+// and, if a race is already loaded, merges the new prices into it
+// immediately by runner name — this is what makes the bookmaker column
+// update at the same time Sportsbet's own page does, rather than waiting
+// for the next scheduled refresh.
+async function applyBookmakerOdds(odds) {
+  await chrome.storage.local.set({ bookmakerOdds: odds });
+
+  const { liveRace } = await chrome.storage.local.get(["liveRace"]);
+  if (!liveRace || liveRace.source !== "live-betfair") return;
+
+  const bookmakerByName = new Map(
+    odds.runners.map((r) => [normalizeName(r.name), r.price])
+  );
+
+  let matched = 0;
+  const runners = liveRace.runners.map((runner) => {
+    const price = bookmakerByName.get(normalizeName(runner.name));
+    if (price !== undefined) {
+      matched++;
+      return { ...runner, bookmaker: price };
+    }
+    return runner;
+  });
+
+  if (matched === 0) return; // this update doesn't concern the loaded race
+
+  await chrome.storage.local.set({
+    liveRace: { ...liveRace, runners, bookmakerSource: "live-sportsbet" },
+  });
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === "BOOKMAKER_ODDS_UPDATED") {
+    applyBookmakerOdds(message.odds).catch((err) =>
+      console.warn("Failed to apply live Sportsbet update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
   if (message.type === "REFRESH_RACE") {
     refreshRace(message.marketId)
       .then((race) => sendResponse({ ok: true, race }))
