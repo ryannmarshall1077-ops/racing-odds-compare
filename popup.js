@@ -155,18 +155,23 @@ scanBtn.addEventListener("click", async () => {
     }
 
     // Prefer the tab this race's Sportsbet link opened/reused, so scanning
-    // works without needing that tab focused first — falls back to the
-    // active tab if no race has been selected via Upcoming Races yet, or if
-    // the tracked tab has gone stale (closed, or Chrome restarted and
-    // reassigned tab ids — those don't survive a browser restart).
+    // works without needing that tab focused first — falls back to any
+    // open Sportsbet tab if no race has been selected via Upcoming Races
+    // yet, or if the tracked tab has gone stale (closed, or Chrome
+    // restarted and reassigned tab ids — those don't survive a restart).
+    // Deliberately NOT "the active tab": this extension is itself a full
+    // tab (not a popup), so clicking this button from it would otherwise
+    // make the fallback try to scrape the extension's own page.
     const { sportsbetTabId } = await chrome.storage.local.get(["sportsbetTabId"]);
     let response = sportsbetTabId
       ? await chrome.runtime.sendMessage({ type: "SCRAPE_BOOKMAKER", tabId: sportsbetTabId })
       : null;
 
     if (!response || (!response.ok && response.error.includes("no longer open"))) {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab) throw new Error("No active tab found.");
+      const [tab] = await chrome.tabs.query({ url: "*://*.sportsbet.com.au/*" });
+      if (!tab) {
+        throw new Error("No Sportsbet tab found — click a race in Upcoming Races to open one.");
+      }
       response = await chrome.runtime.sendMessage({ type: "SCRAPE_BOOKMAKER", tabId: tab.id });
     }
 
