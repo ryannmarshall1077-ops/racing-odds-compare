@@ -1,0 +1,56 @@
+.options-body {
+  width: 420px;
+  padding: 4px 0 20px;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 14px 0;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+input {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+button {
+  margin-top: 4px;
+  padding: 9px;
+  background: var(--accent);
+  border: none;
+  border-radius: 4px;
+  color: #0f1720;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+.status {
+  margin: 12px 14px 0;
+  font-size: 12px;
+}
+
+.status.ok {
+  color: var(--accent);
+}
+
+.status.error {
+  color: var(--accent-neg);
+}

@@ -10,5 +10,10 @@
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": ["storage"]
+  "options_page": "options.html",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://identitysso.betfair.com/*",
+    "https://api.betfair.com/*"
+  ]
 }

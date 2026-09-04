@@ -16,10 +16,22 @@ live data source is wired in.
 3. Click "Load unpacked" and select this folder
 4. Click the extension icon in the toolbar to open the popup
 
+## Betfair connection
+
+Open the extension's options page (right-click the toolbar icon → Options)
+and enter your Betfair **Application Key** plus your Betfair username and
+password. This calls Betfair's official interactive login endpoint directly
+from your browser and stores the resulting session token in
+`chrome.storage.local` — nothing is sent anywhere except Betfair's own API.
+
+Get a free **Delayed** application key (no approval needed) at
+https://developer.betfair.com/.
+
 ## Roadmap
 
-- [ ] Real Betfair odds via the official Betfair API-NG (requires a Betfair
-      account + application key)
+- [x] Betfair login (options page + session token)
+- [ ] Fetch real Betfair market odds (listMarketCatalogue / listMarketBook)
+      and feed them into the popup instead of mock data
 - [ ] Real bookmaker odds — needs a per-site content script once a specific
       bookmaker page's markup has been inspected
 - [ ] Auto-refresh via `background.js` instead of static mock data
