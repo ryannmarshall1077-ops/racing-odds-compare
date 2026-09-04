@@ -152,33 +152,36 @@ async function refreshRace(marketId) {
       ? stored.bookmakerOdds.runners
       : null;
 
-  // betfairWatcher.js keeps liveRace.runners[].betfair current in near
+  // betfairWatcher.js keeps a runner's betfair price current in near
   // real-time by reading Betfair's own page directly — genuinely fresher
-  // than this REST call, which (on a Delayed key) can lag up to 180s. If
-  // the watcher has updated within the last ~90s (comfortably longer than
-  // the 1-minute alarm interval that runs this function), trust its prices
-  // instead of clobbering them with this call's own older snapshot every
-  // single tick. Falls back to this call's own price when the watcher
-  // hasn't supplied anything recent (tab closed, not attached yet, etc.).
-  const domPricesAreFresh =
-    stored.liveRace?.betfairPricedAt &&
-    Date.now() - stored.liveRace.betfairPricedAt < 90 * 1000;
-  const domPriceBySelectionId = domPricesAreFresh
-    ? new Map(stored.liveRace.runners.map((r) => [r.selectionId, r.betfair]))
-    : null;
+  // than this REST call, which (on a Delayed key) can lag up to 180s. But
+  // the watcher can only update runners it can actually read off the page
+  // right now — a suspended runner (common in-play, near jump) renders
+  // without the normal price button at all, so it's silently absent from
+  // that update. Freshness is therefore tracked per runner, not for the
+  // whole race at once: trusting it race-wide would let one runner's
+  // successful update "protect" every other runner's price — including
+  // ones the watcher never actually touched — from this call's correction.
+  const existingRunnerById = new Map(
+    (stored.liveRace?.runners || []).map((r) => [r.selectionId, r])
+  );
 
   let bookmakerMatched = 0;
   const runners = book.runners
     .filter((r) => r.status === "ACTIVE")
     .map((r) => {
       const name = runnerNames.get(r.selectionId) || `Runner ${r.selectionId}`;
+      const selectionId = String(r.selectionId);
+      const existingRunner = existingRunnerById.get(selectionId);
+      const domIsFresh =
+        existingRunner?.betfairPricedAt &&
+        Date.now() - existingRunner.betfairPricedAt < 90 * 1000;
+
       // Lay price, not Back — the relevant comparison for matched betting
       // is "does the bookmaker's price beat what it costs to lay this off
       // on Betfair", not the Betfair back price.
       const restBetfairPrice = r.ex?.availableToLay?.[0]?.price ?? null;
-      const betfairPrice = domPriceBySelectionId?.has(String(r.selectionId))
-        ? domPriceBySelectionId.get(String(r.selectionId))
-        : restBetfairPrice;
+      const betfairPrice = domIsFresh ? existingRunner.betfair : restBetfairPrice;
       const scannedPrice = recentBookmakerRunners
         ? findBookmakerPrice(name, recentBookmakerRunners)
         : undefined;
@@ -187,8 +190,9 @@ async function refreshRace(marketId) {
 
       return {
         name,
-        selectionId: String(r.selectionId),
+        selectionId,
         betfair: betfairPrice,
+        ...(domIsFresh && { betfairPricedAt: existingRunner.betfairPricedAt }),
         bookmaker:
           scannedPrice !== undefined
             ? scannedPrice
@@ -372,12 +376,19 @@ async function applyBetfairOdds(odds) {
 
   const priceBySelectionId = new Map(odds.runners.map((r) => [r.selectionId, r.price]));
 
+  // Stamped per runner, not race-wide — a suspended runner (common
+  // in-play) has no readable price on the page at all, so it's simply
+  // absent from `odds.runners` this time. Only the runners actually
+  // present here get a fresh timestamp; everyone else keeps whatever
+  // betfairPricedAt (possibly none, possibly old) they already had, so
+  // refreshRace() correctly falls back to the REST price for exactly the
+  // runners this update didn't touch, instead of every runner in the race.
   let matched = 0;
   const runners = liveRace.runners.map((runner) => {
     const price = priceBySelectionId.get(runner.selectionId);
     if (price !== undefined) {
       matched++;
-      return { ...runner, betfair: price };
+      return { ...runner, betfair: price, betfairPricedAt: Date.now() };
     }
     return runner;
   });
@@ -385,7 +396,7 @@ async function applyBetfairOdds(odds) {
   if (matched === 0) return; // this update doesn't concern the loaded race
 
   await chrome.storage.local.set({
-    liveRace: { ...liveRace, runners, fetchedAt: Date.now(), betfairPricedAt: Date.now() },
+    liveRace: { ...liveRace, runners, fetchedAt: Date.now() },
   });
 }
 
