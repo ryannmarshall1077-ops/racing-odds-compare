@@ -74,7 +74,8 @@ footer {
   font-size: 10px;
 }
 
-#refresh-btn {
+#refresh-btn,
+#scan-btn {
   display: block;
   margin-top: 8px;
   width: 100%;
@@ -87,11 +88,13 @@ footer {
   cursor: pointer;
 }
 
-#refresh-btn:hover {
+#refresh-btn:hover,
+#scan-btn:hover {
   border-color: var(--accent);
 }
 
-#refresh-btn:disabled {
+#refresh-btn:disabled,
+#scan-btn:disabled {
   opacity: 0.5;
   cursor: default;
 }

@@ -34,7 +34,13 @@ https://developer.betfair.com/.
       click "Refresh live odds" in the popup once Betfair is connected.
       Betfair prices are real; the bookmaker column is still a placeholder
       markup (`betfair * 1.08`) until a real bookmaker source exists.
-- [ ] Real bookmaker odds — needs a per-site content script once a specific
-      bookmaker page's markup has been inspected
-- [ ] Auto-refresh on an interval instead of a manual button
-- [ ] Harness and greyhound racing codes
+- [x] Real Sportsbet odds — open a Sportsbet racing page in any tab, then
+      click "Scan Sportsbet tab for odds" in the popup. It scrapes Win
+      prices off that tab and merges them into the currently loaded race by
+      matching runner names (click "Refresh live odds" first so there's a
+      race to merge into).
+- [ ] Auto-refresh on an interval instead of manual buttons
+- [ ] Other bookmakers (TAB, Ladbrokes, Neds, ...) — each needs its own
+      content script since every site's markup differs
+- [ ] Greyhound racing code (harness already appears to come through under
+      the Horse Racing event type in AU)
