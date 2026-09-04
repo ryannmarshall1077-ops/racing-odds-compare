@@ -168,6 +168,7 @@ async function refreshRace(marketId) {
 
       return {
         name,
+        selectionId: String(r.selectionId),
         betfair: betfairPrice,
         bookmaker:
           scannedPrice !== undefined
@@ -340,7 +341,43 @@ async function applyBookmakerOdds(odds) {
   });
 }
 
+// Called whenever betfairWatcher.js detects a real Lay price change and
+// pushes it here unsolicited. Matches by Betfair's own selection id (exact,
+// no fuzzy comparison needed unlike the Sportsbet side) and updates the
+// loaded race immediately — this is what makes Betfair prices update at
+// the same time Betfair's own page does, instead of waiting up to a minute
+// for the next chrome.alarms tick.
+async function applyBetfairOdds(odds) {
+  const { liveRace } = await chrome.storage.local.get(["liveRace"]);
+  if (!liveRace || liveRace.source !== "live-betfair") return;
+
+  const priceBySelectionId = new Map(odds.runners.map((r) => [r.selectionId, r.price]));
+
+  let matched = 0;
+  const runners = liveRace.runners.map((runner) => {
+    const price = priceBySelectionId.get(runner.selectionId);
+    if (price !== undefined) {
+      matched++;
+      return { ...runner, betfair: price };
+    }
+    return runner;
+  });
+
+  if (matched === 0) return; // this update doesn't concern the loaded race
+
+  await chrome.storage.local.set({
+    liveRace: { ...liveRace, runners, fetchedAt: Date.now() },
+  });
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === "BETFAIR_ODDS_UPDATED") {
+    applyBetfairOdds(message.odds).catch((err) =>
+      console.warn("Failed to apply live Betfair update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
   if (message.type === "BOOKMAKER_ODDS_UPDATED") {
     applyBookmakerOdds(message.odds).catch((err) =>
       console.warn("Failed to apply live Sportsbet update:", err.message)

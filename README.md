@@ -128,3 +128,13 @@ https://developer.betfair.com/.
       this extension is itself a full tab (not a popup, per #12), clicking
       the button from it makes it the active tab. Falls back to querying
       for an actual open `sportsbet.com.au` tab instead.
+- [x] Betfair Lay prices update the instant Betfair's own page changes them
+      — same approach as the Sportsbet watcher, no Live application key
+      needed for this. `js/contentScripts/betfairWatcher.js` is
+      auto-injected into every Betfair market page and watches the best Lay
+      price cells with a MutationObserver, matching by Betfair's own
+      `bet-selection-id` (exact, not fuzzy name matching like Sportsbet
+      needs). The 1-minute REST API poll remains as a fallback and is still
+      what a Live key would make more *accurate* — this watcher is what
+      makes it *fast*; see the "Live key" discussion in this project's
+      history for why both matter.
