@@ -71,8 +71,16 @@ https://developer.betfair.com/.
       closed one manually) opens in the background so it can't steal focus
       away from the extension's own tab, which explicitly re-asserts its own
       focus afterward as a safety net.
-- [x] Sportsbet auto-scan — the 1-minute auto-refresh alarm now also
-      re-scrapes the tracked Sportsbet tab automatically, so the bookmaker
-      column updates on its own instead of needing a manual "Scan" click
-      every time. The manual scan button also now targets that same tracked
-      tab directly, so it works without needing that tab focused first.
+- [x] Sportsbet auto-scan — the 1-minute auto-refresh alarm also re-scrapes
+      the tracked Sportsbet tab automatically. The manual scan button also
+      targets that same tracked tab directly, so it works without needing
+      that tab focused first.
+- [x] Sportsbet odds update the instant Sportsbet's own page changes them —
+      `js/contentScripts/sportsbetWatcher.js` is auto-injected into every
+      Sportsbet race page (declared in the manifest, not on-demand) and
+      watches the odds elements with a MutationObserver. Whenever a price
+      actually changes, it pushes the new value straight to the popup's
+      table — reactive, not polling on a timer. The 1-minute alarm-based
+      scan above remains as a fallback for tabs that were already open
+      before this watcher could attach (a fresh navigation is what triggers
+      injection).
