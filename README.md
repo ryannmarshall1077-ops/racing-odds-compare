@@ -106,3 +106,12 @@ https://developer.betfair.com/.
       now treats one normalized name being a whole-word prefix of the other
       as a match, not just exact equality — found via diagnostic logging
       (#17) that showed real name lists side by side.
+- [x] Scrapes Win prices only, not a Win/Place mix — the race card shows
+      both a Win and a Place price column, and both kinds of button share
+      the exact same `data-automation-id` (keyed by runner, not by market),
+      so the scraper was grabbing all 18 price buttons for a 9-runner race
+      and zipping them against 9 names by raw index — correct for the first
+      runner, silently wrong for every one after that. Fixed by filtering to
+      whichever price container the very first price element belongs to
+      (Win is always the first/leftmost column), verified directly against
+      a live race page before shipping.
