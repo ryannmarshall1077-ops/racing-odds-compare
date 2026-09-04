@@ -46,6 +46,10 @@ async function listWinMarkets(appKey, sessionToken, eventTypeId, maxResults = 1)
       eventTypeIds: [eventTypeId],
       marketCountries: ["AU"],
       marketTypeCodes: ["WIN"],
+      // Excludes markets that have already jumped — listMarketCatalogue
+      // otherwise keeps returning an in-play/just-closed race until it's
+      // fully settled, well after it's no longer useful to show.
+      marketStartTime: { from: new Date().toISOString() },
     },
     marketProjection: ["RUNNER_DESCRIPTION", "EVENT", "MARKET_START_TIME"],
     sort: "FIRST_TO_START",
