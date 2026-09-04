@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Racing Odds Compare</h1>
+      <p class="subtitle" id="race-subtitle">Horse Racing &mdash; Betfair vs Sportsbet</p>
+    </header>
+
+    <table id="odds-table">
+      <thead>
+        <tr>
+          <th>Runner</th>
+          <th>Betfair</th>
+          <th>Sportsbet</th>
+          <th>Edge</th>
+        </tr>
+      </thead>
+      <tbody id="odds-body">
+        <!-- rows injected by popup.js -->
+      </tbody>
+    </table>
+
+    <footer>
+      <span id="data-source-note">Showing mock data &mdash; live odds not yet connected.</span>
+    </footer>
+
+    <script src="mock-data.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
