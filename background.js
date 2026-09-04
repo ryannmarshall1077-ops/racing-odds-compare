@@ -152,6 +152,19 @@ async function refreshRace(marketId) {
     })
     .filter((r) => r.betfair !== null);
 
+  // Diagnostic: when we have a recent Sportsbet scan but it matched none of
+  // this race's runners, log both name lists side by side so a mismatch
+  // (spelling, punctuation, etc.) is visible instead of just "0 matched".
+  if (bookmakerByName && bookmakerMatched === 0) {
+    console.warn(
+      "Sportsbet scan found runners, but none matched this Betfair race by name.",
+      "\nBetfair (normalized):",
+      runners.map((r) => normalizeName(r.name)),
+      "\nSportsbet (normalized):",
+      [...bookmakerByName.keys()]
+    );
+  }
+
   const race = {
     race: `${market.event.venue || market.event.name} — ${market.marketName}`,
     runners,
