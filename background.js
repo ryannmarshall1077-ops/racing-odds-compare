@@ -156,7 +156,10 @@ async function refreshRace(marketId) {
     .filter((r) => r.status === "ACTIVE")
     .map((r) => {
       const name = runnerNames.get(r.selectionId) || `Runner ${r.selectionId}`;
-      const betfairPrice = r.ex?.availableToBack?.[0]?.price ?? null;
+      // Lay price, not Back — the relevant comparison for matched betting
+      // is "does the bookmaker's price beat what it costs to lay this off
+      // on Betfair", not the Betfair back price.
+      const betfairPrice = r.ex?.availableToLay?.[0]?.price ?? null;
       const scannedPrice = recentBookmakerRunners
         ? findBookmakerPrice(name, recentBookmakerRunners)
         : undefined;
