@@ -39,7 +39,12 @@ https://developer.betfair.com/.
       prices off that tab and merges them into the currently loaded race by
       matching runner names (click "Refresh live odds" first so there's a
       race to merge into).
-- [ ] Auto-refresh on an interval instead of manual buttons
+- [x] Auto-refresh — Betfair prices refresh automatically every minute via
+      `chrome.alarms` (Chrome's floor for alarm intervals, which also roughly
+      matches how often a Delayed key's data changes at the source). A
+      recent Sportsbet scan is re-applied on each refresh instead of being
+      reverted to the placeholder markup. The popup updates live while open;
+      "Refresh live odds" and "Scan Sportsbet tab" remain available manually.
 - [ ] Other bookmakers (TAB, Ladbrokes, Neds, ...) — each needs its own
       content script since every site's markup differs
 - [ ] Greyhound racing code (harness already appears to come through under

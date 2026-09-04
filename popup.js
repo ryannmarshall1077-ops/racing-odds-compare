@@ -6,9 +6,27 @@ function normalizeName(name) {
   return name.replace(/^\d+\.\s*/, "").trim().toLowerCase();
 }
 
+function noteFor(race) {
+  const betfairPart =
+    race.source === "live-betfair"
+      ? `Betfair: live${
+          race.fetchedAt ? ` (updated ${new Date(race.fetchedAt).toLocaleTimeString()})` : ""
+        }.`
+      : "Showing mock data — live odds not yet connected.";
+
+  if (race.source !== "live-betfair") return betfairPart;
+
+  const bookmakerPart =
+    race.bookmakerSource === "live-sportsbet"
+      ? " Bookmaker: live (Sportsbet)."
+      : " Bookmaker: placeholder markup (not yet scanned).";
+
+  return betfairPart + bookmakerPart;
+}
+
 let currentRace = null;
 
-function renderRace(race, { live } = {}) {
+function renderRace(race) {
   currentRace = race;
 
   document.getElementById("race-subtitle").textContent =
@@ -33,9 +51,7 @@ function renderRace(race, { live } = {}) {
     tbody.appendChild(row);
   }
 
-  document.getElementById("data-source-note").textContent = live
-    ? "Betfair: live. Bookmaker: placeholder markup (not yet a real source)."
-    : "Showing mock data — live odds not yet connected.";
+  document.getElementById("data-source-note").textContent = noteFor(race);
 }
 
 function mergeBookmakerOdds(race, bookmakerRunners) {
@@ -53,7 +69,14 @@ function mergeBookmakerOdds(race, bookmakerRunners) {
     return runner;
   });
 
-  return { race: { ...race, runners }, matched };
+  return {
+    race: {
+      ...race,
+      runners,
+      bookmakerSource: matched > 0 ? "live-sportsbet" : race.bookmakerSource,
+    },
+    matched,
+  };
 }
 
 const refreshBtn = document.getElementById("refresh-btn");
@@ -78,7 +101,7 @@ refreshBtn.addEventListener("click", () => {
       return;
     }
 
-    renderRace(response.race, { live: true });
+    renderRace(response.race);
   });
 });
 
@@ -102,12 +125,11 @@ scanBtn.addEventListener("click", async () => {
     if (!response.ok) throw new Error(response.error);
 
     const { race, matched } = mergeBookmakerOdds(currentRace, response.odds.runners);
-    renderRace(race, { live: true });
+    renderRace(race);
 
-    noteEl.textContent =
-      matched > 0
-        ? `Betfair: live. Bookmaker: live (Sportsbet, ${matched} runner${matched === 1 ? "" : "s"} matched).`
-        : "Scanned Sportsbet tab, but no runner names matched the current race.";
+    if (matched === 0) {
+      noteEl.textContent = "Scanned Sportsbet tab, but no runner names matched the current race.";
+    }
   } catch (err) {
     noteEl.textContent = err.message;
   } finally {
@@ -116,10 +138,14 @@ scanBtn.addEventListener("click", async () => {
   }
 });
 
-chrome.storage.local.get(["liveRace"], (stored) => {
-  if (stored.liveRace) {
-    renderRace(stored.liveRace, { live: true });
-  } else {
-    renderRace(MOCK_RACE, { live: false });
+// Reflects auto-refresh (background.js's alarm) while the popup happens to
+// be open, instead of only updating on the next manual click.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.liveRace) {
+    renderRace(changes.liveRace.newValue);
   }
+});
+
+chrome.storage.local.get(["liveRace"], (stored) => {
+  renderRace(stored.liveRace || MOCK_RACE);
 });

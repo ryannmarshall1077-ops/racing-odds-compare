@@ -1,16 +1,44 @@
 importScripts("js/betfair/auth.js", "js/betfair/api.js");
 
+const AUTO_REFRESH_ALARM = "refreshRace";
+const BOOKMAKER_ODDS_MAX_AGE_MS = 10 * 60 * 1000;
+
 chrome.runtime.onInstalled.addListener(() => {
   console.log("RaceOdds installed");
 });
 
+// Service workers restart often; re-registering an existing alarm by name is
+// a no-op, so it's safe (and necessary) to call this on every worker startup
+// rather than only from onInstalled.
+async function ensureAutoRefreshAlarm() {
+  const existing = await chrome.alarms.get(AUTO_REFRESH_ALARM);
+  if (!existing) {
+    // 1 minute is the floor Chrome allows for alarms, and also roughly
+    // matches how often a Delayed Betfair key's data actually changes.
+    chrome.alarms.create(AUTO_REFRESH_ALARM, { periodInMinutes: 1 });
+  }
+}
+ensureAutoRefreshAlarm();
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === AUTO_REFRESH_ALARM) {
+    refreshRace().catch((err) => console.warn("Auto-refresh skipped:", err.message));
+  }
+});
+
+function normalizeName(name) {
+  return name.replace(/^\d+\.\s*/, "").trim().toLowerCase();
+}
+
 // Fetches the next upcoming AU horse racing WIN market and its current
-// Betfair prices. The bookmaker column is a placeholder markup on the
-// Betfair price until a real bookmaker source is wired in (see README).
+// Betfair prices. Re-applies the most recent Sportsbet scan (if still
+// reasonably fresh) so periodic auto-refresh doesn't wipe out a manual scan
+// by reverting the bookmaker column back to the placeholder markup.
 async function refreshRace() {
   const stored = await chrome.storage.local.get([
     "betfairAppKey",
     "betfairSessionToken",
+    "bookmakerOdds",
   ]);
 
   if (!stored.betfairAppKey || !stored.betfairSessionToken) {
@@ -32,14 +60,35 @@ async function refreshRace() {
     market.runners.map((r) => [r.selectionId, r.runnerName])
   );
 
+  let bookmakerByName = null;
+  if (
+    stored.bookmakerOdds &&
+    Date.now() - stored.bookmakerOdds.scrapedAt < BOOKMAKER_ODDS_MAX_AGE_MS
+  ) {
+    bookmakerByName = new Map(
+      stored.bookmakerOdds.runners.map((r) => [normalizeName(r.name), r.price])
+    );
+  }
+
+  let bookmakerMatched = 0;
   const runners = book.runners
     .filter((r) => r.status === "ACTIVE")
     .map((r) => {
+      const name = runnerNames.get(r.selectionId) || `Runner ${r.selectionId}`;
       const betfairPrice = r.ex?.availableToBack?.[0]?.price ?? null;
+      const scannedPrice = bookmakerByName?.get(normalizeName(name));
+
+      if (scannedPrice !== undefined) bookmakerMatched++;
+
       return {
-        name: runnerNames.get(r.selectionId) || `Runner ${r.selectionId}`,
+        name,
         betfair: betfairPrice,
-        bookmaker: betfairPrice ? Number((betfairPrice * 1.08).toFixed(2)) : null,
+        bookmaker:
+          scannedPrice !== undefined
+            ? scannedPrice
+            : betfairPrice
+            ? Number((betfairPrice * 1.08).toFixed(2))
+            : null,
       };
     })
     .filter((r) => r.betfair !== null);
@@ -48,6 +97,7 @@ async function refreshRace() {
     race: `${market.event.venue || market.event.name} — ${market.marketName}`,
     runners,
     source: "live-betfair",
+    bookmakerSource: bookmakerMatched > 0 ? "live-sportsbet" : "placeholder",
     fetchedAt: Date.now(),
   };
 
