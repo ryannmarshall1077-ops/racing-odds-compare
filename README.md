@@ -123,3 +123,8 @@ https://developer.betfair.com/.
       all whitespace to plain spaces first. Confirmed via the actual
       character codes read off a live page (`...nz`, then char code 160,
       then `(Fr1)`).
+- [x] Fixed the manual scan's fallback trying to scrape the extension's own
+      tab — it used to fall back to "whichever tab is active," but since
+      this extension is itself a full tab (not a popup, per #12), clicking
+      the button from it makes it the active tab. Falls back to querying
+      for an actual open `sportsbet.com.au` tab instead.
