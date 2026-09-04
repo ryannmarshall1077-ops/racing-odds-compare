@@ -45,7 +45,18 @@ https://developer.betfair.com/.
       recent Sportsbet scan is re-applied on each refresh instead of being
       reverted to the placeholder markup. The popup updates live while open;
       "Refresh live odds" and "Scan Sportsbet tab" remain available manually.
+- [x] Upcoming races list — the popup shows the next ~15 upcoming AU races
+      (track, race number, time). Click one to open that exact race on both
+      Betfair and Sportsbet in new tabs — no manual searching. Betfair's link
+      is always exact (built from our own marketId); the Sportsbet link is
+      found by matching venue + race number + start time against Sportsbet's
+      own public race feed, so an unusual venue-name mismatch between the two
+      sites could occasionally leave a race without a Sportsbet link (shown
+      with a "!" marker).
 - [ ] Other bookmakers (TAB, Ladbrokes, Neds, ...) — each needs its own
       content script since every site's markup differs
 - [ ] Greyhound racing code (harness already appears to come through under
       the Horse Racing event type in AU)
+- [ ] Clicking a race in the Upcoming Races list could also load it into the
+      comparison table below, instead of the table always showing "whatever
+      Refresh live odds happened to find next"
