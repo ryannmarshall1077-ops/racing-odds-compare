@@ -153,6 +153,32 @@ chrome.storage.local.get(["liveRace"], (stored) => {
 const racesListEl = document.getElementById("races-list");
 const racesRefreshBtn = document.getElementById("races-refresh-btn");
 
+// Tracked in storage (not a plain variable) since the popup's JS state is
+// thrown away every time it closes, but the tabs it opened live on.
+async function openRaceTabs(race) {
+  const { lastRaceTabIds } = await chrome.storage.local.get(["lastRaceTabIds"]);
+
+  for (const tabId of lastRaceTabIds || []) {
+    try {
+      await chrome.tabs.remove(tabId);
+    } catch {
+      // Already closed by the user — nothing to do.
+    }
+  }
+
+  const newTabIds = [];
+
+  const betfairTab = await chrome.tabs.create({ url: race.betfairUrl });
+  newTabIds.push(betfairTab.id);
+
+  if (race.sportsbetUrl) {
+    const sportsbetTab = await chrome.tabs.create({ url: race.sportsbetUrl });
+    newTabIds.push(sportsbetTab.id);
+  }
+
+  await chrome.storage.local.set({ lastRaceTabIds: newTabIds });
+}
+
 function renderRacesList(races) {
   racesListEl.innerHTML = "";
 
@@ -179,12 +205,7 @@ function renderRacesList(races) {
       </span>
     `;
 
-    li.addEventListener("click", () => {
-      chrome.tabs.create({ url: race.betfairUrl });
-      if (race.sportsbetUrl) {
-        chrome.tabs.create({ url: race.sportsbetUrl });
-      }
-    });
+    li.addEventListener("click", () => openRaceTabs(race));
 
     racesListEl.appendChild(li);
   }
