@@ -73,3 +73,25 @@ footer {
   color: var(--muted);
   font-size: 10px;
 }
+
+#refresh-btn {
+  display: block;
+  margin-top: 8px;
+  width: 100%;
+  padding: 7px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+#refresh-btn:hover {
+  border-color: var(--accent);
+}
+
+#refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
