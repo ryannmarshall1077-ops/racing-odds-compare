@@ -83,11 +83,14 @@ const refreshBtn = document.getElementById("refresh-btn");
 const scanBtn = document.getElementById("scan-btn");
 const noteEl = document.getElementById("data-source-note");
 
-refreshBtn.addEventListener("click", () => {
+// marketId is optional — omitting it tells background.js to keep following
+// whatever race was last selected (falling back to "next race" if nothing
+// has been selected yet), which is what the plain Refresh button wants.
+function loadRaceIntoTable(marketId) {
   refreshBtn.disabled = true;
-  refreshBtn.textContent = "Refreshing...";
+  refreshBtn.textContent = "Loading...";
 
-  chrome.runtime.sendMessage({ type: "REFRESH_RACE" }, (response) => {
+  chrome.runtime.sendMessage({ type: "REFRESH_RACE", marketId }, (response) => {
     refreshBtn.disabled = false;
     refreshBtn.textContent = "Refresh live odds";
 
@@ -103,7 +106,9 @@ refreshBtn.addEventListener("click", () => {
 
     renderRace(response.race);
   });
-});
+}
+
+refreshBtn.addEventListener("click", () => loadRaceIntoTable());
 
 scanBtn.addEventListener("click", async () => {
   scanBtn.disabled = true;
@@ -205,7 +210,10 @@ function renderRacesList(races) {
       </span>
     `;
 
-    li.addEventListener("click", () => openRaceTabs(race));
+    li.addEventListener("click", () => {
+      openRaceTabs(race);
+      loadRaceIntoTable(race.marketId);
+    });
 
     racesListEl.appendChild(li);
   }

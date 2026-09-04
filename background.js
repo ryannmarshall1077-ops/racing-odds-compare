@@ -30,15 +30,22 @@ function normalizeName(name) {
   return name.replace(/^\d+\.\s*/, "").trim().toLowerCase();
 }
 
-// Fetches the next upcoming AU horse racing WIN market and its current
-// Betfair prices. Re-applies the most recent Sportsbet scan (if still
-// reasonably fresh) so periodic auto-refresh doesn't wipe out a manual scan
-// by reverting the bookmaker column back to the placeholder markup.
-async function refreshRace() {
+// Fetches the current Betfair prices for a race and re-renders the popup's
+// comparison table with them. If `marketId` is given, that becomes (and is
+// persisted as) the selected race; otherwise it follows whatever race was
+// last selected, falling back to "next upcoming race" if nothing has been
+// selected yet. This means a manual refresh click and the auto-refresh
+// alarm both keep following whichever race the user last clicked, instead
+// of silently jumping back to "next race" on every tick.
+// Also re-applies the most recent Sportsbet scan (if still reasonably
+// fresh) so a refresh doesn't wipe out a manual scan by reverting the
+// bookmaker column back to the placeholder markup.
+async function refreshRace(marketId) {
   const stored = await chrome.storage.local.get([
     "betfairAppKey",
     "betfairSessionToken",
     "bookmakerOdds",
+    "selectedMarketId",
   ]);
 
   if (!stored.betfairAppKey || !stored.betfairSessionToken) {
@@ -46,12 +53,24 @@ async function refreshRace() {
   }
 
   const { betfairAppKey: appKey, betfairSessionToken: sessionToken } = stored;
+  const targetMarketId = marketId || stored.selectedMarketId;
 
-  const eventTypeId = await findEventTypeId(appKey, sessionToken, "Horse Racing");
-  const markets = await listWinMarkets(appKey, sessionToken, eventTypeId, 1);
+  if (marketId) {
+    await chrome.storage.local.set({ selectedMarketId: marketId });
+  }
 
-  if (markets.length === 0) {
-    throw new Error("No upcoming AU horse racing WIN markets found right now.");
+  let markets;
+  if (targetMarketId) {
+    markets = await listMarketsByIds(appKey, sessionToken, [targetMarketId]);
+    if (markets.length === 0) {
+      throw new Error("That race is no longer available — pick another from Upcoming Races.");
+    }
+  } else {
+    const eventTypeId = await findEventTypeId(appKey, sessionToken, "Horse Racing");
+    markets = await listWinMarkets(appKey, sessionToken, eventTypeId, 1);
+    if (markets.length === 0) {
+      throw new Error("No upcoming AU horse racing WIN markets found right now.");
+    }
   }
 
   const market = markets[0];
@@ -149,6 +168,7 @@ async function listUpcomingRaces() {
         track,
         raceNumber,
         startTime: market.marketStartTime,
+        marketId: market.marketId,
         betfairUrl: `https://www.betfair.com.au/exchange/plus/horse-racing/market/${market.marketId}`,
         sportsbetUrl: sbMatch ? buildSportsbetRaceUrl(sbMatch) : null,
       };
@@ -179,7 +199,7 @@ async function scrapeBookmakerTab(tabId) {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "REFRESH_RACE") {
-    refreshRace()
+    refreshRace(message.marketId)
       .then((race) => sendResponse({ ok: true, race }))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true; // keep the message channel open for the async response
