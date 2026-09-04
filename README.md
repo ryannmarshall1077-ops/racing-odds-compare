@@ -99,3 +99,10 @@ https://developer.betfair.com/.
       ("No tab with id...") and fall back to scanning whatever tab is
       currently active, instead of silently failing every time against a
       dead reference.
+- [x] Matches runner names even when Sportsbet appends extra info — for NZ
+      harness handicap races Sportsbet's name includes a country code and
+      handicap distance Betfair's plain name doesn't (e.g. Betfair
+      "itz trixton time" vs Sportsbet "itz trixton time nz (10m)"). Matching
+      now treats one normalized name being a whole-word prefix of the other
+      as a match, not just exact equality — found via diagnostic logging
+      (#17) that showed real name lists side by side.

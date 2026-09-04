@@ -60,6 +60,23 @@ function normalizeName(name) {
   return name.replace(/^\d+\.\s*/, "").trim().toLowerCase();
 }
 
+// Sportsbet sometimes appends extra info after the core name — a country
+// code, a handicap distance, "(ft)" for front-marker — that Betfair's plain
+// runner name doesn't include, e.g. Betfair "itz trixton time" vs
+// Sportsbet "itz trixton time nz (10m)". Treat one normalized name being a
+// whole-word prefix of the other as a match, not just exact equality.
+function namesMatch(a, b) {
+  if (a === b) return true;
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  return shorter.length > 0 && longer.startsWith(shorter + " ");
+}
+
+function findBookmakerPrice(runnerName, bookmakerRunners) {
+  const normalized = normalizeName(runnerName);
+  const match = bookmakerRunners.find((r) => namesMatch(normalized, normalizeName(r.name)));
+  return match?.price;
+}
+
 // Fetches the current Betfair prices for a race and re-renders the popup's
 // comparison table with them. If `marketId` is given, that becomes (and is
 // persisted as) the selected race; otherwise it follows whatever race was
@@ -119,15 +136,11 @@ async function refreshRace(marketId) {
     market.runners.map((r) => [r.selectionId, r.runnerName])
   );
 
-  let bookmakerByName = null;
-  if (
+  const recentBookmakerRunners =
     stored.bookmakerOdds &&
     Date.now() - stored.bookmakerOdds.scrapedAt < BOOKMAKER_ODDS_MAX_AGE_MS
-  ) {
-    bookmakerByName = new Map(
-      stored.bookmakerOdds.runners.map((r) => [normalizeName(r.name), r.price])
-    );
-  }
+      ? stored.bookmakerOdds.runners
+      : null;
 
   let bookmakerMatched = 0;
   const runners = book.runners
@@ -135,7 +148,9 @@ async function refreshRace(marketId) {
     .map((r) => {
       const name = runnerNames.get(r.selectionId) || `Runner ${r.selectionId}`;
       const betfairPrice = r.ex?.availableToBack?.[0]?.price ?? null;
-      const scannedPrice = bookmakerByName?.get(normalizeName(name));
+      const scannedPrice = recentBookmakerRunners
+        ? findBookmakerPrice(name, recentBookmakerRunners)
+        : undefined;
 
       if (scannedPrice !== undefined) bookmakerMatched++;
 
@@ -155,13 +170,13 @@ async function refreshRace(marketId) {
   // Diagnostic: when we have a recent Sportsbet scan but it matched none of
   // this race's runners, log both name lists side by side so a mismatch
   // (spelling, punctuation, etc.) is visible instead of just "0 matched".
-  if (bookmakerByName && bookmakerMatched === 0) {
+  if (recentBookmakerRunners && bookmakerMatched === 0) {
     console.warn(
       "Sportsbet scan found runners, but none matched this Betfair race by name.",
       "\nBetfair (normalized):",
       runners.map((r) => normalizeName(r.name)),
       "\nSportsbet (normalized):",
-      [...bookmakerByName.keys()]
+      recentBookmakerRunners.map((r) => normalizeName(r.name))
     );
   }
 
@@ -296,13 +311,9 @@ async function applyBookmakerOdds(odds) {
   const { liveRace } = await chrome.storage.local.get(["liveRace"]);
   if (!liveRace || liveRace.source !== "live-betfair") return;
 
-  const bookmakerByName = new Map(
-    odds.runners.map((r) => [normalizeName(r.name), r.price])
-  );
-
   let matched = 0;
   const runners = liveRace.runners.map((runner) => {
-    const price = bookmakerByName.get(normalizeName(runner.name));
+    const price = findBookmakerPrice(runner.name, odds.runners);
     if (price !== undefined) {
       matched++;
       return { ...runner, bookmaker: price };
