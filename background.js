@@ -7,6 +7,22 @@ chrome.runtime.onInstalled.addListener(() => {
   console.log("RaceOdds installed");
 });
 
+// No default_popup is set in the manifest, so clicking the toolbar icon
+// fires this instead — opens the UI as a full tab (reusing one if it's
+// already open) rather than a popup that closes as soon as focus moves to
+// one of the race tabs it opens.
+chrome.action.onClicked.addListener(async () => {
+  const url = chrome.runtime.getURL("popup.html");
+  const [existing] = await chrome.tabs.query({ url });
+
+  if (existing) {
+    await chrome.tabs.update(existing.id, { active: true });
+    await chrome.windows.update(existing.windowId, { focused: true });
+  } else {
+    await chrome.tabs.create({ url });
+  }
+});
+
 // Service workers restart often; re-registering an existing alarm by name is
 // a no-op, so it's safe (and necessary) to call this on every worker startup
 // rather than only from onInstalled.

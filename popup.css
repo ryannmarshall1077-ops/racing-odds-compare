@@ -35,29 +35,9 @@ header {
   border-bottom: 1px solid var(--border);
 }
 
-.header-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 h1 {
   margin: 0;
   font-size: 15px;
-}
-
-#open-tab-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  padding: 2px 4px;
-}
-
-#open-tab-btn:hover {
-  color: var(--text);
 }
 
 .subtitle {
