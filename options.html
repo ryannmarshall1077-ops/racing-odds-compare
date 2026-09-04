@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body class="options-body">
+    <header>
+      <h1>Betfair Connection</h1>
+      <p class="subtitle">
+        Credentials are stored only in this browser (chrome.storage.local) and
+        sent only to Betfair's own login endpoint.
+      </p>
+    </header>
+
+    <form id="betfair-form">
+      <label>
+        Application Key
+        <input type="text" id="app-key" autocomplete="off" />
+      </label>
+      <label>
+        Betfair Username
+        <input type="text" id="username" autocomplete="off" />
+      </label>
+      <label>
+        Betfair Password
+        <input type="password" id="password" autocomplete="off" />
+      </label>
+      <button type="submit">Save &amp; Test Login</button>
+    </form>
+
+    <p id="status" class="status"></p>
+
+    <script src="js/betfair/auth.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>
