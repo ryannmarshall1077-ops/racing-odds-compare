@@ -250,10 +250,28 @@ async function listUpcomingRaces() {
 // Scrapes Win odds off the given tab's currently displayed Sportsbet race
 // page. The tab must already be showing a Sportsbet racing page.
 async function scrapeBookmakerTab(tabId) {
-  const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId },
-    files: ["js/contentScripts/sportsbet.js"],
-  });
+  let result;
+  try {
+    [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["js/contentScripts/sportsbet.js"],
+    });
+  } catch (err) {
+    if (err.message.includes("No tab with id")) {
+      // The tab this id pointed to no longer exists — closed by the user,
+      // or Chrome restarted and reassigned ids (tab ids don't survive a
+      // browser restart). Clear it so future attempts don't keep silently
+      // retrying a dead reference forever.
+      const { sportsbetTabId } = await chrome.storage.local.get(["sportsbetTabId"]);
+      if (sportsbetTabId === tabId) {
+        await chrome.storage.local.set({ sportsbetTabId: null });
+      }
+      throw new Error(
+        "That Sportsbet tab is no longer open — click a race in Upcoming Races to open a fresh one."
+      );
+    }
+    throw err;
+  }
 
   if (!result || result.runners.length === 0) {
     throw new Error(
