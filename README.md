@@ -93,3 +93,9 @@ https://developer.betfair.com/.
       Known gap: the already-open Betfair/Sportsbet tabs don't auto-navigate
       to the new race in this case — only clicking a race in Upcoming Races
       does that.
+- [x] Recovers when the tracked Sportsbet tab goes stale — tab ids don't
+      survive a browser restart, and the tab may simply have been closed.
+      Both the manual scan button and the automatic scan now detect this
+      ("No tab with id...") and fall back to scanning whatever tab is
+      currently active, instead of silently failing every time against a
+      dead reference.
