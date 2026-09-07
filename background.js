@@ -95,8 +95,19 @@ function normalizeName(name) {
   // collapsing all whitespace to plain spaces first means "(fr1)" etc. line
   // up correctly whether the separator is a normal space or a non-breaking
   // one (this is what silently broke namesMatch's " " check before).
+  //
+  // Apostrophes are stripped outright (not just normalized to one style) —
+  // Betfair and Sportsbet don't consistently agree on whether a possessive
+  // name even HAS one at all, e.g. a real case: Sportsbet "Georgia's My
+  // Mum" vs Betfair "Georgias My Mum". Since that's a genuine
+  // presence/absence difference, not just straight vs curly ', no amount of
+  // quote-character normalization would have matched them — the character
+  // has to go entirely. A silent match failure here doesn't error, it just
+  // falls back to the synthetic betfair×1.08 placeholder price, which is
+  // what actually happened and is what surfaced this.
   return name
     .replace(/^\d+\.\s*/, "")
+    .replace(/['’‘`]/g, "")
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
