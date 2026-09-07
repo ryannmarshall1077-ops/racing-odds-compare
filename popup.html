@@ -31,7 +31,7 @@
           <th>Sportsbet</th>
           <th>Betfair (Lay)</th>
           <th>Lay $</th>
-          <th>Edge</th>
+          <th id="metric-header">Edge</th>
         </tr>
       </thead>
       <tbody id="odds-body">
@@ -40,6 +40,13 @@
     </table>
 
     <div id="hedge-control">
+      <label for="mode-select">Mode</label>
+      <select id="mode-select">
+        <option value="mug">Mug</option>
+        <option value="bonus">Bonus</option>
+        <option value="run2nd3rd" disabled>Run 2nd 3rd (coming soon)</option>
+        <option value="run2nd" disabled>Run 2nd (coming soon)</option>
+      </select>
       <label for="stake-input">Stake</label>
       <span>$</span>
       <input type="number" id="stake-input" min="0" step="1" value="50" />
