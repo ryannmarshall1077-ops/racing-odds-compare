@@ -72,12 +72,23 @@ const settingFields = {
   defaultStake: document.getElementById("setting-default-stake"),
   defaultHedge: document.getElementById("setting-default-hedge"),
   showCountdowns: document.getElementById("setting-show-countdowns"),
+  maxResults: document.getElementById("setting-max-results"),
+  commissionDiscount: document.getElementById("setting-commission-discount"),
+  defaultRetention: document.getElementById("setting-default-retention"),
+  showLiquidityColumn: document.getElementById("setting-show-liquidity-column"),
+  showLiabilityColumn: document.getElementById("setting-show-liability-column"),
+  maxLiability: document.getElementById("setting-max-liability"),
   pinRaceTabs: document.getElementById("setting-pin-race-tabs"),
   focusRaceTabsOnOpen: document.getElementById("setting-focus-race-tabs"),
   autoRefresh: document.getElementById("setting-auto-refresh"),
   accentColor: document.getElementById("setting-accent-color"),
   compactRows: document.getElementById("setting-compact-rows"),
 };
+
+// maxResults/maxLiability are the only "blank = unlimited" fields — an
+// empty string reads as null there, not 0 (Number("") === 0, which would
+// silently mean "show nothing"/"allow no liability" instead of "no limit").
+const nullableFields = new Set(["maxResults", "maxLiability"]);
 
 const raceTypeCheckboxes = {
   horse: document.getElementById("setting-race-type-horse"),
@@ -94,6 +105,12 @@ function applySettingsToForm(settings) {
   settingFields.defaultStake.value = settings.defaultStake;
   settingFields.defaultHedge.value = settings.defaultHedge;
   settingFields.showCountdowns.checked = settings.showCountdowns;
+  settingFields.maxResults.value = settings.maxResults ?? "";
+  settingFields.commissionDiscount.value = settings.commissionDiscount;
+  settingFields.defaultRetention.value = settings.defaultRetention;
+  settingFields.showLiquidityColumn.checked = settings.showLiquidityColumn;
+  settingFields.showLiabilityColumn.checked = settings.showLiabilityColumn;
+  settingFields.maxLiability.value = settings.maxLiability ?? "";
   settingFields.pinRaceTabs.checked = settings.pinRaceTabs;
   settingFields.focusRaceTabsOnOpen.checked = settings.focusRaceTabsOnOpen;
   settingFields.autoRefresh.checked = settings.autoRefresh;
@@ -121,8 +138,9 @@ for (const [key, el] of Object.entries(settingFields)) {
   el.addEventListener("change", () => {
     let value;
     if (el.type === "checkbox") value = el.checked;
-    else if (el.type === "number") value = Number(el.value);
-    else value = el.value; // select (mode/sort) and color both read fine as strings
+    else if (el.type === "number") {
+      value = el.value === "" ? (nullableFields.has(key) ? null : 0) : Number(el.value);
+    } else value = el.value; // select (mode/sort) and color both read fine as strings
 
     saveSettings({ [key]: value }).then(() => flashSettingsStatus("Saved"));
   });

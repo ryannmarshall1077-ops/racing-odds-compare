@@ -15,6 +15,32 @@ const DEFAULT_SETTINGS = {
   defaultHedge: 100,
   defaultRaceTypes: ["horse", "harness", "greyhound"],
   showCountdowns: true,
+  // null = unlimited (matches the existing behavior of showing every
+  // runner) — not defaulted to HorsePower's "10" since our races are
+  // typically small fields where a cap would rarely matter, and silently
+  // truncating an existing user's table isn't a change to make by default.
+  maxResults: null,
+  // Percentage POINTS knocked off whatever commissionForTrack() would
+  // otherwise return (e.g. 2 on an 8% track -> 6% used everywhere) — for
+  // a Betfair account with a loyalty/volume discount off the standard
+  // Market Base Rate. 0 = no discount, matches every rate we've verified
+  // so far.
+  commissionDiscount: 0,
+  // NOT yet consumed by Bonus Mode's Ret% column — that's still correctly
+  // computed live per-runner from real odds (bonusRetentionPercent(),
+  // verified against real HorsePower output). This mirrors HorsePower's
+  // own "Default retention" field, which per its own hint text is a
+  // fallback/target rather than what drives their real Ret% either — held
+  // here as infrastructure for the still-unbuilt Run 2nd 3rd EV column
+  // (see README's "EV deliberately NOT implemented" note), which does
+  // need a retention *assumption* rather than a per-runner calculation.
+  defaultRetention: 80,
+  showLiquidityColumn: true,
+  showLiabilityColumn: false,
+  // Dollars — null = unlimited. Rows whose liability (Lay $ × (Betfair
+  // odds - 1) — what you'd owe if the lay bet loses) exceeds this are
+  // filtered out of the displayed table entirely, not just flagged.
+  maxLiability: null,
 
   // Tab and Window management
   pinRaceTabs: false,

@@ -203,6 +203,15 @@ function formatLiquidity(liquidity) {
     : `$${Math.round(liquidity)}`;
 }
 
+// What you'd owe if the lay bet loses (the backed selection wins) — the
+// standard exchange lay-liability formula, stake × (odds - 1). Unlike
+// Liquidity this is always computable from data already on the row (no
+// "genuinely absent" case), since it's derived from our own Lay $, not
+// scraped.
+function liabilityFor(layDollars, betfairOdds) {
+  return layDollars * (betfairOdds - 1);
+}
+
 function renderRace(race) {
   currentRace = race;
 
@@ -215,20 +224,39 @@ function renderRace(race) {
   const tbody = document.getElementById("odds-body");
   tbody.innerHTML = "";
 
-  const commission = commissionForTrack(race.track, race.sport);
+  // Race Result / Display > Betfair commission discount — percentage
+  // points off whatever the track/sport would otherwise charge, floored
+  // at 0% so a discount larger than the base rate can't go negative.
+  const baseCommission = commissionForTrack(race.track, race.sport);
+  const commission = Math.max(0, baseCommission - currentSettings.commissionDiscount / 100);
   const hedge = hedgePercent / 100;
 
-  for (const runner of sortedRunners(race, commission, hedge)) {
+  let rows = sortedRunners(race, commission, hedge).map((runner) => {
     const metric = metricPercent(runner, commission, hedge);
     const layDollars = rowLayDollars(runner, commission, hedge);
+    const liability = liabilityFor(layDollars, runner.betfair);
+    return { runner, metric, layDollars, liability };
+  });
+
+  // Max liability filters displayed rows entirely (not just a visual
+  // flag), per the Settings page's own description of the setting.
+  if (currentSettings.maxLiability !== null) {
+    rows = rows.filter((r) => r.liability <= currentSettings.maxLiability);
+  }
+  if (currentSettings.maxResults !== null) {
+    rows = rows.slice(0, currentSettings.maxResults);
+  }
+
+  for (const { runner, metric, layDollars, liability } of rows) {
     const row = document.createElement("tr");
 
     row.innerHTML = `
       <td>${runner.name}</td>
       <td>${runner.bookmaker.toFixed(2)}</td>
       <td>${runner.betfair.toFixed(2)}</td>
-      <td>${formatLiquidity(runner.betfairLiquidity)}</td>
+      <td class="col-liquidity">${formatLiquidity(runner.betfairLiquidity)}</td>
       <td class="lay-dollars" title="Click to copy">${layDollars.toFixed(2)}</td>
+      <td class="col-liability">${liability.toFixed(2)}</td>
       <td class="${metric >= 0 ? "edge-positive" : "edge-negative"}">
         ${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%
       </td>
@@ -623,6 +651,8 @@ loadSettings().then((settings) => {
 
   document.documentElement.style.setProperty("--accent", settings.accentColor);
   document.body.classList.toggle("compact-rows", settings.compactRows);
+  document.body.classList.toggle("hide-liquidity", !settings.showLiquidityColumn);
+  document.body.classList.toggle("show-liability", settings.showLiabilityColumn);
 
   if (currentRace) renderRace(currentRace);
   if (latestRaces.length > 0) renderFilteredRacesList();

@@ -321,7 +321,35 @@ https://developer.betfair.com/.
         session — changing them live in the popup doesn't overwrite these,
         by design, so a quick experiment doesn't silently become your new
         default), plus a toggle for whether Upcoming Races shows countdown
-        timers at all.
+        timers at all. Added after seeing HorsePower's own Race
+        Result/Display settings:
+        - **Maximum results** — caps how many runner rows the table shows
+          (blank = unlimited, the existing behavior). "Maximum results per
+          bookie" from HorsePower's version was deliberately left out — that
+          only makes sense when comparing several bookmakers side by side;
+          we compare exactly one (Sportsbet), so it wouldn't do anything
+          different from "Maximum results" itself.
+        - **Betfair commission discount** — percentage points knocked off
+          whatever `commissionForTrack` would otherwise return, for an
+          account with a loyalty/volume discount off the standard Market
+          Base Rate. Applied to the commission value before every formula
+          (Edge%/Ret%/Lay $/Liability) uses it, not just displayed.
+        - **Default retention** — NOT yet consumed anywhere. Bonus Mode's
+          Ret% column stays correctly computed live per-runner
+          (`bonusRetentionPercent()`, verified against real HorsePower
+          output). This exists as infrastructure for the still-unbuilt Run
+          2nd 3rd EV column, which needs a retention *assumption* rather
+          than a per-runner calculation — see the EV note further up.
+        - **Liability column** (off by default) — what you'd owe if the lay
+          bet loses: `Lay $ × (Betfair odds − 1)`, the standard exchange
+          lay-liability formula. Computed from data already on each row (Lay
+          $, Betfair odds), not scraped, so there's no "unknown" case like
+          Liquidity has.
+        - **Show Liquidity column** — a toggle for the existing column
+          (on by default, matching its prior always-on behavior).
+        - **Max liability** — rows whose liability exceeds this are hidden
+          from the table entirely (not just flagged), matching HorsePower's
+          own description of the setting. Blank = unlimited.
       - **Tab and Window management** — pin the Betfair/Sportsbet tabs
         when opened, and whether opening a race switches focus to those
         tabs (default: stay on this tab, the prior unconditional behavior).
