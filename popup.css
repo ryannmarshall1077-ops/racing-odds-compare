@@ -182,9 +182,31 @@ h1 {
   color: var(--muted);
 }
 
+#winner-banner {
+  margin: 10px 14px 0;
+  padding: 8px 12px;
+  background: rgba(61, 220, 151, 0.12);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* An id selector beats the UA stylesheet's own [hidden] rule, so this has
+   to be spelled out explicitly or the banner above would stay visible
+   even while hidden. */
+#winner-banner[hidden] {
+  display: none;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
+}
+
+.winner-row {
+  background: rgba(61, 220, 151, 0.08);
 }
 
 th, td {

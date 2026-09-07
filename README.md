@@ -384,3 +384,24 @@ https://developer.betfair.com/.
       load-bearing copies of that matching logic live in background.js,
       used by both the REST refresh and the live DOM-watcher paths, and
       were untouched).
+- [x] Shows the winner once Betfair settles the race, if it's still the
+      one loaded — a 🏆 banner above the table, and the winning row gets a
+      subtle highlight. Detected as part of the normal refresh flow
+      (manual "Refresh live odds", or the ~60s auto-refresh alarm) via
+      Betfair's own per-runner status field (`ACTIVE` pre-race, `WINNER`/
+      `LOSER` once settled) — no separate polling of its own.
+      - Previously, a settled race would have gone silently empty: the
+        runner list was filtered to `status === "ACTIVE"` only, and every
+        runner becomes `WINNER`/`LOSER` at settlement, so none passed.
+        Now only genuinely scratched (`REMOVED`) runners get filtered out.
+      - Betfair also stops returning fresh prices for a settled market, so
+        a runner's Betfair price/liquidity now falls back to its last
+        known value instead of going null (previously it would have been
+        dropped entirely by a `betfair !== null` filter at the end of the
+        same function) — keeps the table showing real final odds instead
+        of blanking out right as the result comes in.
+      - Falls back to "next race" the same way it already did once
+        Betfair fully drops the market from its catalogue sometime after
+        settlement (existing behavior, unrelated to this) — this only
+        changes what happens *while* the just-settled race is still
+        selected and returned.
