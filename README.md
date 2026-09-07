@@ -283,13 +283,14 @@ https://developer.betfair.com/.
       - Each race in the Upcoming Races list shows a 🐎/🐕 prefix so the
         sport is obvious at a glance (a venue can host both on different
         days).
-      - **Commission is the one open question**: `commissionForTrack` now
-        takes a `sport` argument and looks up a `BETFAIR_COMMISSION`
-        table per sport, but the greyhound table currently just reuses
-        horse racing's rates as a starting assumption — this is NOT yet
-        confirmed against Betfair's own published Market Base Rate card
-        for greyhounds specifically. If it turns out to differ by state,
-        `BETFAIR_COMMISSION.greyhound` in commission.js needs updating
-        with real figures (currently flagged with a TODO comment there).
-        Also added `TRACK_STATE_MAP` entries for the major greyhound
-        tracks not already covered by a same-named horse track.
+      - **Commission** — `commissionForTrack` now takes a `sport`
+        argument and looks up a `BETFAIR_COMMISSION` table per sport.
+        Confirmed against Betfair's own published Market Base Rate card:
+        ACT and NSW are the only two regions where greyhound racing's
+        rate (8%) differs from horse racing's (10% in both) — every
+        other state/region charges the same rate for both sports. NT is
+        intentionally left out of the greyhound table (Betfair's card
+        marks NT greyhound racing "N/A" — no market offered there), which
+        is harmless since no NT greyhound tracks are in `TRACK_STATE_MAP`
+        either. Also added `TRACK_STATE_MAP` entries for the major
+        greyhound tracks not already covered by a same-named horse track.
