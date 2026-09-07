@@ -200,13 +200,29 @@ h1 {
   display: none;
 }
 
+/* One column per bookie (bookies.js) now makes the table wider than the
+   popup's own fixed body width can always fit — scrolling the table
+   itself, rather than trying to keep shrinking it to fit, means adding a
+   bookie doesn't force a redesign of everything else on the page. */
+#odds-table-wrapper {
+  overflow-x: auto;
+}
+
 table {
   width: 100%;
+  min-width: 600px;
   border-collapse: collapse;
 }
 
 .winner-row {
   background: rgba(61, 220, 151, 0.08);
+}
+
+/* Whichever bookie has the best (highest) price for a runner — the one
+   Edge%/Ret%/Lay $/Liability are actually computed from. */
+.col-bookie.best-price {
+  color: var(--accent);
+  font-weight: 600;
 }
 
 th, td {

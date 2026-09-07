@@ -61,12 +61,32 @@ function noteFor(race) {
 
   if (race.source !== "live-betfair") return systemNotePart + betfairPart;
 
-  const bookmakerPart =
-    race.bookmakerSource === "live-sportsbet"
-      ? " Bookmaker: live (Sportsbet)."
-      : " Bookmaker: placeholder markup (not yet scanned).";
+  const bookmakerPart = BOOKIE_LIST.map(
+    (b) =>
+      ` ${b.label}: ${
+        race.bookmakerSources?.[b.id] === "live" ? "live." : "placeholder markup (not yet scanned)."
+      }`
+  ).join("");
 
   return systemNotePart + betfairPart + bookmakerPart;
+}
+
+// Whichever bookie currently has the higher price for this runner — that's
+// the one Edge%/Ret%/Lay $/Liability get computed against, so the table
+// always reflects the best real opportunity across every bookmaker
+// compared, not just whichever one happens to be listed first. The raw
+// per-bookie price columns still show every bookmaker's own number
+// alongside it (with this one highlighted), so nothing about the
+// comparison itself is hidden — this just picks what feeds the metric.
+function bestBookmakerPrice(runner) {
+  let best = null;
+  for (const bookie of BOOKIE_LIST) {
+    const price = runner.bookmakers?.[bookie.id];
+    if (price != null && (best === null || price > best.price)) {
+      best = { id: bookie.id, price };
+    }
+  }
+  return best;
 }
 
 let currentRace = null;
@@ -123,15 +143,17 @@ function parseRunnerNumber(name) {
 // which formula is active — sorting, rendering, and the column header all
 // go through these.
 function metricPercent(runner, commission, hedge) {
+  const price = bestBookmakerPrice(runner)?.price ?? 0;
   return currentMode === "bonus"
-    ? bonusRetentionPercent(runner.betfair, runner.bookmaker, commission, hedge)
-    : edgePercent(runner.betfair, runner.bookmaker, commission, hedge);
+    ? bonusRetentionPercent(runner.betfair, price, commission, hedge)
+    : edgePercent(runner.betfair, price, commission, hedge);
 }
 
 function rowLayDollars(runner, commission, hedge) {
+  const price = bestBookmakerPrice(runner)?.price ?? 0;
   return currentMode === "bonus"
-    ? layStakeBonus(stakeAmount, runner.betfair, runner.bookmaker, commission, hedge)
-    : layStake(stakeAmount, runner.betfair, runner.bookmaker, commission, hedge);
+    ? layStakeBonus(stakeAmount, runner.betfair, price, commission, hedge)
+    : layStake(stakeAmount, runner.betfair, price, commission, hedge);
 }
 
 function sortedRunners(race, commission, hedge) {
@@ -223,9 +245,16 @@ function renderRace(race) {
     const row = document.createElement("tr");
     if (runner.result === "WINNER") row.className = "winner-row";
 
+    const best = bestBookmakerPrice(runner);
+    const bookieCells = BOOKIE_LIST.map((b) => {
+      const price = runner.bookmakers?.[b.id];
+      const bestClass = best?.id === b.id ? " best-price" : "";
+      return `<td class="col-bookie${bestClass}">${price != null ? price.toFixed(2) : "—"}</td>`;
+    }).join("");
+
     row.innerHTML = `
       <td>${runner.name}</td>
-      <td>${runner.bookmaker?.toFixed(2) ?? "—"}</td>
+      ${bookieCells}
       <td>${runner.betfair?.toFixed(2) ?? "—"}</td>
       <td class="col-liquidity">${formatLiquidity(runner.betfairLiquidity)}</td>
       <td class="lay-dollars" title="Click to copy">${layDollars.toFixed(2)}</td>
@@ -377,34 +406,49 @@ async function openOrNavigateTab(tabId, url, { pinned = false, active = false } 
   return tab.id;
 }
 
-// The Betfair/Sportsbet tab ids are tracked in storage (not a plain
+// The Betfair/bookmaker tab ids are tracked in storage (not a plain
 // variable) since the popup's JS state is thrown away every time it closes,
-// but the tabs it opened live on. Reusing the same two tabs — navigating
-// them in place — instead of closing and recreating avoids the flicker of
-// old tabs disappearing and new ones appearing.
+// but the tabs it opened live on. Reusing the same tabs — navigating them
+// in place — instead of closing and recreating avoids the flicker of old
+// tabs disappearing and new ones appearing.
+//
+// Each bookie's tab id lives under `${bookieId}TabId` and its race URL
+// under `race[${bookieId}Url]` (e.g. sportsbetTabId/sportsbetUrl,
+// tabTabId/tabUrl) — same naming convention background.js's BOOKIES uses,
+// so adding a bookie here needs no new field-by-field wiring, just an
+// entry in bookies.js. A bookie with no URL for this race (most commonly
+// TAB, before its venue code has been learned — see tabMeetings.js) is
+// simply left untouched, same as Sportsbet already was when unmatched.
 //
 // Focus behavior is Settings-driven (Tab and Window management >
-// focusRaceTabsOnOpen): by default the race tabs open/reuse in the
+// focusRaceTabsOnOpen): by default every race tab opens/reuses in the
 // background and this extension tab's own focus is explicitly re-asserted
-// afterward (its prior behavior, unconditionally); with the setting on,
-// the Betfair tab becomes active instead and this tab's focus is left
-// alone, so the race tabs actually end up frontmost as the setting implies
-// — just skipping the refocus step wouldn't have been enough on its own,
-// since new tabs are still created inactive either way.
+// afterward (the prior, unconditional behavior); with the setting on, the
+// Betfair tab becomes active instead and this tab's focus is left alone,
+// so the race tabs actually end up frontmost as the setting implies — just
+// skipping the refocus step wouldn't have been enough on its own, since
+// new tabs are still created inactive either way.
 async function openRaceTabs(race) {
-  const stored = await chrome.storage.local.get(["betfairTabId", "sportsbetTabId"]);
+  const tabIdKeys = BOOKIE_LIST.map((b) => `${b.id}TabId`);
+  const stored = await chrome.storage.local.get(["betfairTabId", ...tabIdKeys]);
 
   const betfairTabId = await openOrNavigateTab(stored.betfairTabId, race.betfairUrl, {
     pinned: currentSettings.pinRaceTabs,
     active: currentSettings.focusRaceTabsOnOpen,
   });
-  const sportsbetTabId = race.sportsbetUrl
-    ? await openOrNavigateTab(stored.sportsbetTabId, race.sportsbetUrl, {
-        pinned: currentSettings.pinRaceTabs,
-      })
-    : stored.sportsbetTabId;
 
-  await chrome.storage.local.set({ betfairTabId, sportsbetTabId });
+  const updates = { betfairTabId };
+  for (const bookie of BOOKIE_LIST) {
+    const urlKey = `${bookie.id}Url`;
+    const tabIdKey = `${bookie.id}TabId`;
+    updates[tabIdKey] = race[urlKey]
+      ? await openOrNavigateTab(stored[tabIdKey], race[urlKey], {
+          pinned: currentSettings.pinRaceTabs,
+        })
+      : stored[tabIdKey];
+  }
+
+  await chrome.storage.local.set(updates);
 
   if (!currentSettings.focusRaceTabsOnOpen) {
     const ownTab = await chrome.tabs.getCurrent();

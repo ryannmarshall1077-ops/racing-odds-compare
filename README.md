@@ -405,3 +405,55 @@ https://developer.betfair.com/.
         settlement (existing behavior, unrelated to this) — this only
         changes what happens *while* the just-settled race is still
         selected and returned.
+- [x] Second bookmaker: TAB — the first step toward comparing multiple
+      bookmakers instead of just Sportsbet, and the architecture that
+      makes adding more from here straightforward.
+      - **Multi-bookmaker data model** — a runner's single `bookmaker`
+        field became `bookmakers: { sportsbet, tab }`; a race's single
+        `bookmakerSource` became `bookmakerSources` (per bookie). The
+        table now shows one column per bookmaker (`bookies.js` is the
+        shared id/label list both `popup.js` and `background.js` read, so
+        they can't drift apart), with whichever bookie currently has the
+        higher price highlighted — that's the one Edge%/Ret%/Lay $/
+        Liability are actually computed from, so the table always reflects
+        the best real opportunity across every bookmaker compared, not
+        just whichever is listed first.
+      - **TAB's odds come from DOM scraping**, not an API — unlike
+        Sportsbet's genuinely public NextEvents feed, the network requests
+        TAB's own page makes for race data go through obfuscated,
+        session-rotated paths (e.g. `/mMGa17/3nWsi/GSSHy/...`), which looks
+        like deliberate anti-scraping protection and isn't something safe
+        to depend on. `js/contentScripts/tab.js` (on-demand) and
+        `tabWatcher.js` (live) instead read the rendered page directly,
+        the same approach already used for Sportsbet — verified against a
+        real live TAB race page: runner rows carry a stable
+        `data-testid="runner-number-N"`, and the Fixed Odds Win price cell
+        carries `data-test-fixed-odds-win-price` (Angular's own
+        template-authored attributes survive their build process, unlike
+        auto-generated class names). Confirmed scraping all 8 runners with
+        correct prices directly against the live page before shipping.
+      - **No auto-open for TAB out of the box, unlike Sportsbet** — TAB
+        has no public race-list API to match against Betfair's own list,
+        and its direct race URLs need TAB's internal 3-letter venue code
+        (e.g. Launceston → `LAU`), which isn't derivable from the venue
+        name and isn't something we're handed anywhere else.
+      - **So TAB's venue codes are learned automatically instead of
+        hand-typed.** `js/contentScripts/tabMeetings.js`, injected on
+        TAB's own "Today's Racing" meetings pages, reads the real race
+        links already on the page (regex-matched against TAB's own URL
+        shape) and reports each `{venue, sport, slug, code}` triple to
+        `background.js`, which merges them into a persisted
+        `tabVenueCodes` table (keyed by venue+sport, since one venue can
+        host more than one sport on different days). Verified the
+        extraction regex against 5 real links captured from a live TAB
+        meetings page (mixed countries, sports, and venue-name formats) —
+        all 5 parsed correctly. The table only grows from meetings pages
+        the user actually visits — nothing is hand-typed, and a venue
+        simply has no TAB link until it's been seen once.
+      - Once a venue's code is known, clicking that race in Upcoming Races
+        opens (or reuses, same as the existing Betfair/Sportsbet tabs) a
+        TAB tab for it too — verified end-to-end with a simulated race
+        carrying a real learned TAB URL.
+      - The ~60s auto-refresh alarm now re-scans every tracked bookmaker
+        tab (not just Sportsbet's), and the diagnostic "scan found
+        runners, but none matched" console warning now fires per bookie.

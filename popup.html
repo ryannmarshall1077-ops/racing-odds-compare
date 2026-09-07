@@ -32,6 +32,7 @@
 
     <div id="winner-banner" hidden></div>
 
+    <div id="odds-table-wrapper">
     <table id="odds-table">
       <thead>
         <tr>
@@ -40,6 +41,7 @@
             <button id="sort-toggle-btn" title="Toggle sort order">Sort: Edge</button>
           </th>
           <th>Sportsbet</th>
+          <th>TAB</th>
           <th>Betfair (Lay)</th>
           <th class="col-liquidity" title="Betfair liquidity available at the best Lay price">Liquidity</th>
           <th>Lay $</th>
@@ -51,6 +53,7 @@
         <!-- rows injected by popup.js -->
       </tbody>
     </table>
+    </div>
 
     <div id="hedge-control">
       <label for="mode-select">Mode</label>
@@ -77,6 +80,7 @@
     <script src="mock-data.js"></script>
     <script src="commission.js"></script>
     <script src="settings.js"></script>
+    <script src="bookies.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>
