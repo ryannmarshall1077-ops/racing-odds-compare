@@ -228,9 +228,14 @@ async function refreshRaceInner(marketId) {
     (stored.liveRace?.runners || []).map((r) => [r.selectionId, r])
   );
 
+  // Once a race settles, Betfair marks every runner WINNER or LOSER (never
+  // ACTIVE again) and the REST call stops returning fresh prices for any
+  // of them — filtering to ACTIVE-only would empty the whole table out
+  // right when we want to keep showing it with the result. REMOVED
+  // (scratched) is the only status actually worth dropping.
   let bookmakerMatched = 0;
   const runners = book.runners
-    .filter((r) => r.status === "ACTIVE")
+    .filter((r) => r.status !== "REMOVED")
     .map((r) => {
       const name = runnerNames.get(r.selectionId) || `Runner ${r.selectionId}`;
       const selectionId = String(r.selectionId);
@@ -244,13 +249,20 @@ async function refreshRaceInner(marketId) {
       // on Betfair", not the Betfair back price.
       const restBetfairPrice = r.ex?.availableToLay?.[0]?.price ?? null;
       const restBetfairLiquidity = r.ex?.availableToLay?.[0]?.size ?? null;
-      const betfairPrice = domIsFresh ? existingRunner.betfair : restBetfairPrice;
+      // Falls back to the last known price when this fetch got nothing —
+      // most commonly a settled runner (no more prices at all), but also
+      // covers a plain transient gap in the REST response. Without this,
+      // a runner with a momentary null here would previously vanish
+      // entirely (the old filter below dropped anything betfair===null).
+      const betfairPrice = domIsFresh
+        ? existingRunner.betfair
+        : restBetfairPrice ?? existingRunner?.betfair ?? null;
       // Liquidity travels with price under the same freshness flag — both
       // come from whichever source (DOM watcher or this REST call) actually
       // supplied betfairPrice, so they're never mismatched between sources.
       const betfairLiquidity = domIsFresh
         ? existingRunner.betfairLiquidity ?? null
-        : restBetfairLiquidity;
+        : restBetfairLiquidity ?? (restBetfairPrice === null ? existingRunner?.betfairLiquidity ?? null : null);
       const scannedPrice = recentBookmakerRunners
         ? findBookmakerPrice(name, recentBookmakerRunners)
         : undefined;
@@ -262,6 +274,10 @@ async function refreshRaceInner(marketId) {
         selectionId,
         betfair: betfairPrice,
         betfairLiquidity,
+        // ACTIVE pre-race, WINNER/LOSER once settled — lets the UI show
+        // the result and highlight the winning row without needing a
+        // separate settlement check of its own.
+        result: r.status,
         ...(domIsFresh && { betfairPricedAt: existingRunner.betfairPricedAt }),
         bookmaker:
           scannedPrice !== undefined
@@ -272,6 +288,8 @@ async function refreshRaceInner(marketId) {
       };
     })
     .filter((r) => r.betfair !== null);
+
+  const winner = runners.find((r) => r.result === "WINNER")?.name ?? null;
 
   // Diagnostic: when we have a recent Sportsbet scan but it matched none of
   // this race's runners, log both name lists side by side so a mismatch
@@ -293,6 +311,7 @@ async function refreshRaceInner(marketId) {
     sport: sport.id,
     sportLabel: sport.label,
     runners,
+    winner,
     source: "live-betfair",
     bookmakerSource: bookmakerMatched > 0 ? "live-sportsbet" : "placeholder",
     fetchedAt: Date.now(),
