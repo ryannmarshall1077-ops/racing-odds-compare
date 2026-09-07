@@ -108,6 +108,13 @@ h1 {
   color: var(--muted);
 }
 
+.race-countdown {
+  font-size: 10px;
+  color: var(--accent);
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
 .race-warn {
   color: var(--accent-neg);
   font-size: 11px;
