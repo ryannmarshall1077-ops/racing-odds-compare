@@ -1,5 +1,7 @@
-// Injected on demand via chrome.scripting.executeScript against the active
-// Sportsbet racing tab (see background.js's SCRAPE_BOOKMAKER handler).
+// Injected on demand via chrome.scripting.executeScript against the tracked
+// Sportsbet tab, as part of background.js's scrapeBookmakerTab() — called
+// once per auto-refresh cycle (chrome.alarms, ~60s) to keep the bookmaker
+// column current between sportsbetWatcher.js's own live DOM-driven pushes.
 // Targets Sportsbet's stable data-automation-id attributes rather than its
 // auto-generated CSS class names, which change across deploys.
 (() => {

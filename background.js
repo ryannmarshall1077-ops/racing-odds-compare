@@ -566,13 +566,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true; // keep the message channel open for the async response
   }
 
-  if (message.type === "SCRAPE_BOOKMAKER") {
-    scrapeBookmakerTab(message.tabId)
-      .then((odds) => sendResponse({ ok: true, odds }))
-      .catch((err) => sendResponse({ ok: false, error: err.message }));
-    return true;
-  }
-
   if (message.type === "LIST_UPCOMING_RACES") {
     listUpcomingRaces()
       .then((races) => sendResponse({ ok: true, races }))
