@@ -49,47 +49,6 @@ function bonusRetentionPercent(betfair, bookmaker, commission, hedge) {
   return (100 * (bookmaker - 1) * (1 - c)) / (betfair - c);
 }
 
-function normalizeName(name) {
-  // Sportsbet's runner name markup splits the barrier/handicap suffix into
-  // a separate span starting with "&nbsp;" (U+00A0), not a regular space —
-  // collapsing all whitespace to plain spaces first means "(fr1)" etc. line
-  // up correctly whether the separator is a normal space or a non-breaking
-  // one (this is what silently broke namesMatch's " " check before).
-  //
-  // Apostrophes are stripped outright (not just normalized to one style) —
-  // Betfair and Sportsbet don't consistently agree on whether a possessive
-  // name even HAS one at all, e.g. a real case: Sportsbet "Georgia's My
-  // Mum" vs Betfair "Georgias My Mum". Since that's a genuine
-  // presence/absence difference, not just straight vs curly ', no amount of
-  // quote-character normalization would have matched them — the character
-  // has to go entirely. A silent match failure here doesn't error, it just
-  // falls back to the synthetic betfair×1.08 placeholder price, which is
-  // what actually happened and is what surfaced this.
-  return name
-    .replace(/^\d+\.\s*/, "")
-    .replace(/['’‘`]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-}
-
-// Sportsbet sometimes appends extra info after the core name — a country
-// code, a handicap distance, "(ft)" for front-marker — that Betfair's plain
-// runner name doesn't include, e.g. Betfair "itz trixton time" vs
-// Sportsbet "itz trixton time nz (10m)". Treat one normalized name being a
-// whole-word prefix of the other as a match, not just exact equality.
-function namesMatch(a, b) {
-  if (a === b) return true;
-  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
-  return shorter.length > 0 && longer.startsWith(shorter + " ");
-}
-
-function findBookmakerPrice(runnerName, bookmakerRunners) {
-  const normalized = normalizeName(runnerName);
-  const match = bookmakerRunners.find((r) => namesMatch(normalized, normalizeName(r.name)));
-  return match?.price;
-}
-
 function noteFor(race) {
   const systemNotePart = race.systemNote ? `${race.systemNote} ` : "";
 
@@ -340,29 +299,7 @@ document.getElementById("odds-body").addEventListener("click", async (event) => 
   }
 });
 
-function mergeBookmakerOdds(race, bookmakerRunners) {
-  let matched = 0;
-  const runners = race.runners.map((runner) => {
-    const price = findBookmakerPrice(runner.name, bookmakerRunners);
-    if (price !== undefined) {
-      matched++;
-      return { ...runner, bookmaker: price };
-    }
-    return runner;
-  });
-
-  return {
-    race: {
-      ...race,
-      runners,
-      bookmakerSource: matched > 0 ? "live-sportsbet" : race.bookmakerSource,
-    },
-    matched,
-  };
-}
-
 const refreshBtn = document.getElementById("refresh-btn");
-const scanBtn = document.getElementById("scan-btn");
 const noteEl = document.getElementById("data-source-note");
 
 // Two calls can be in flight at once if the user clicks races quickly, and
@@ -402,52 +339,6 @@ function loadRaceIntoTable(marketId) {
 }
 
 refreshBtn.addEventListener("click", () => loadRaceIntoTable());
-
-scanBtn.addEventListener("click", async () => {
-  scanBtn.disabled = true;
-  scanBtn.textContent = "Scanning...";
-
-  try {
-    if (!currentRace) {
-      throw new Error("Click 'Refresh live odds' first to load a race.");
-    }
-
-    // Prefer the tab this race's Sportsbet link opened/reused, so scanning
-    // works without needing that tab focused first — falls back to any
-    // open Sportsbet tab if no race has been selected via Upcoming Races
-    // yet, or if the tracked tab has gone stale (closed, or Chrome
-    // restarted and reassigned tab ids — those don't survive a restart).
-    // Deliberately NOT "the active tab": this extension is itself a full
-    // tab (not a popup), so clicking this button from it would otherwise
-    // make the fallback try to scrape the extension's own page.
-    const { sportsbetTabId } = await chrome.storage.local.get(["sportsbetTabId"]);
-    let response = sportsbetTabId
-      ? await chrome.runtime.sendMessage({ type: "SCRAPE_BOOKMAKER", tabId: sportsbetTabId })
-      : null;
-
-    if (!response || (!response.ok && response.error.includes("no longer open"))) {
-      const [tab] = await chrome.tabs.query({ url: "*://*.sportsbet.com.au/*" });
-      if (!tab) {
-        throw new Error("No Sportsbet tab found — click a race in Upcoming Races to open one.");
-      }
-      response = await chrome.runtime.sendMessage({ type: "SCRAPE_BOOKMAKER", tabId: tab.id });
-    }
-
-    if (!response.ok) throw new Error(response.error);
-
-    const { race, matched } = mergeBookmakerOdds(currentRace, response.odds.runners);
-    renderRace(race);
-
-    if (matched === 0) {
-      noteEl.textContent = "Scanned Sportsbet tab, but no runner names matched the current race.";
-    }
-  } catch (err) {
-    noteEl.textContent = err.message;
-  } finally {
-    scanBtn.disabled = false;
-    scanBtn.textContent = "Scan Sportsbet tab for odds";
-  }
-});
 
 // Reflects auto-refresh (background.js's alarm) while the popup happens to
 // be open, instead of only updating on the next manual click.

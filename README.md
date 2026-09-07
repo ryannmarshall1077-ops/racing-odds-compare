@@ -369,6 +369,21 @@ https://developer.betfair.com/.
         didn't replicate HorsePower's exact settings where we don't have
         the underlying feature yet (e.g. no colour *theme presets*, just
         one accent colour; no per-window tab placement, just pin/focus).
+- [x] Removed "Scan Sportsbet tab for odds" — made redundant by
+      sportsbetWatcher.js (pushes bookmaker updates the instant Sportsbet's
+      own page changes, no button needed) and by the ~60s auto-refresh
+      alarm (which already re-scrapes the tracked Sportsbet tab as part of
+      its own cycle, via the same `scrapeBookmakerTab()`/`sportsbet.js`
+      content script this button used to trigger manually). "Refresh live
+      odds" stays — it's still the only way to force a fresh pull if
+      auto-refresh has been turned off in Settings, and gives an
+      on-demand refresh/error-retry instead of waiting on the alarm or a
+      DOM mutation. Also removed `mergeBookmakerOdds` and popup.js's own
+      copy of `normalizeName`/`namesMatch`/`findBookmakerPrice` (dead code
+      once the button's client-side merge path was gone — the real,
+      load-bearing copies of that matching logic live in background.js,
+      used by both the REST refresh and the live DOM-watcher paths, and
+      were untouched).
 - [x] Shows the winner once Betfair settles the race, if it's still the
       one loaded — a 🏆 banner above the table, and the winning row gets a
       subtle highlight. Detected as part of the normal refresh flow
