@@ -114,19 +114,19 @@ function renderRace(race) {
   document.getElementById("data-source-note").textContent = noteFor(race);
 }
 
-const sortNumberBtn = document.getElementById("sort-number-btn");
-const sortEdgeBtn = document.getElementById("sort-edge-btn");
+const sortToggleBtn = document.getElementById("sort-toggle-btn");
 
 function setSortMode(mode) {
   sortMode = mode;
-  sortNumberBtn.classList.toggle("active", mode === "number");
-  sortEdgeBtn.classList.toggle("active", mode === "edge");
+  sortToggleBtn.textContent = mode === "number" ? "Sort: Number" : "Sort: Edge";
   if (currentRace) renderRace(currentRace);
 }
 
-sortNumberBtn.addEventListener("click", () => setSortMode("number"));
-sortEdgeBtn.addEventListener("click", () => setSortMode("edge"));
-setSortMode("number"); // sets the initial active-header styling
+sortToggleBtn.addEventListener("click", (event) => {
+  event.stopPropagation(); // clicking the button shouldn't also trigger anything on the <th> itself
+  setSortMode(sortMode === "number" ? "edge" : "number");
+});
+sortToggleBtn.textContent = sortMode === "number" ? "Sort: Number" : "Sort: Edge";
 
 function mergeBookmakerOdds(race, bookmakerRunners) {
   let matched = 0;

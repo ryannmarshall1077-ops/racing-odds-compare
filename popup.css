@@ -142,16 +142,26 @@ th {
   text-transform: uppercase;
 }
 
-th.sortable {
-  cursor: pointer;
-  user-select: none;
+th:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-th.sortable:hover {
+#sort-toggle-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 3px;
   color: var(--text);
+  font-size: 10px;
+  text-transform: none;
+  padding: 2px 6px;
+  cursor: pointer;
 }
 
-th.sortable.active {
+#sort-toggle-btn:hover {
+  border-color: var(--accent);
   color: var(--accent);
 }
 
