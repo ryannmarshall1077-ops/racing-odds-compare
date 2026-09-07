@@ -164,3 +164,10 @@ https://developer.betfair.com/.
       first pending mutation at 150ms, guaranteeing a flush at least that
       often even under constant unrelated DOM churn, while still coalescing
       rapid bursts with a 50ms debounce in between.
+- [x] Auto-relogin on an expired Betfair session — a session token going
+      stale used to surface as `INVALID_SESSION_INFORMATION` and require
+      going back into Options to log in by hand. Since the app
+      key/username/password entered there are already stored, an expired
+      session now triggers an automatic re-login with those, retried once,
+      transparently. Only a genuinely missing/wrong stored credential still
+      needs a human back in Options.

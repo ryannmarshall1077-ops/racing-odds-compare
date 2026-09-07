@@ -96,7 +96,7 @@ function findBookmakerPrice(runnerName, bookmakerRunners) {
 // Also re-applies the most recent Sportsbet scan (if still reasonably
 // fresh) so a refresh doesn't wipe out a manual scan by reverting the
 // bookmaker column back to the placeholder markup.
-async function refreshRace(marketId) {
+async function refreshRaceInner(marketId) {
   const stored = await chrome.storage.local.get([
     "betfairAppKey",
     "betfairSessionToken",
@@ -251,7 +251,7 @@ function normalizeVenue(name) {
 // Betfair (built from our own marketId — always exact) and Sportsbet (built
 // by matching venue name + race number + start time against Sportsbet's own
 // NextEvents feed — falls back to no link if nothing matches closely enough).
-async function listUpcomingRaces() {
+async function listUpcomingRacesInner() {
   const stored = await chrome.storage.local.get([
     "betfairAppKey",
     "betfairSessionToken",
@@ -296,6 +296,46 @@ async function listUpcomingRaces() {
 
   await chrome.storage.local.set({ upcomingRaces: races });
   return races;
+}
+
+// Betfair session tokens expire — previously that surfaced as
+// INVALID_SESSION_INFORMATION and required going back into Options to log
+// in again by hand. Since the app key/username/password entered there are
+// already stored, this re-logs in automatically with those and retries the
+// call once, instead of ever bothering the user. Only falls through to a
+// real error if those stored credentials are missing (never set up) or
+// themselves no longer work (e.g. password changed on Betfair's side) —
+// that genuinely does need a human back in Options.
+async function withSessionRetry(fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    if (!err.message.includes("INVALID_SESSION_INFORMATION")) throw err;
+
+    const { betfairAppKey, betfairUsername, betfairPassword } = await chrome.storage.local.get([
+      "betfairAppKey",
+      "betfairUsername",
+      "betfairPassword",
+    ]);
+
+    if (!betfairAppKey || !betfairUsername || !betfairPassword) throw err;
+
+    const sessionToken = await betfairLogin(betfairAppKey, betfairUsername, betfairPassword);
+    await chrome.storage.local.set({
+      betfairSessionToken: sessionToken,
+      betfairSessionTokenAt: Date.now(),
+    });
+
+    return await fn(); // retry once with the fresh token
+  }
+}
+
+async function refreshRace(marketId) {
+  return withSessionRetry(() => refreshRaceInner(marketId));
+}
+
+async function listUpcomingRaces() {
+  return withSessionRetry(listUpcomingRacesInner);
 }
 
 // Scrapes Win odds off the given tab's currently displayed Sportsbet race
