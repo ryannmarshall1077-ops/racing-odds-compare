@@ -59,9 +59,10 @@ function noteFor(race) {
 let currentRace = null;
 
 // "number" (by runner number, ascending) or "edge" (by edge %, lowest to
-// highest). Persists across re-renders of the same popup session so
-// auto-refresh/live updates don't keep resetting it back to the default.
-let sortMode = "number";
+// highest first, best value on top). Persists across re-renders of the
+// same popup session so auto-refresh/live updates don't keep resetting it
+// back to the default.
+let sortMode = "edge";
 
 function parseRunnerNumber(name) {
   const match = name.match(/^(\d+)\./);
@@ -74,8 +75,8 @@ function sortedRunners(race, commission) {
   if (sortMode === "edge") {
     runners.sort(
       (a, b) =>
-        edgePercent(a.betfair, a.bookmaker, commission) -
-        edgePercent(b.betfair, b.bookmaker, commission)
+        edgePercent(b.betfair, b.bookmaker, commission) -
+        edgePercent(a.betfair, a.bookmaker, commission)
     );
   } else {
     runners.sort((a, b) => parseRunnerNumber(a.name) - parseRunnerNumber(b.name));
