@@ -2,37 +2,135 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <title>Settings — Racing Odds Compare</title>
     <link rel="stylesheet" href="popup.css" />
     <link rel="stylesheet" href="options.css" />
   </head>
   <body class="options-body">
     <header>
-      <h1>Betfair Connection</h1>
-      <p class="subtitle">
-        Sent only to Betfair's own login endpoint. Saved via Chrome Sync
-        (your Google account) so login survives a full extension
-        reinstall &mdash; not purely local to this device.
-      </p>
+      <h1>Settings</h1>
     </header>
 
-    <form id="betfair-form">
-      <label>
-        Application Key
-        <input type="text" id="app-key" autocomplete="off" />
-      </label>
-      <label>
-        Betfair Username
-        <input type="text" id="username" autocomplete="off" />
-      </label>
-      <label>
-        Betfair Password
-        <input type="password" id="password" autocomplete="off" />
-      </label>
-      <button type="submit">Save &amp; Test Login</button>
-    </form>
+    <div class="settings-accordion">
+      <details class="settings-section" open>
+        <summary>Betfair Connection</summary>
+        <div class="settings-section-body">
+          <p class="subtitle">
+            Sent only to Betfair's own login endpoint. Saved via Chrome Sync
+            (your Google account) so login survives a full extension
+            reinstall &mdash; not purely local to this device.
+          </p>
 
-    <p id="status" class="status"></p>
+          <form id="betfair-form">
+            <label>
+              Application Key
+              <input type="text" id="app-key" autocomplete="off" />
+            </label>
+            <label>
+              Betfair Username
+              <input type="text" id="username" autocomplete="off" />
+            </label>
+            <label>
+              Betfair Password
+              <input type="password" id="password" autocomplete="off" />
+            </label>
+            <button type="submit">Save &amp; Test Login</button>
+          </form>
 
+          <p id="betfair-status" class="status"></p>
+        </div>
+      </details>
+
+      <details class="settings-section">
+        <summary>Race Result / Display</summary>
+        <div class="settings-section-body">
+          <label>
+            Default Mode
+            <select id="setting-default-mode">
+              <option value="mug">Mug</option>
+              <option value="bonus">Bonus</option>
+              <option value="run2nd3rd" disabled>Run 2nd 3rd (coming soon)</option>
+              <option value="run2nd" disabled>Run 2nd (coming soon)</option>
+            </select>
+          </label>
+          <label>
+            Default Sort
+            <select id="setting-default-sort">
+              <option value="edge">Edge (best first)</option>
+              <option value="number">Runner Number</option>
+            </select>
+          </label>
+          <label>
+            Default Stake ($)
+            <input type="number" id="setting-default-stake" min="0" step="1" />
+          </label>
+          <label>
+            Default Hedge (%)
+            <input type="number" id="setting-default-hedge" min="0" max="100" step="1" />
+          </label>
+          <fieldset class="checkbox-group">
+            <legend>Default Race Types</legend>
+            <label class="checkbox-label">
+              <input type="checkbox" id="setting-race-type-horse" value="horse" /> Horse
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="setting-race-type-harness" value="harness" /> Harness
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="setting-race-type-greyhound" value="greyhound" /> Greyhound
+            </label>
+          </fieldset>
+          <label class="checkbox-label">
+            <input type="checkbox" id="setting-show-countdowns" /> Show countdown timers on
+            Upcoming Races
+          </label>
+        </div>
+      </details>
+
+      <details class="settings-section">
+        <summary>Tab and Window management</summary>
+        <div class="settings-section-body">
+          <label class="checkbox-label">
+            <input type="checkbox" id="setting-pin-race-tabs" /> Pin Betfair/Sportsbet tabs when
+            opened
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="setting-focus-race-tabs" /> Switch focus to the race tabs
+            after opening them (default: stay on this tab)
+          </label>
+        </div>
+      </details>
+
+      <details class="settings-section">
+        <summary>Other Behaviour and Functionality</summary>
+        <div class="settings-section-body">
+          <label class="checkbox-label">
+            <input type="checkbox" id="setting-auto-refresh" /> Automatically refresh odds every
+            minute
+          </label>
+        </div>
+      </details>
+
+      <details class="settings-section">
+        <summary>Colours and Layout</summary>
+        <div class="settings-section-body">
+          <label>
+            Accent Colour
+            <input type="color" id="setting-accent-color" />
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="setting-compact-rows" /> Compact table rows
+          </label>
+        </div>
+      </details>
+    </div>
+
+    <div class="settings-footer">
+      <span id="settings-status" class="status"></span>
+      <button id="restore-defaults-btn" class="link-btn">Restore defaults</button>
+    </div>
+
+    <script src="settings.js"></script>
     <script src="js/betfair/auth.js"></script>
     <script src="options.js"></script>
   </body>

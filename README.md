@@ -311,3 +311,33 @@ https://developer.betfair.com/.
         doesn't hide anything the UI wasn't already flagging as uncertain.
       - Each race row also gets a small 🐎/🏇/🐕 emoji prefix now that the
         list can mix three race types at once.
+- [x] Settings page — a categorized accordion (`options.html`, opened via
+      the ⚙ button in the popup header or the extension's right-click
+      Options), matching HorsePower's own Settings layout:
+      - **Betfair Connection** — the existing credentials form, just
+        re-housed here instead of being the whole page.
+      - **Race Result / Display** — Default Mode/Sort/Stake/Hedge/Race
+        Types (what the main popup's own live controls *start* from each
+        session — changing them live in the popup doesn't overwrite these,
+        by design, so a quick experiment doesn't silently become your new
+        default), plus a toggle for whether Upcoming Races shows countdown
+        timers at all.
+      - **Tab and Window management** — pin the Betfair/Sportsbet tabs
+        when opened, and whether opening a race switches focus to those
+        tabs (default: stay on this tab, the prior unconditional behavior).
+      - **Other Behaviour and Functionality** — turn the background
+        1-minute auto-refresh off entirely.
+      - **Colours and Layout** — an accent colour picker (applied via the
+        `--accent` CSS custom property popup.css already keyed everything
+        off) and a compact table row density toggle.
+      - All stored in `chrome.storage.sync` under one `settings` object
+        (`settings.js`, shared by `popup.js`, `options.js`, and
+        `background.js`), same as Betfair credentials — survives a full
+        reinstall. Each field auto-saves on change (no separate Save
+        button), and "Restore defaults" resets everything back to
+        `DEFAULT_SETTINGS` without touching the Betfair credentials, which
+        live under separate keys.
+      - Every category here maps to a real, working feature — deliberately
+        didn't replicate HorsePower's exact settings where we don't have
+        the underlying feature yet (e.g. no colour *theme presets*, just
+        one accent colour; no per-window tab placement, just pin/focus).
