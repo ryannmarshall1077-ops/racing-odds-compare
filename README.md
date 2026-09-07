@@ -197,7 +197,7 @@ https://developer.betfair.com/.
       string), so this lookup was silently always hitting the fallback
       before the fix.
 - [x] Sortable runner list — an explicit "Sort: Number" / "Sort: Edge"
-      toggle button sits in the Runner header. Number order is the default;
-      toggling switches to lowest-to-highest edge. Persists across live
-      re-renders (auto-refresh re-applies whichever sort is currently
-      selected instead of resetting it).
+      toggle button sits in the Runner header. Edge (highest first, best
+      value on top) is the default; toggling switches to runner-number
+      order. Persists across live re-renders (auto-refresh re-applies
+      whichever sort is currently selected instead of resetting it).
