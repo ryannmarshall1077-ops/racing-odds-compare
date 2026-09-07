@@ -242,3 +242,15 @@ https://developer.betfair.com/.
       clipboard (for pasting straight into Betfair's stake field), with a
       brief "Copied!" confirmation. Delegated on the table body rather than
       bound per-row, so it keeps working across re-renders.
+- [x] Liquidity column — same concept as HorsePower's Liquidity column:
+      how much is actually available to match at the best (nearest) Betfair
+      Lay price right now, in whole dollars (e.g. "$18"), shown as "—" when
+      genuinely unknown rather than a misleading "$0". Both Betfair data
+      paths already had this available without any new API request —
+      `listMarketBook`'s `availableToLay[0]` carries `size` alongside
+      `price`, and the Lay price button on Betfair's own page renders size
+      as a second `<label>` right next to the price one — so this just
+      reads a value that was already there. Threaded through the same
+      per-runner freshness handling as the Lay price itself (DOM watcher
+      vs. REST fallback), so it can never end up paired with a price from
+      a different source/moment than the liquidity figure next to it.
