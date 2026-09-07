@@ -351,10 +351,21 @@ async function listUpcomingRacesInner() {
           Math.abs(e.startTime * 1000 - startTimeMs) < 5 * 60 * 1000
       );
 
+      // Betfair itself doesn't distinguish harness from gallops (both are
+      // its single "Horse Racing" event type — see RACING_SPORTS), but
+      // Sportsbet's own feed does, so a matched sbMatch's type is the only
+      // signal available for that split. No match means no signal either
+      // way, so it defaults to "horse" (the far more common case) rather
+      // than leaving it unset — a race with no Sportsbet match already
+      // shows the "!" warning marker, so this default doesn't hide
+      // anything the UI wasn't already flagging as uncertain.
+      const raceType = sport.id === "horse" && sbMatch?.type === "harness" ? "harness" : sport.id;
+
       return {
         track,
         raceNumber,
         sport: sport.id,
+        raceType,
         startTime: market.marketStartTime,
         marketId: market.marketId,
         betfairUrl: `https://www.betfair.com.au/exchange/plus/${sport.betfairUrlSegment}/market/${market.marketId}`,

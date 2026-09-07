@@ -122,6 +122,14 @@ let stakeAmount = 50;
 // their formulas haven't been verified.
 let currentMode = "mug";
 
+// Which race types show up in the Upcoming Races list — "horse", "harness",
+// "greyhound". All on by default (unfiltered, matching pre-filter
+// behavior). Persists the same way as the other controls; filtering
+// happens client-side against the last-fetched list (see latestRaces)
+// rather than re-querying background.js, so toggling is instant.
+let selectedRaceTypes = new Set(["horse", "harness", "greyhound"]);
+let latestRaces = [];
+
 function parseRunnerNumber(name) {
   const match = name.match(/^(\d+)\./);
   return match ? Number(match[1]) : Infinity;
@@ -431,12 +439,14 @@ async function openRaceTabs(race) {
   }
 }
 
-// Now that the list mixes horse/harness and greyhound races, a track name
+// Now that the list mixes horse, harness and greyhound races, a track name
 // and time alone don't always make the sport obvious at a glance (e.g. a
-// venue that hosts both on different days) — a small emoji prefix is
-// enough to disambiguate without needing a text label or extra styling.
-function sportEmoji(sport) {
-  return sport === "greyhound" ? "🐕" : "🐎";
+// venue that hosts more than one on different days) — a small emoji prefix
+// is enough to disambiguate without needing a text label or extra styling.
+function raceTypeEmoji(raceType) {
+  if (raceType === "greyhound") return "🐕";
+  if (raceType === "harness") return "🏇";
+  return "🐎";
 }
 
 function renderRacesList(races) {
@@ -457,7 +467,7 @@ function renderRacesList(races) {
     });
 
     li.innerHTML = `
-      <span class="race-track">${sportEmoji(race.sport)} ${race.track} R${race.raceNumber}</span>
+      <span class="race-track">${raceTypeEmoji(race.raceType)} ${race.track} R${race.raceNumber}</span>
       <span>
         <span class="race-time">${time}</span>
         <span class="race-countdown" data-start="${race.startTime}"></span>${
@@ -514,9 +524,30 @@ function loadUpcomingRaces() {
       return;
     }
 
-    renderRacesList(response.races);
+    latestRaces = response.races;
+    renderFilteredRacesList();
   });
+}
+
+// Applies the Race Types toggle bar to the last-fetched list without
+// re-querying background.js — instant, and doesn't burn an extra Betfair
+// call just to hide/show rows the extension already has.
+function renderFilteredRacesList() {
+  renderRacesList(latestRaces.filter((race) => selectedRaceTypes.has(race.raceType)));
 }
 
 racesRefreshBtn.addEventListener("click", loadUpcomingRaces);
 loadUpcomingRaces();
+
+for (const btn of document.querySelectorAll(".race-type-btn")) {
+  btn.addEventListener("click", () => {
+    const raceType = btn.dataset.raceType;
+    if (selectedRaceTypes.has(raceType)) {
+      selectedRaceTypes.delete(raceType);
+    } else {
+      selectedRaceTypes.add(raceType);
+    }
+    btn.classList.toggle("active", selectedRaceTypes.has(raceType));
+    renderFilteredRacesList();
+  });
+}

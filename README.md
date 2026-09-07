@@ -294,3 +294,20 @@ https://developer.betfair.com/.
         is harmless since no NT greyhound tracks are in `TRACK_STATE_MAP`
         either. Also added `TRACK_STATE_MAP` entries for the major
         greyhound tracks not already covered by a same-named horse track.
+- [x] Race Types filter — a row of toggle buttons (Horse / Harness /
+      Greyhound) above the Upcoming Races list, matching HorsePower's own
+      filter bar. Multi-select (each toggles independently, all three on
+      by default) rather than a single-choice filter, so e.g. "horse and
+      greyhound but not harness" is a real option. Filters client-side
+      against the last-fetched list (`latestRaces`) instead of
+      re-querying Betfair on every toggle, so it's instant.
+      - Betfair itself doesn't distinguish harness from gallops (both
+        share its one "Horse Racing" event type), so harness needed a
+        separate signal: a race's matched Sportsbet event's own `type`
+        field (Sportsbet's feed already splits horse/harness/greyhound).
+        No Sportsbet match means no signal either way, so it defaults to
+        "horse" rather than being left unset — a race with no match
+        already shows the existing "!" warning marker, so this default
+        doesn't hide anything the UI wasn't already flagging as uncertain.
+      - Each race row also gets a small 🐎/🏇/🐕 emoji prefix now that the
+        list can mix three race types at once.
