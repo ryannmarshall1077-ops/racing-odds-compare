@@ -9,12 +9,18 @@ const BETFAIR_COMMISSION = {
     QLD: 0.08, SA: 0.08, TAS: 0.08, VIC: 0.08, WA: 0.08, INT: 0.06,
   },
 };
-// Greyhound racing's Market Base Rate is NOT yet independently verified —
-// this reuses the horse table as a starting assumption, not a confirmed
-// figure. If Betfair's rate card (or HorsePower's own settings) shows a
-// different rate for greyhounds in any state, update this separately
-// rather than assuming it's identical to horse racing's.
-BETFAIR_COMMISSION.greyhound = BETFAIR_COMMISSION.horse;
+// Confirmed against Betfair's own published Market Base Rate card: ACT and
+// NSW are the only two regions where greyhound racing's rate (8%) differs
+// from horse racing's (10% in both) — every other state/region charges the
+// same rate for both sports. NT is intentionally omitted — Betfair's rate
+// card marks NT greyhound racing "N/A" (no market offered there at all),
+// so this falls through to FALLBACK_COMMISSION if ever hit, which is
+// harmless in practice since no NT greyhound tracks are in
+// TRACK_STATE_MAP below either.
+BETFAIR_COMMISSION.greyhound = {
+  ACT: 0.08, NSW: 0.08, NZ: 0.06,
+  QLD: 0.08, SA: 0.08, TAS: 0.08, VIC: 0.08, WA: 0.08, INT: 0.06,
+};
 const FALLBACK_COMMISSION = 0.08; // most common rate, used if track is unrecognized
 
 // Track name -> state. Add more here as needed.

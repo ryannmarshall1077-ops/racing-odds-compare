@@ -283,13 +283,31 @@ https://developer.betfair.com/.
       - Each race in the Upcoming Races list shows a 🐎/🐕 prefix so the
         sport is obvious at a glance (a venue can host both on different
         days).
-      - **Commission is the one open question**: `commissionForTrack` now
-        takes a `sport` argument and looks up a `BETFAIR_COMMISSION`
-        table per sport, but the greyhound table currently just reuses
-        horse racing's rates as a starting assumption — this is NOT yet
-        confirmed against Betfair's own published Market Base Rate card
-        for greyhounds specifically. If it turns out to differ by state,
-        `BETFAIR_COMMISSION.greyhound` in commission.js needs updating
-        with real figures (currently flagged with a TODO comment there).
-        Also added `TRACK_STATE_MAP` entries for the major greyhound
-        tracks not already covered by a same-named horse track.
+      - **Commission** — `commissionForTrack` now takes a `sport`
+        argument and looks up a `BETFAIR_COMMISSION` table per sport.
+        Confirmed against Betfair's own published Market Base Rate card:
+        ACT and NSW are the only two regions where greyhound racing's
+        rate (8%) differs from horse racing's (10% in both) — every
+        other state/region charges the same rate for both sports. NT is
+        intentionally left out of the greyhound table (Betfair's card
+        marks NT greyhound racing "N/A" — no market offered there), which
+        is harmless since no NT greyhound tracks are in `TRACK_STATE_MAP`
+        either. Also added `TRACK_STATE_MAP` entries for the major
+        greyhound tracks not already covered by a same-named horse track.
+- [x] Race Types filter — a row of toggle buttons (Horse / Harness /
+      Greyhound) above the Upcoming Races list, matching HorsePower's own
+      filter bar. Multi-select (each toggles independently, all three on
+      by default) rather than a single-choice filter, so e.g. "horse and
+      greyhound but not harness" is a real option. Filters client-side
+      against the last-fetched list (`latestRaces`) instead of
+      re-querying Betfair on every toggle, so it's instant.
+      - Betfair itself doesn't distinguish harness from gallops (both
+        share its one "Horse Racing" event type), so harness needed a
+        separate signal: a race's matched Sportsbet event's own `type`
+        field (Sportsbet's feed already splits horse/harness/greyhound).
+        No Sportsbet match means no signal either way, so it defaults to
+        "horse" rather than being left unset — a race with no match
+        already shows the existing "!" warning marker, so this default
+        doesn't hide anything the UI wasn't already flagging as uncertain.
+      - Each race row also gets a small 🐎/🏇/🐕 emoji prefix now that the
+        list can mix three race types at once.

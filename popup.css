@@ -79,6 +79,41 @@ h1 {
   color: var(--text);
 }
 
+#race-type-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 14px 8px;
+}
+
+.race-type-label {
+  color: var(--muted);
+  font-size: 11px;
+  margin-right: 2px;
+}
+
+.race-type-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+
+.race-type-btn:hover {
+  border-color: var(--accent);
+}
+
+.race-type-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0f1720;
+  font-weight: 600;
+}
+
 #races-list {
   list-style: none;
   margin: 0;
