@@ -3,6 +3,39 @@ importScripts("js/betfair/auth.js", "js/betfair/api.js", "js/sportsbet/api.js");
 const AUTO_REFRESH_ALARM = "refreshRace";
 const BOOKMAKER_ODDS_MAX_AGE_MS = 10 * 60 * 1000;
 
+// Racing sports this extension supports, and how each maps to Betfair's
+// event-type name / exchange URL path segment. Betfair doesn't split
+// harness ("trots") out from gallops — both come through its "Horse
+// Racing" event type — but Sportsbet's own feed does distinguish them
+// (js/sportsbet/api.js), so a Betfair "Horse Racing" market can legitimately
+// match a Sportsbet event of either type; sportsbetTypes lists which.
+const RACING_SPORTS = [
+  {
+    id: "horse",
+    label: "Horse Racing",
+    betfairEventType: "Horse Racing",
+    betfairUrlSegment: "horse-racing",
+    sportsbetTypes: ["horse", "harness"],
+  },
+  {
+    id: "greyhound",
+    label: "Greyhound Racing",
+    betfairEventType: "Greyhound Racing",
+    betfairUrlSegment: "greyhound-racing",
+    sportsbetTypes: ["greyhound"],
+  },
+];
+
+// market must have been fetched with EVENT_TYPE in its marketProjection
+// (both listWinMarkets and listMarketsByIds request it) — falls back to
+// the first entry (horse) if Betfair ever returns an event type name that
+// doesn't match any of the above, rather than leaving sport undefined.
+function sportForMarket(market) {
+  return (
+    RACING_SPORTS.find((s) => s.betfairEventType === market.eventType?.name) || RACING_SPORTS[0]
+  );
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   console.log("RaceOdds installed");
 });
@@ -136,14 +169,22 @@ async function refreshRaceInner(marketId) {
   }
 
   if (!targetMarketId) {
-    const eventTypeId = await findEventTypeId(appKey, sessionToken, "Horse Racing");
-    markets = await listWinMarkets(appKey, sessionToken, eventTypeId, 1);
+    const eventTypeIds = await findEventTypeIds(
+      appKey,
+      sessionToken,
+      RACING_SPORTS.map((s) => s.betfairEventType)
+    );
+    // FIRST_TO_START + maxResults 1 across the combined event type ids
+    // finds the single soonest race across every supported sport in one
+    // call — no need to query each sport separately and merge by hand.
+    markets = await listWinMarkets(appKey, sessionToken, [...eventTypeIds.values()], 1);
     if (markets.length === 0) {
-      throw new Error("No upcoming AU horse racing WIN markets found right now.");
+      throw new Error("No upcoming AU racing WIN markets found right now.");
     }
   }
 
   const market = markets[0];
+  const sport = sportForMarket(market);
   const [book] = await getMarketBook(appKey, sessionToken, [market.marketId]);
   const runnerNames = new Map(
     market.runners.map((r) => [r.selectionId, r.runnerName])
@@ -231,6 +272,8 @@ async function refreshRaceInner(marketId) {
   const race = {
     race: `${track} — ${market.marketName}`,
     track,
+    sport: sport.id,
+    sportLabel: sport.label,
     runners,
     source: "live-betfair",
     bookmakerSource: bookmakerMatched > 0 ? "live-sportsbet" : "placeholder",
@@ -276,9 +319,16 @@ async function listUpcomingRacesInner() {
 
   const { betfairAppKey: appKey, betfairSessionToken: sessionToken } = stored;
 
-  const eventTypeId = await findEventTypeId(appKey, sessionToken, "Horse Racing");
+  const eventTypeIds = await findEventTypeIds(
+    appKey,
+    sessionToken,
+    RACING_SPORTS.map((s) => s.betfairEventType)
+  );
   const [markets, sportsbetEvents] = await Promise.all([
-    listWinMarkets(appKey, sessionToken, eventTypeId, 15),
+    // 20, not 15 — now split across every supported sport instead of just
+    // horse racing, so the same-ish count needs a bit more headroom to
+    // still show a reasonable spread of both.
+    listWinMarkets(appKey, sessionToken, [...eventTypeIds.values()], 20),
     fetchSportsbetNextEvents(),
   ]);
 
@@ -288,9 +338,14 @@ async function listUpcomingRacesInner() {
       const raceNumber = raceNumberMatch ? Number(raceNumberMatch[1]) : null;
       const track = market.event.venue || market.event.name;
       const startTimeMs = new Date(market.marketStartTime).getTime();
+      const sport = sportForMarket(market);
 
+      // Filtered by sportsbetTypes first — without it, a horse (or
+      // harness) meeting and a greyhound meeting that happen to share a
+      // track name and start time could cross-match.
       const sbMatch = sportsbetEvents.find(
         (e) =>
+          sport.sportsbetTypes.includes(e.type) &&
           normalizeVenue(e.competitionName) === normalizeVenue(track) &&
           e.raceNumber === raceNumber &&
           Math.abs(e.startTime * 1000 - startTimeMs) < 5 * 60 * 1000
@@ -299,9 +354,10 @@ async function listUpcomingRacesInner() {
       return {
         track,
         raceNumber,
+        sport: sport.id,
         startTime: market.marketStartTime,
         marketId: market.marketId,
-        betfairUrl: `https://www.betfair.com.au/exchange/plus/horse-racing/market/${market.marketId}`,
+        betfairUrl: `https://www.betfair.com.au/exchange/plus/${sport.betfairUrlSegment}/market/${market.marketId}`,
         sportsbetUrl: sbMatch ? buildSportsbetRaceUrl(sbMatch) : null,
       };
     })

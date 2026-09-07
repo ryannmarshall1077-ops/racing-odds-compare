@@ -174,7 +174,7 @@ function renderRace(race) {
   currentRace = race;
 
   document.getElementById("race-subtitle").textContent =
-    `Horse Racing — ${race.race}`;
+    `${race.sportLabel || "Horse Racing"} — ${race.race}`;
 
   document.getElementById("metric-header").textContent =
     currentMode === "bonus" ? "Ret%" : "Edge";
@@ -182,7 +182,7 @@ function renderRace(race) {
   const tbody = document.getElementById("odds-body");
   tbody.innerHTML = "";
 
-  const commission = commissionForTrack(race.track);
+  const commission = commissionForTrack(race.track, race.sport);
   const hedge = hedgePercent / 100;
 
   for (const runner of sortedRunners(race, commission, hedge)) {
@@ -431,6 +431,14 @@ async function openRaceTabs(race) {
   }
 }
 
+// Now that the list mixes horse/harness and greyhound races, a track name
+// and time alone don't always make the sport obvious at a glance (e.g. a
+// venue that hosts both on different days) — a small emoji prefix is
+// enough to disambiguate without needing a text label or extra styling.
+function sportEmoji(sport) {
+  return sport === "greyhound" ? "🐕" : "🐎";
+}
+
 function renderRacesList(races) {
   racesListEl.innerHTML = "";
 
@@ -449,7 +457,7 @@ function renderRacesList(races) {
     });
 
     li.innerHTML = `
-      <span class="race-track">${race.track} R${race.raceNumber}</span>
+      <span class="race-track">${sportEmoji(race.sport)} ${race.track} R${race.raceNumber}</span>
       <span>
         <span class="race-time">${time}</span>
         <span class="race-countdown" data-start="${race.startTime}"></span>${
