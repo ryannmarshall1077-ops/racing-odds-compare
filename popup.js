@@ -69,8 +69,8 @@ function renderRace(race) {
 
     row.innerHTML = `
       <td>${runner.name}</td>
-      <td>${runner.betfair.toFixed(2)}</td>
       <td>${runner.bookmaker.toFixed(2)}</td>
+      <td>${runner.betfair.toFixed(2)}</td>
       <td class="${edge >= 0 ? "edge-positive" : "edge-negative"}">
         ${edge >= 0 ? "+" : ""}${edge.toFixed(1)}%
       </td>
