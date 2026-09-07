@@ -194,7 +194,8 @@ th:first-child {
   color: var(--muted);
 }
 
-#hedge-input {
+#hedge-input,
+#stake-input {
   width: 52px;
   background: var(--panel);
   border: 1px solid var(--border);
@@ -205,7 +206,12 @@ th:first-child {
   text-align: right;
 }
 
-#hedge-input:focus {
+#stake-input {
+  width: 64px;
+}
+
+#hedge-input:focus,
+#stake-input:focus {
   outline: none;
   border-color: var(--accent);
 }

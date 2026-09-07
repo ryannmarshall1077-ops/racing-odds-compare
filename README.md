@@ -214,3 +214,12 @@ https://developer.betfair.com/.
       Reads directly off whatever `.race-countdown` elements currently
       exist in the DOM each tick, so it keeps working across list
       re-renders without needing its own restart logic.
+- [x] Lay $ column — the commission-adjusted Betfair lay stake required to
+      hedge a back bet: `Stake × BackOdds / (LayOdds - Commission)`,
+      scaled linearly by Hedge% (a literal stake amount, so laying half
+      the position means staking half — unlike Edge%'s more complex
+      partial-hedge treatment). A new Stake input (default $50) drives it
+      alongside the existing Hedge input. Verified against three rows of
+      real HorsePower output: $53.88, $50.58, $38.78 (stake $50, hedge
+      100%) — all matched exactly, confirming the naive
+      stake×backOdds/layOdds formula (no commission term) was wrong.
