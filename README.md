@@ -209,3 +209,8 @@ https://developer.betfair.com/.
       `Edge% = 100 × [B(1-h·c) - (L-h·c)] / (L-h·c)`. Verified against a
       real matched-betting tool's output at both the 0% and 100% endpoints
       for multiple runners — matched exactly.
+- [x] Live countdown next to each race's time in Upcoming Races — ticks
+      down every second (e.g. "22m 31s", "45s", "Jumped" once past start).
+      Reads directly off whatever `.race-countdown` elements currently
+      exist in the DOM each tick, so it keeps working across list
+      re-renders without needing its own restart logic.

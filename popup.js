@@ -337,7 +337,8 @@ function renderRacesList(races) {
     li.innerHTML = `
       <span class="race-track">${race.track} R${race.raceNumber}</span>
       <span>
-        <span class="race-time">${time}</span>${
+        <span class="race-time">${time}</span>
+        <span class="race-countdown" data-start="${race.startTime}"></span>${
       race.sportsbetUrl ? "" : '<span class="race-warn" title="No matching Sportsbet race found">!</span>'
     }
       </span>
@@ -351,6 +352,31 @@ function renderRacesList(races) {
     racesListEl.appendChild(li);
   }
 }
+
+function formatCountdown(startTimeIso) {
+  const diffMs = new Date(startTimeIso).getTime() - Date.now();
+  if (diffMs <= 0) return "Jumped";
+
+  const totalSeconds = Math.floor(diffMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
+
+// Ticks every second, independent of whenever the races list was last
+// rendered — just re-reads whatever ".race-countdown" elements currently
+// exist in the DOM, so it naturally keeps working across re-renders
+// without needing its own cleanup/restart logic.
+function tickCountdowns() {
+  for (const el of document.querySelectorAll(".race-countdown")) {
+    el.textContent = formatCountdown(el.dataset.start);
+  }
+}
+tickCountdowns();
+setInterval(tickCountdowns, 1000);
 
 function loadUpcomingRaces() {
   racesListEl.innerHTML = '<li class="races-status">Loading...</li>';
