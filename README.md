@@ -223,9 +223,9 @@ https://developer.betfair.com/.
       real HorsePower output: $53.88, $50.58, $38.78 (stake $50, hedge
       100%) — all matched exactly, confirming the naive
       stake×backOdds/layOdds formula (no commission term) was wrong.
-- [x] Mode selector — Mug (standard Win back+lay, the default) and Bonus
-      (stake-not-returned free/bonus bet) so far; Run 2nd 3rd / Run 2nd are
-      listed but disabled until their formulas are verified. Switching mode
+- [x] Mode selector — Mug (standard Win back+lay, the default), Bonus
+      (stake-not-returned free/bonus bet), and Run 2nd 3rd so far; Run 2nd is
+      listed but disabled until its formula is verified. Switching mode
       swaps both the Lay $ formula and what the metric column shows
       (Edge% vs Ret%), including its header text.
       - **Bonus Mode**: a SNR bonus bet only pays out the winnings
@@ -242,3 +242,26 @@ https://developer.betfair.com/.
       clipboard (for pasting straight into Betfair's stake field), with a
       brief "Copied!" confirmation. Delegated on the table body rather than
       bound per-row, so it keeps working across re-renders.
+- [x] Run 2nd 3rd Mode — a bookmaker promo ("bonus back for placing"): fixed
+      WIN market, no separate place-market bet, but a 2nd/3rd finish earns a
+      bonus bet back. Verified against a real HorsePower race (9 real
+      runners, Redcliffe R6):
+      - **Lay $** — identical formula to Mug Mode (`layStake`); you're still
+        just hedging a plain win-market back bet. Exact match on all 9 rows
+        (e.g. back=1.35/lay=1.41/c=8% -> $50.75).
+      - **Xr** (`xrPercent`) — exactly half of what Mug Mode's Edge% would
+        show for the same prices. Exact match on all 9 rows (e.g. same
+        runner -> Mug Edge% -6.62% -> Xr -3.31%).
+      - **EV** is deliberately NOT implemented. This needed a real
+        probability model (win/place chances) plus a bonus-retention
+        assumption, and despite extensive reverse-engineering — normalizing
+        implied probabilities from both Betfair's Win and Top 3 Finish
+        markets (validated exactly against the real market's own overround
+        totals), and testing fixed 80% retention, dynamic per-runner
+        retention, and multiple "Net_win" definitions — no combination
+        reproduced HorsePower's real EV numbers consistently across rows
+        (e.g. one hypothesis implied a guaranteed win-outcome loss of -$74
+        on a $50 stake for one runner, impossible). Rather than ship a
+        formula that doesn't verifiably match, the EV column is left out
+        until it's confirmed (via HorsePower's own Network requests or
+        source code) or a fresh worked example resolves the ambiguity.

@@ -49,6 +49,23 @@ function bonusRetentionPercent(betfair, bookmaker, commission, hedge) {
   return (100 * (bookmaker - 1) * (1 - c)) / (betfair - c);
 }
 
+// Run 2nd 3rd Mode ("Bonus back for placing" in HorsePower): a bookmaker
+// promo — if the runner finishes 2nd or 3rd on a fixed WIN market (no
+// separate place market bet), you get a bonus bet back. The Lay $ stake is
+// identical to Mug Mode's (you're still hedging a plain win-market back
+// bet) — verified exact against a real HorsePower row: back=1.75/lay=2.22
+// -> $40.89. "Xr" is HorsePower's own label for this mode's edge metric,
+// and — verified against 9 real runners across two races — it's exactly
+// half of what Mug Mode's Edge% would show for the same prices (e.g.
+// back=1.35/lay=1.41/c=8% -> Mug Edge% -6.62% -> Xr -3.31%). The EV column
+// (which factors in placing probability and bonus retention) isn't
+// implemented yet — its formula hasn't been verified against real data
+// despite extensive attempts, so it's deliberately left out rather than
+// guessed at. See README for the full verification writeup.
+function xrPercent(betfair, bookmaker, commission, hedge) {
+  return edgePercent(betfair, bookmaker, commission, hedge) / 2;
+}
+
 function normalizeName(name) {
   // Sportsbet's runner name markup splits the barrier/handicap suffix into
   // a separate span starting with "&nbsp;" (U+00A0), not a regular space —
@@ -115,11 +132,12 @@ let hedgePercent = 100;
 // Back stake used to compute the Lay $ column. Persists the same way.
 let stakeAmount = 50;
 
-// "mug" (standard Win back+lay) or "bonus" (SNR free/bonus bet retention).
-// Determines both which formula the Lay $ and metric columns use, and
-// what the metric column is even called (Edge vs Ret%). Persists the same
-// way as the other controls. "run2nd3rd"/"run2nd" aren't wired up yet —
-// their formulas haven't been verified.
+// "mug" (standard Win back+lay), "bonus" (SNR free/bonus bet retention), or
+// "run2nd3rd" (bonus-back-for-placing promo, Lay $ same as Mug + Xr metric
+// — EV not yet implemented, see xrPercent's comment). Determines both which
+// formula the Lay $ and metric columns use, and what the metric column is
+// even called (Edge / Ret% / Xr). Persists the same way as the other
+// controls. "run2nd" isn't wired up yet — its formula hasn't been verified.
 let currentMode = "mug";
 
 function parseRunnerNumber(name) {
@@ -131,12 +149,17 @@ function parseRunnerNumber(name) {
 // which formula is active — sorting, rendering, and the column header all
 // go through these.
 function metricPercent(runner, commission, hedge) {
-  return currentMode === "bonus"
-    ? bonusRetentionPercent(runner.betfair, runner.bookmaker, commission, hedge)
-    : edgePercent(runner.betfair, runner.bookmaker, commission, hedge);
+  if (currentMode === "bonus") {
+    return bonusRetentionPercent(runner.betfair, runner.bookmaker, commission, hedge);
+  }
+  if (currentMode === "run2nd3rd") {
+    return xrPercent(runner.betfair, runner.bookmaker, commission, hedge);
+  }
+  return edgePercent(runner.betfair, runner.bookmaker, commission, hedge);
 }
 
 function rowLayDollars(runner, commission, hedge) {
+  // run2nd3rd uses the same Lay $ formula as mug — see xrPercent's comment.
   return currentMode === "bonus"
     ? layStakeBonus(stakeAmount, runner.betfair, runner.bookmaker, commission, hedge)
     : layStake(stakeAmount, runner.betfair, runner.bookmaker, commission, hedge);
@@ -163,7 +186,7 @@ function renderRace(race) {
     `Horse Racing — ${race.race}`;
 
   document.getElementById("metric-header").textContent =
-    currentMode === "bonus" ? "Ret%" : "Edge";
+    currentMode === "bonus" ? "Ret%" : currentMode === "run2nd3rd" ? "Xr" : "Edge";
 
   const tbody = document.getElementById("odds-body");
   tbody.innerHTML = "";
