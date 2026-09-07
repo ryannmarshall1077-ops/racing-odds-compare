@@ -221,6 +221,19 @@ function renderRace(race) {
   document.getElementById("metric-header").textContent =
     currentMode === "bonus" ? "Ret%" : "Edge";
 
+  // Shown once Betfair settles the market and this race is still the one
+  // loaded — refreshRace() (manual click, or the ~60s auto-refresh alarm)
+  // is what actually detects this (race.winner, set from Betfair's own
+  // per-runner WINNER/LOSER status), not anything specific to rendering;
+  // this just reflects whatever the currently loaded race object says.
+  const winnerBanner = document.getElementById("winner-banner");
+  if (race.winner) {
+    winnerBanner.textContent = `🏆 Winner: ${race.winner}`;
+    winnerBanner.hidden = false;
+  } else {
+    winnerBanner.hidden = true;
+  }
+
   const tbody = document.getElementById("odds-body");
   tbody.innerHTML = "";
 
@@ -249,11 +262,12 @@ function renderRace(race) {
 
   for (const { runner, metric, layDollars, liability } of rows) {
     const row = document.createElement("tr");
+    if (runner.result === "WINNER") row.className = "winner-row";
 
     row.innerHTML = `
       <td>${runner.name}</td>
-      <td>${runner.bookmaker.toFixed(2)}</td>
-      <td>${runner.betfair.toFixed(2)}</td>
+      <td>${runner.bookmaker?.toFixed(2) ?? "—"}</td>
+      <td>${runner.betfair?.toFixed(2) ?? "—"}</td>
       <td class="col-liquidity">${formatLiquidity(runner.betfairLiquidity)}</td>
       <td class="lay-dollars" title="Click to copy">${layDollars.toFixed(2)}</td>
       <td class="col-liability">${liability.toFixed(2)}</td>
