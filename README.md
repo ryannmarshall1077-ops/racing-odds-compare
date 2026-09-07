@@ -55,8 +55,9 @@ https://developer.betfair.com/.
       with a "!" marker).
 - [ ] Other bookmakers (TAB, Ladbrokes, Neds, ...) — each needs its own
       content script since every site's markup differs
-- [ ] Greyhound racing code (harness already appears to come through under
-      the Horse Racing event type in AU)
+- [x] Greyhound racing (harness already came through under the Horse
+      Racing event type in AU — see the dedicated entry further down for
+      how greyhound support was added)
 - [x] Clicking a race in the Upcoming Races list loads it into the
       comparison table below. The selected race is remembered (in storage),
       so both the manual "Refresh live odds" button and auto-refresh keep
@@ -254,3 +255,41 @@ https://developer.betfair.com/.
       per-runner freshness handling as the Lay price itself (DOM watcher
       vs. REST fallback), so it can never end up paired with a price from
       a different source/moment than the liquidity figure next to it.
+- [x] Greyhound racing — Sportsbet's side (`js/sportsbet/api.js`) already
+      supported it (its NextEvents feed request already included
+      `GH_DOMESTIC`, and `buildSportsbetRaceUrl` already had a `greyhound`
+      slug); the gap was entirely on the Betfair side, which only ever
+      queried the "Horse Racing" event type:
+      - "Upcoming Races" and the "next race" fallback (used when no race
+        is selected yet) now query Betfair's "Horse Racing" **and**
+        "Greyhound Racing" event types together (`RACING_SPORTS` in
+        background.js) — one combined `listMarketCatalogue` call each,
+        not two queried separately and merged by hand.
+      - Each market's sport is read back via Betfair's own `EVENT_TYPE`
+        projection (`market.eventType.name`) rather than remembered
+        separately, so it's correct regardless of which code path found
+        the market (`listMarketsByIds` when a specific race is already
+        selected, or `listWinMarkets` for "next race"/the races list).
+      - The Upcoming Races list's Betfair link now uses the right URL path
+        segment per sport (`.../exchange/plus/greyhound-racing/market/...`
+        vs. `horse-racing`) instead of a hardcoded one, and its Sportsbet
+        match is filtered to that sport's own Sportsbet event type(s)
+        first (horse/harness both map to Betfair's single "Horse Racing"
+        type; greyhound to its own) — without that filter, a horse (or
+        harness) meeting and a greyhound meeting sharing a track name and
+        start time could cross-match.
+      - `betfairWatcher.js`'s content script now also matches Betfair's
+        greyhound market pages, not just horse racing's.
+      - Each race in the Upcoming Races list shows a 🐎/🐕 prefix so the
+        sport is obvious at a glance (a venue can host both on different
+        days).
+      - **Commission is the one open question**: `commissionForTrack` now
+        takes a `sport` argument and looks up a `BETFAIR_COMMISSION`
+        table per sport, but the greyhound table currently just reuses
+        horse racing's rates as a starting assumption — this is NOT yet
+        confirmed against Betfair's own published Market Base Rate card
+        for greyhounds specifically. If it turns out to differ by state,
+        `BETFAIR_COMMISSION.greyhound` in commission.js needs updating
+        with real figures (currently flagged with a TODO comment there).
+        Also added `TRACK_STATE_MAP` entries for the major greyhound
+        tracks not already covered by a same-named horse track.

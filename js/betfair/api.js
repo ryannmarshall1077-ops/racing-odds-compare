@@ -26,24 +26,34 @@ async function betfairApiCall(appKey, sessionToken, method, params) {
   return data;
 }
 
-// Event type IDs aren't guaranteed stable across regions, so look "Horse
-// Racing" up by name rather than hardcoding a number.
-async function findEventTypeId(appKey, sessionToken, eventTypeName) {
+// Event type IDs aren't guaranteed stable across regions, so look names up
+// rather than hardcoding numbers. Takes multiple names in one call (a
+// single listEventTypes response already contains all of them — no reason
+// to round-trip once per sport) and returns a Map from name -> id. Throws
+// if any requested name isn't found, so a typo fails loudly rather than
+// silently querying the wrong (or no) sport.
+async function findEventTypeIds(appKey, sessionToken, eventTypeNames) {
   const results = await betfairApiCall(appKey, sessionToken, "listEventTypes", {
     filter: {},
   });
 
-  const match = results.find((r) => r.eventType.name === eventTypeName);
-  if (!match) {
-    throw new Error(`Betfair event type "${eventTypeName}" not found`);
+  const byName = new Map(results.map((r) => [r.eventType.name, r.eventType.id]));
+  const missing = eventTypeNames.filter((name) => !byName.has(name));
+  if (missing.length > 0) {
+    throw new Error(`Betfair event type(s) not found: ${missing.join(", ")}`);
   }
-  return match.eventType.id;
+
+  return new Map(eventTypeNames.map((name) => [name, byName.get(name)]));
 }
 
-async function listWinMarkets(appKey, sessionToken, eventTypeId, maxResults = 1) {
+// eventTypeIds is an array — Betfair's filter already accepts multiple, so
+// e.g. horse + greyhound racing's soonest-starting markets can be found in
+// one call (sort + maxResults apply across the combined set) instead of
+// querying each sport separately and merging client-side.
+async function listWinMarkets(appKey, sessionToken, eventTypeIds, maxResults = 1) {
   return betfairApiCall(appKey, sessionToken, "listMarketCatalogue", {
     filter: {
-      eventTypeIds: [eventTypeId],
+      eventTypeIds,
       marketCountries: ["AU"],
       marketTypeCodes: ["WIN"],
       // Excludes markets that have already jumped — listMarketCatalogue
@@ -51,7 +61,12 @@ async function listWinMarkets(appKey, sessionToken, eventTypeId, maxResults = 1)
       // fully settled, well after it's no longer useful to show.
       marketStartTime: { from: new Date().toISOString() },
     },
-    marketProjection: ["RUNNER_DESCRIPTION", "EVENT", "MARKET_START_TIME"],
+    // EVENT_TYPE lets callers tell which sport a market belongs to
+    // (market.eventType.name) without having to separately remember which
+    // eventTypeId they asked for — needed once queries span more than one
+    // sport, since listMarketsByIds (below) doesn't take an eventTypeId at
+    // all and would otherwise have no way to know.
+    marketProjection: ["RUNNER_DESCRIPTION", "EVENT", "EVENT_TYPE", "MARKET_START_TIME"],
     sort: "FIRST_TO_START",
     maxResults,
   });
@@ -60,7 +75,7 @@ async function listWinMarkets(appKey, sessionToken, eventTypeId, maxResults = 1)
 async function listMarketsByIds(appKey, sessionToken, marketIds) {
   return betfairApiCall(appKey, sessionToken, "listMarketCatalogue", {
     filter: { marketIds },
-    marketProjection: ["RUNNER_DESCRIPTION", "EVENT", "MARKET_START_TIME"],
+    marketProjection: ["RUNNER_DESCRIPTION", "EVENT", "EVENT_TYPE", "MARKET_START_TIME"],
     maxResults: marketIds.length,
   });
 }

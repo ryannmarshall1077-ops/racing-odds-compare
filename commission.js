@@ -9,6 +9,12 @@ const BETFAIR_COMMISSION = {
     QLD: 0.08, SA: 0.08, TAS: 0.08, VIC: 0.08, WA: 0.08, INT: 0.06,
   },
 };
+// Greyhound racing's Market Base Rate is NOT yet independently verified —
+// this reuses the horse table as a starting assumption, not a confirmed
+// figure. If Betfair's rate card (or HorsePower's own settings) shows a
+// different rate for greyhounds in any state, update this separately
+// rather than assuming it's identical to horse racing's.
+BETFAIR_COMMISSION.greyhound = BETFAIR_COMMISSION.horse;
 const FALLBACK_COMMISSION = 0.08; // most common rate, used if track is unrecognized
 
 // Track name -> state. Add more here as needed.
@@ -73,9 +79,26 @@ const TRACK_STATE_MAP = {
   ashburton: "NZ", riverton: "NZ", wingatui: "NZ", gore: "NZ", timaru: "NZ",
   waverley: "NZ", wanganui: "NZ", whanganui: "NZ", "new plymouth": "NZ",
   rotorua: "NZ", tauranga: "NZ", taupo: "NZ", woodville: "NZ", hawera: "NZ",
+
+  // Greyhound tracks not already covered above by a same-named horse
+  // track in the same state. Add more here as needed.
+  "wentworth park": "NSW", richmond: "NSW", dapto: "NSW", bulli: "NSW",
+  nowra: "NSW", temora: "NSW", "the gardens": "NSW",
+
+  "the meadows": "VIC", "sandown park": "VIC", warragul: "VIC", healesville: "VIC",
+
+  "albion park": "QLD", capalaba: "QLD",
+
+  cannington: "WA", mandurah: "WA",
+
+  "angle park": "SA",
 };
 
-function commissionForTrack(trackName) {
+// sport: "horse" (default) or "greyhound" — see RACING_SPORTS in
+// background.js. Only affects which commission table is consulted; the
+// track -> state lookup itself is shared since a track's state doesn't
+// depend on which sport races there.
+function commissionForTrack(trackName, sport = "horse") {
   const normalized = (trackName || "").toLowerCase().trim();
   const state = TRACK_STATE_MAP[normalized];
   if (!state) {
@@ -84,5 +107,6 @@ function commissionForTrack(trackName) {
     );
     return FALLBACK_COMMISSION;
   }
-  return BETFAIR_COMMISSION.horse[state] ?? FALLBACK_COMMISSION;
+  const table = BETFAIR_COMMISSION[sport] ?? BETFAIR_COMMISSION.horse;
+  return table[state] ?? FALLBACK_COMMISSION;
 }
