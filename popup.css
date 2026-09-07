@@ -181,6 +181,15 @@ th:first-child {
   color: var(--accent-neg);
 }
 
+.lay-dollars {
+  cursor: pointer;
+}
+
+.lay-dollars:hover {
+  background: var(--panel);
+  text-decoration: underline dotted;
+}
+
 #hedge-control {
   display: flex;
   align-items: center;

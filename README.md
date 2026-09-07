@@ -238,3 +238,7 @@ https://developer.betfair.com/.
         profit = full-hedge stake × (1-commission)), not a separate guess.
         Cross-checked two ways (via that definition, and via the
         simplified closed-form formula) and confirmed they agree exactly.
+- [x] Click-to-copy on Lay $ — click any Lay $ value to copy it to the
+      clipboard (for pasting straight into Betfair's stake field), with a
+      brief "Copied!" confirmation. Delegated on the table body rather than
+      bound per-row, so it keeps working across re-renders.

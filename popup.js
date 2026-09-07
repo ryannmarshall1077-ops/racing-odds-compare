@@ -180,7 +180,7 @@ function renderRace(race) {
       <td>${runner.name}</td>
       <td>${runner.bookmaker.toFixed(2)}</td>
       <td>${runner.betfair.toFixed(2)}</td>
-      <td>${layDollars.toFixed(2)}</td>
+      <td class="lay-dollars" title="Click to copy">${layDollars.toFixed(2)}</td>
       <td class="${metric >= 0 ? "edge-positive" : "edge-negative"}">
         ${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%
       </td>
@@ -229,6 +229,25 @@ const modeSelect = document.getElementById("mode-select");
 modeSelect.addEventListener("change", () => {
   currentMode = modeSelect.value;
   if (currentRace) renderRace(currentRace);
+});
+
+// Delegated on the (stable) tbody rather than attached per-row, so this
+// keeps working across re-renders without needing to be re-bound every
+// time renderRace rebuilds the rows.
+document.getElementById("odds-body").addEventListener("click", async (event) => {
+  const cell = event.target.closest(".lay-dollars");
+  if (!cell) return;
+
+  try {
+    await navigator.clipboard.writeText(cell.textContent.trim());
+    const original = cell.textContent;
+    cell.textContent = "Copied!";
+    setTimeout(() => {
+      cell.textContent = original;
+    }, 700);
+  } catch (err) {
+    console.warn("Couldn't copy to clipboard:", err.message);
+  }
 });
 
 function mergeBookmakerOdds(race, bookmakerRunners) {
