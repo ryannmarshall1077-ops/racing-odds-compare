@@ -184,7 +184,14 @@ async function refreshRaceInner(marketId) {
       // is "does the bookmaker's price beat what it costs to lay this off
       // on Betfair", not the Betfair back price.
       const restBetfairPrice = r.ex?.availableToLay?.[0]?.price ?? null;
+      const restBetfairLiquidity = r.ex?.availableToLay?.[0]?.size ?? null;
       const betfairPrice = domIsFresh ? existingRunner.betfair : restBetfairPrice;
+      // Liquidity travels with price under the same freshness flag — both
+      // come from whichever source (DOM watcher or this REST call) actually
+      // supplied betfairPrice, so they're never mismatched between sources.
+      const betfairLiquidity = domIsFresh
+        ? existingRunner.betfairLiquidity ?? null
+        : restBetfairLiquidity;
       const scannedPrice = recentBookmakerRunners
         ? findBookmakerPrice(name, recentBookmakerRunners)
         : undefined;
@@ -195,6 +202,7 @@ async function refreshRaceInner(marketId) {
         name,
         selectionId,
         betfair: betfairPrice,
+        betfairLiquidity,
         ...(domIsFresh && { betfairPricedAt: existingRunner.betfairPricedAt }),
         bookmaker:
           scannedPrice !== undefined
@@ -419,21 +427,27 @@ async function applyBetfairOdds(odds) {
   const { liveRace } = await chrome.storage.local.get(["liveRace"]);
   if (!liveRace || liveRace.source !== "live-betfair") return;
 
-  const priceBySelectionId = new Map(odds.runners.map((r) => [r.selectionId, r.price]));
+  const bySelectionId = new Map(odds.runners.map((r) => [r.selectionId, r]));
 
   // Stamped per runner, not race-wide — a suspended runner (common
   // in-play) has no readable price on the page at all, so it's simply
   // absent from `odds.runners` this time. Only the runners actually
   // present here get a fresh timestamp; everyone else keeps whatever
   // betfairPricedAt (possibly none, possibly old) they already had, so
-  // refreshRace() correctly falls back to the REST price for exactly the
-  // runners this update didn't touch, instead of every runner in the race.
+  // refreshRace() correctly falls back to the REST price (and REST
+  // liquidity) for exactly the runners this update didn't touch, instead
+  // of every runner in the race.
   let matched = 0;
   const runners = liveRace.runners.map((runner) => {
-    const price = priceBySelectionId.get(runner.selectionId);
-    if (price !== undefined) {
+    const fresh = bySelectionId.get(runner.selectionId);
+    if (fresh?.price !== undefined) {
       matched++;
-      return { ...runner, betfair: price, betfairPricedAt: Date.now() };
+      return {
+        ...runner,
+        betfair: fresh.price,
+        betfairLiquidity: fresh.liquidity ?? null,
+        betfairPricedAt: Date.now(),
+      };
     }
     return runner;
   });

@@ -25,8 +25,18 @@
       if (labels.length === 0) continue;
 
       const price = parseFloat(labels[0].textContent.trim());
+      // Size is prefixed with "$" (e.g. "$7") — strip it before parsing.
+      // Absent on some renders (e.g. a runner with no size at that price
+      // yet), so this stays undefined rather than NaN in that case.
+      const liquidity =
+        labels.length > 1 ? parseFloat(labels[1].textContent.replace(/[^0-9.]/g, "")) : NaN;
+
       if (!Number.isNaN(price)) {
-        runners.push({ selectionId, price });
+        runners.push({
+          selectionId,
+          price,
+          ...(!Number.isNaN(liquidity) && { liquidity }),
+        });
       }
     }
 

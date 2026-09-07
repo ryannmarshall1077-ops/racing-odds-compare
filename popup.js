@@ -156,6 +156,20 @@ function sortedRunners(race, commission, hedge) {
   return runners;
 }
 
+// Betfair liquidity available at the best (nearest) Lay price — how much
+// could actually be matched there right now before the price moves to the
+// next level. Same concept and display style as HorsePower's Liquidity
+// column (whole dollars, no decimals). Genuinely absent for a runner whose
+// price came from a REST fetch that returned no size at all, or whose Lay
+// cell on Betfair's own page had no readable size label — shown as "—"
+// rather than "$0" or "$NaN", since $0 would misleadingly imply a real,
+// confirmed-zero reading rather than "unknown".
+function formatLiquidity(liquidity) {
+  return liquidity === null || liquidity === undefined || Number.isNaN(liquidity)
+    ? "—"
+    : `$${Math.round(liquidity)}`;
+}
+
 function renderRace(race) {
   currentRace = race;
 
@@ -180,6 +194,7 @@ function renderRace(race) {
       <td>${runner.name}</td>
       <td>${runner.bookmaker.toFixed(2)}</td>
       <td>${runner.betfair.toFixed(2)}</td>
+      <td>${formatLiquidity(runner.betfairLiquidity)}</td>
       <td class="lay-dollars" title="Click to copy">${layDollars.toFixed(2)}</td>
       <td class="${metric >= 0 ? "edge-positive" : "edge-negative"}">
         ${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%
