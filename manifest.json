@@ -5,7 +5,19 @@
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArMNd0zd+uP4RuDIjEyc3rHu6ZPQ3bf9mEBdHETG9QubhMUurzjU/IBmenRUSSKyWKs9dU02nalc7fGaiDbj989o/DGj9dNUrdJ2lukgFRNgB3IOzfFZvEXPJ/AG3NIjd4/iNpSJmrosH/e999zMEEB5rWJf8r14dVX5cueG5BSAV/eD4tdMD9siOS/J/QRs27ONewbNoY3RaRR8NPvI24ucHucQ9DCxtJc6Q+bD95U91US4hTkADvo1x0VlhaCrJf9X7FUkGRCLxj+RRCJm3pm/TUFw32cmpOAGxJNf85GGA86vV8khVFVAqiNuF7ycuatJaw45nvXstYlHbBN1hywIDAQAB",
   "description": "Compares horse racing odds between Betfair Exchange and a bookmaker.",
   "action": {
-    "default_title": "Racing Odds Compare"
+    "default_title": "Racing Odds Compare",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   },
   "background": {
     "service_worker": "background.js"
