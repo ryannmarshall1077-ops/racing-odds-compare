@@ -97,19 +97,22 @@ function findBookmakerPrice(runnerName, bookmakerRunners) {
 // fresh) so a refresh doesn't wipe out a manual scan by reverting the
 // bookmaker column back to the placeholder markup.
 async function refreshRaceInner(marketId) {
-  const stored = await chrome.storage.local.get([
-    "betfairAppKey",
-    "betfairSessionToken",
-    "bookmakerOdds",
-    "selectedMarketId",
-    "liveRace",
+  // Credentials live in sync storage (survive a full reinstall); everything
+  // else stays local (device-specific or too large/transient to sync).
+  const [creds, stored] = await Promise.all([
+    chrome.storage.sync.get(["betfairAppKey", "betfairSessionToken"]),
+    chrome.storage.local.get([
+      "bookmakerOdds",
+      "selectedMarketId",
+      "liveRace",
+    ]),
   ]);
 
-  if (!stored.betfairAppKey || !stored.betfairSessionToken) {
+  if (!creds.betfairAppKey || !creds.betfairSessionToken) {
     throw new Error("Not connected to Betfair yet — set this up in Options.");
   }
 
-  const { betfairAppKey: appKey, betfairSessionToken: sessionToken } = stored;
+  const { betfairAppKey: appKey, betfairSessionToken: sessionToken } = creds;
   let targetMarketId = marketId || stored.selectedMarketId;
 
   if (marketId) {
@@ -252,7 +255,7 @@ function normalizeVenue(name) {
 // by matching venue name + race number + start time against Sportsbet's own
 // NextEvents feed — falls back to no link if nothing matches closely enough).
 async function listUpcomingRacesInner() {
-  const stored = await chrome.storage.local.get([
+  const stored = await chrome.storage.sync.get([
     "betfairAppKey",
     "betfairSessionToken",
   ]);
@@ -312,7 +315,7 @@ async function withSessionRetry(fn) {
   } catch (err) {
     if (!err.message.includes("INVALID_SESSION_INFORMATION")) throw err;
 
-    const { betfairAppKey, betfairUsername, betfairPassword } = await chrome.storage.local.get([
+    const { betfairAppKey, betfairUsername, betfairPassword } = await chrome.storage.sync.get([
       "betfairAppKey",
       "betfairUsername",
       "betfairPassword",
@@ -321,7 +324,7 @@ async function withSessionRetry(fn) {
     if (!betfairAppKey || !betfairUsername || !betfairPassword) throw err;
 
     const sessionToken = await betfairLogin(betfairAppKey, betfairUsername, betfairPassword);
-    await chrome.storage.local.set({
+    await chrome.storage.sync.set({
       betfairSessionToken: sessionToken,
       betfairSessionTokenAt: Date.now(),
     });

@@ -171,3 +171,15 @@ https://developer.betfair.com/.
       session now triggers an automatic re-login with those, retried once,
       transparently. Only a genuinely missing/wrong stored credential still
       needs a human back in Options.
+- [x] Betfair credentials survive a full reinstall — previously stored in
+      chrome.storage.local, which is wiped whenever the extension is
+      actually removed and reloaded (not just refreshed), requiring
+      re-entering everything in Options by hand again. Moved to
+      chrome.storage.sync (tied to the user's Google account, so this is a
+      deliberate tradeoff — the password now leaves the local device via
+      Chrome Sync, disclosed on the Options page). manifest.json also gets
+      a fixed `key`, giving the extension a stable ID across reloads/
+      reinstalls — required for sync storage to reliably reconnect to the
+      same data afterward. Non-credential state (race data, tab ids,
+      selections) stays in local storage; only the four credential fields
+      moved.
