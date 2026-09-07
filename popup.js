@@ -26,6 +26,29 @@ function layStake(stake, betfair, bookmaker, commission, hedge) {
   return fullHedge * hedge;
 }
 
+// Bonus Mode: a stake-not-returned (SNR) free/bonus bet only pays out the
+// winnings (backOdds - 1), not the stake itself, so its hedge stake uses
+// (bookmaker - 1) instead of bookmaker. Hedge scales linearly, same
+// reasoning as layStake — laying half the position means staking half.
+function layStakeBonus(bonusValue, betfair, bookmaker, commission, hedge) {
+  const fullHedge = (bonusValue * (bookmaker - 1)) / (betfair - commission);
+  return fullHedge * hedge;
+}
+
+// Retention % — what fraction of a bonus bet's face value converts into
+// guaranteed real cash after hedging. Directly derived from
+// layStakeBonus's full-hedge stake: a full hedge makes win/lose profit
+// identical, and the lose-case profit for a free bet is simply the lay
+// stake's return net of commission (nothing real was risked on the back
+// side to begin with) — so guaranteedProfit = fullHedgeStake × (1-c), and
+// Retention% = 100 × guaranteedProfit / bonusValue, which simplifies to
+// the form below. Partial hedge scales commission's effect the same way
+// edgePercent does.
+function bonusRetentionPercent(betfair, bookmaker, commission, hedge) {
+  const c = commission * hedge;
+  return (100 * (bookmaker - 1) * (1 - c)) / (betfair - c);
+}
+
 function normalizeName(name) {
   // Sportsbet's runner name markup splits the barrier/handicap suffix into
   // a separate span starting with "&nbsp;" (U+00A0), not a regular space —
@@ -92,9 +115,31 @@ let hedgePercent = 100;
 // Back stake used to compute the Lay $ column. Persists the same way.
 let stakeAmount = 50;
 
+// "mug" (standard Win back+lay) or "bonus" (SNR free/bonus bet retention).
+// Determines both which formula the Lay $ and metric columns use, and
+// what the metric column is even called (Edge vs Ret%). Persists the same
+// way as the other controls. "run2nd3rd"/"run2nd" aren't wired up yet —
+// their formulas haven't been verified.
+let currentMode = "mug";
+
 function parseRunnerNumber(name) {
   const match = name.match(/^(\d+)\./);
   return match ? Number(match[1]) : Infinity;
+}
+
+// Mode-dispatching wrappers so the rest of the file doesn't need to know
+// which formula is active — sorting, rendering, and the column header all
+// go through these.
+function metricPercent(runner, commission, hedge) {
+  return currentMode === "bonus"
+    ? bonusRetentionPercent(runner.betfair, runner.bookmaker, commission, hedge)
+    : edgePercent(runner.betfair, runner.bookmaker, commission, hedge);
+}
+
+function rowLayDollars(runner, commission, hedge) {
+  return currentMode === "bonus"
+    ? layStakeBonus(stakeAmount, runner.betfair, runner.bookmaker, commission, hedge)
+    : layStake(stakeAmount, runner.betfair, runner.bookmaker, commission, hedge);
 }
 
 function sortedRunners(race, commission, hedge) {
@@ -102,9 +147,7 @@ function sortedRunners(race, commission, hedge) {
 
   if (sortMode === "edge") {
     runners.sort(
-      (a, b) =>
-        edgePercent(b.betfair, b.bookmaker, commission, hedge) -
-        edgePercent(a.betfair, a.bookmaker, commission, hedge)
+      (a, b) => metricPercent(b, commission, hedge) - metricPercent(a, commission, hedge)
     );
   } else {
     runners.sort((a, b) => parseRunnerNumber(a.name) - parseRunnerNumber(b.name));
@@ -119,6 +162,9 @@ function renderRace(race) {
   document.getElementById("race-subtitle").textContent =
     `Horse Racing — ${race.race}`;
 
+  document.getElementById("metric-header").textContent =
+    currentMode === "bonus" ? "Ret%" : "Edge";
+
   const tbody = document.getElementById("odds-body");
   tbody.innerHTML = "";
 
@@ -126,8 +172,8 @@ function renderRace(race) {
   const hedge = hedgePercent / 100;
 
   for (const runner of sortedRunners(race, commission, hedge)) {
-    const edge = edgePercent(runner.betfair, runner.bookmaker, commission, hedge);
-    const layDollars = layStake(stakeAmount, runner.betfair, runner.bookmaker, commission, hedge);
+    const metric = metricPercent(runner, commission, hedge);
+    const layDollars = rowLayDollars(runner, commission, hedge);
     const row = document.createElement("tr");
 
     row.innerHTML = `
@@ -135,8 +181,8 @@ function renderRace(race) {
       <td>${runner.bookmaker.toFixed(2)}</td>
       <td>${runner.betfair.toFixed(2)}</td>
       <td>${layDollars.toFixed(2)}</td>
-      <td class="${edge >= 0 ? "edge-positive" : "edge-negative"}">
-        ${edge >= 0 ? "+" : ""}${edge.toFixed(1)}%
+      <td class="${metric >= 0 ? "edge-positive" : "edge-negative"}">
+        ${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%
       </td>
     `;
 
@@ -175,6 +221,13 @@ stakeInput.addEventListener("input", () => {
   const value = Number(stakeInput.value);
   if (Number.isNaN(value)) return; // mid-edit — wait for a valid number
   stakeAmount = Math.max(0, value);
+  if (currentRace) renderRace(currentRace);
+});
+
+const modeSelect = document.getElementById("mode-select");
+
+modeSelect.addEventListener("change", () => {
+  currentMode = modeSelect.value;
   if (currentRace) renderRace(currentRace);
 });
 

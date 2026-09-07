@@ -223,3 +223,18 @@ https://developer.betfair.com/.
       real HorsePower output: $53.88, $50.58, $38.78 (stake $50, hedge
       100%) — all matched exactly, confirming the naive
       stake×backOdds/layOdds formula (no commission term) was wrong.
+- [x] Mode selector — Mug (standard Win back+lay, the default) and Bonus
+      (stake-not-returned free/bonus bet) so far; Run 2nd 3rd / Run 2nd are
+      listed but disabled until their formulas are verified. Switching mode
+      swaps both the Lay $ formula and what the metric column shows
+      (Edge% vs Ret%), including its header text.
+      - **Bonus Mode**: a SNR bonus bet only pays out the winnings
+        (backOdds - 1), not the stake, so `layStakeBonus` uses
+        `bonusValue × (BackOdds - 1) / (LayOdds - Commission)` in place of
+        the Mug formula's `stake × BackOdds`.
+      - **Ret%** (`bonusRetentionPercent`) is the % of the bonus bet's face
+        value that converts to guaranteed real cash after hedging —
+        derived directly from the Lay Stake formula above (guaranteed
+        profit = full-hedge stake × (1-commission)), not a separate guess.
+        Cross-checked two ways (via that definition, and via the
+        simplified closed-form formula) and confirmed they agree exactly.

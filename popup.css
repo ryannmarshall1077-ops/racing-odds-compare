@@ -195,14 +195,19 @@ th:first-child {
 }
 
 #hedge-input,
-#stake-input {
-  width: 52px;
+#stake-input,
+#mode-select {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 5px 6px;
   color: var(--text);
   font-size: 12px;
+}
+
+#hedge-input,
+#stake-input {
+  width: 52px;
   text-align: right;
 }
 
@@ -211,7 +216,8 @@ th:first-child {
 }
 
 #hedge-input:focus,
-#stake-input:focus {
+#stake-input:focus,
+#mode-select:focus {
   outline: none;
   border-color: var(--accent);
 }
