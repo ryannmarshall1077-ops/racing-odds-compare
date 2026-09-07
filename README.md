@@ -183,3 +183,16 @@ https://developer.betfair.com/.
       same data afterward. Non-credential state (race data, tab ids,
       selections) stays in local storage; only the four credential fields
       moved.
+- [x] Commission-adjusted edge (QL%) — the edge column now uses
+      `QL% = 100 × [B(1-c) - (L-c)] / (L-c)` (B = Sportsbet price,
+      L = Betfair Lay price, c = Betfair's commission rate) instead of the
+      simple `(bookmaker - betfair) / betfair` ratio, since Betfair takes a
+      cut of net winnings that the raw ratio ignores. `commission.js` looks
+      up the right rate from Betfair's published Market Base Rate table via
+      a track-name → state map (rates vary by AU state/NZ/international);
+      falls back to 8% (the most common rate) for an unrecognized track,
+      logging a console warning so a gap in the map is visible rather than
+      silently wrong. Fixed a real bug found while wiring this in: the race
+      object never carried a plain `track` field (only a combined display
+      string), so this lookup was silently always hitting the fallback
+      before the fix.

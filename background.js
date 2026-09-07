@@ -219,8 +219,10 @@ async function refreshRaceInner(marketId) {
     );
   }
 
+  const track = market.event.venue || market.event.name;
   const race = {
-    race: `${market.event.venue || market.event.name} — ${market.marketName}`,
+    race: `${track} — ${market.marketName}`,
+    track,
     runners,
     source: "live-betfair",
     bookmakerSource: bookmakerMatched > 0 ? "live-sportsbet" : "placeholder",

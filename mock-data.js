@@ -3,6 +3,7 @@
 // { race: string, runners: [{ name, betfair, bookmaker }] }
 const MOCK_RACE = {
   race: "Race 5 - Flemington",
+  track: "Flemington",
   source: "mock",
   bookmakerSource: "placeholder",
   runners: [

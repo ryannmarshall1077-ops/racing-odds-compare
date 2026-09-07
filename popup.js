@@ -1,5 +1,9 @@
-function edgePercent(betfair, bookmaker) {
-  return ((bookmaker - betfair) / betfair) * 100;
+// Commission-adjusted edge — matches HorsePower's QL% math exactly (it's the
+// same formula, just expressed directly as a percentage rather than scaled
+// by stake, since stake cancels out of that ratio anyway). See commission.js
+// for the Betfair Market Base Rate table this pulls from.
+function edgePercent(betfair, bookmaker, commission) {
+  return ((bookmaker * (1 - commission)) / (betfair - commission) - 1) * 100;
 }
 
 function normalizeName(name) {
@@ -63,8 +67,10 @@ function renderRace(race) {
   const tbody = document.getElementById("odds-body");
   tbody.innerHTML = "";
 
+  const commission = commissionForTrack(race.track);
+
   for (const runner of race.runners) {
-    const edge = edgePercent(runner.betfair, runner.bookmaker);
+    const edge = edgePercent(runner.betfair, runner.bookmaker, commission);
     const row = document.createElement("tr");
 
     row.innerHTML = `
