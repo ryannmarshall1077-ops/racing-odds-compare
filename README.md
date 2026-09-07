@@ -201,3 +201,11 @@ https://developer.betfair.com/.
       value on top) is the default; toggling switches to runner-number
       order. Persists across live re-renders (auto-refresh re-applies
       whichever sort is currently selected instead of resetting it).
+- [x] Hedge % control — an editable 0-100 input above the table controls
+      how much of the recommended lay Edge% accounts for: 100% = full lay
+      (standard QL%), 0% = no lay (plain (B-L)/L ratio, no commission,
+      since a bet you never lay never touches Betfair), any value between
+      scales commission's effect by that fraction —
+      `Edge% = 100 × [B(1-h·c) - (L-h·c)] / (L-h·c)`. Verified against a
+      real matched-betting tool's output at both the 0% and 100% endpoints
+      for multiple runners — matched exactly.
