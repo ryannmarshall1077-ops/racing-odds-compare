@@ -457,3 +457,46 @@ https://developer.betfair.com/.
       - The ~60s auto-refresh alarm now re-scans every tracked bookmaker
         tab (not just Sportsbet's), and the diagnostic "scan found
         runners, but none matched" console warning now fires per bookie.
+- [x] Sidebar + main-panel layout, matching a reference odds-comparison
+      dashboard's structure (not its branding/colours — kept our own dark
+      theme throughout):
+      - **Left sidebar**: Upcoming Races moved out of the page's top flow
+        into a dedicated, always-visible panel — race type filters, a
+        track search box (client-side, matched against `race.track`,
+        combined with the existing race type toggles), and the races list
+        below it. The Settings button now lives in the sidebar's own
+        header instead of the page's.
+      - **Main panel**: the selected race's own info (sport + race name,
+        plus a live countdown to its jump — `race.startTime`/`marketId`
+        are now included in the race object returned by `refreshRaceInner`
+        specifically so this could be shown; previously only the sidebar
+        list had a countdown, not the race actually loaded) and the full
+        odds table alongside it.
+      - **Dedicated Best Price column** — the highest price across every
+        bookmaker compared, with a badge naming which bookie(s) it came
+        from (more than one if tied) — right after Runner. This is also
+        exactly what Edge%/Ret%/Lay $/Liability get computed from
+        (`bestBookmakerPrices`, generalized from the single-bookie version
+        to return every tied bookie, not just the first found — so ties
+        now highlight every matching column, not just one).
+      - **Scratched runners now render as placeholder rows** instead of
+        being silently omitted — a full-field view, sorted by box number,
+        shown at the end of the table regardless of the active sort mode
+        (sorting scratched rows by Edge% wouldn't mean anything, since
+        they have no price). Needed loosening a filter in
+        `refreshRaceInner` that had been dropping REMOVED runners
+        entirely — they're kept now, purely so the UI has something to
+        render a placeholder from.
+      - **Market % footer row** — the overround (sum of implied
+        probabilities) for Betfair and each bookmaker, computed from the
+        race's full field regardless of any Max results/Max liability
+        filtering applied to the displayed rows above it.
+      - Deliberately left out: the reference's price-fluctuation
+        sparkline + move-%, which needs real price-history tracking we
+        don't have; its day-of-week quick filters and AU/NZ-vs-
+        International toggle, which don't apply (we're AU-only by design,
+        already Betfair-filtered); its actual bookmaker logos, replaced
+        with plain text badges (a specific product's trademarked logos
+        aren't ours to reproduce); and its bet-placement-workflow chrome
+        (Comms/Depths header, Win/Place/Bonus/Promo buttons, Templates,
+        Training) — this tool doesn't place bets, so none of that applies.

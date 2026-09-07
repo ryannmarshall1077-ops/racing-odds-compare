@@ -6,76 +6,89 @@
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <header>
-      <div class="header-top">
-        <h1>Racing Odds Compare</h1>
-        <button id="settings-btn" title="Settings">&#9881;</button>
-      </div>
-      <p class="subtitle" id="race-subtitle">Horse &amp; Greyhound Racing &mdash; Betfair vs Sportsbet</p>
-    </header>
+    <div id="app-layout">
+      <aside id="sidebar">
+        <div class="sidebar-header">
+          <h1>Racing Odds Compare</h1>
+          <button id="settings-btn" title="Settings">&#9881;</button>
+        </div>
 
-    <section id="upcoming-races">
-      <div class="section-header">
-        <h2>Upcoming Races</h2>
-        <button id="races-refresh-btn" title="Refresh upcoming races">&#8635;</button>
-      </div>
-      <div id="race-type-filter">
-        <span class="race-type-label">Race Types:</span>
-        <button class="race-type-btn active" data-race-type="horse" title="Horse racing">&#128046; Horse</button>
-        <button class="race-type-btn active" data-race-type="harness" title="Harness racing">&#127943; Harness</button>
-        <button class="race-type-btn active" data-race-type="greyhound" title="Greyhound racing">&#128021; Greyhound</button>
-      </div>
-      <ul id="races-list">
-        <li class="races-status">Loading...</li>
-      </ul>
-    </section>
+        <div class="section-header">
+          <h2>Upcoming Races</h2>
+          <button id="races-refresh-btn" title="Refresh upcoming races">&#8635;</button>
+        </div>
 
-    <div id="winner-banner" hidden></div>
+        <div id="race-type-filter">
+          <button class="race-type-btn active" data-race-type="horse" title="Horse racing">&#128046; Horse</button>
+          <button class="race-type-btn active" data-race-type="harness" title="Harness racing">&#127943; Harness</button>
+          <button class="race-type-btn active" data-race-type="greyhound" title="Greyhound racing">&#128021; Greyhound</button>
+        </div>
 
-    <div id="odds-table-wrapper">
-    <table id="odds-table">
-      <thead>
-        <tr>
-          <th>
-            Runner
-            <button id="sort-toggle-btn" title="Toggle sort order">Sort: Edge</button>
-          </th>
-          <th>Sportsbet</th>
-          <th>TAB</th>
-          <th>Betfair (Lay)</th>
-          <th class="col-liquidity" title="Betfair liquidity available at the best Lay price">Liquidity</th>
-          <th>Lay $</th>
-          <th class="col-liability" title="What you'd owe if the lay bet loses: Lay $ × (Betfair odds − 1)">Liability</th>
-          <th id="metric-header">Edge</th>
-        </tr>
-      </thead>
-      <tbody id="odds-body">
-        <!-- rows injected by popup.js -->
-      </tbody>
-    </table>
+        <input type="search" id="track-search" placeholder="🔍 Search track..." />
+
+        <ul id="races-list">
+          <li class="races-status">Loading...</li>
+        </ul>
+      </aside>
+
+      <main id="main-panel">
+        <div id="race-info-bar">
+          <p class="subtitle" id="race-subtitle">Horse &amp; Greyhound Racing &mdash; Betfair vs Sportsbet</p>
+          <span id="race-countdown-main" class="race-countdown-main"></span>
+        </div>
+
+        <div id="winner-banner" hidden></div>
+
+        <div id="odds-table-wrapper">
+          <table id="odds-table">
+            <thead>
+              <tr>
+                <th>
+                  Runner
+                  <button id="sort-toggle-btn" title="Toggle sort order">Sort: Edge</button>
+                </th>
+                <th class="col-best-price" title="The highest price across every bookmaker compared">Best Price</th>
+                <th>Betfair (Lay)</th>
+                <th class="col-liquidity" title="Betfair liquidity available at the best Lay price">Liquidity</th>
+                <th>Sportsbet</th>
+                <th>TAB</th>
+                <th>Lay $</th>
+                <th class="col-liability" title="What you'd owe if the lay bet loses: Lay $ × (Betfair odds − 1)">Liability</th>
+                <th id="metric-header">Edge</th>
+              </tr>
+            </thead>
+            <tbody id="odds-body">
+              <!-- rows injected by popup.js -->
+            </tbody>
+            <tfoot id="odds-foot">
+              <!-- Market % row injected by popup.js -->
+            </tfoot>
+          </table>
+        </div>
+
+        <div id="hedge-control">
+          <label for="mode-select">Mode</label>
+          <select id="mode-select">
+            <option value="mug">Mug</option>
+            <option value="bonus">Bonus</option>
+            <option value="run2nd3rd" disabled>Run 2nd 3rd (coming soon)</option>
+            <option value="run2nd" disabled>Run 2nd (coming soon)</option>
+          </select>
+          <label for="stake-input">Stake</label>
+          <span>$</span>
+          <input type="number" id="stake-input" min="0" step="1" value="50" />
+          <label for="hedge-input">Hedge</label>
+          <input type="number" id="hedge-input" min="0" max="100" step="1" value="100" />
+          <span>%</span>
+          <span class="hedge-hint">100% = full lay, 0% = no lay</span>
+        </div>
+
+        <footer>
+          <span id="data-source-note">Showing mock data &mdash; live odds not yet connected.</span>
+          <button id="refresh-btn">Refresh live odds</button>
+        </footer>
+      </main>
     </div>
-
-    <div id="hedge-control">
-      <label for="mode-select">Mode</label>
-      <select id="mode-select">
-        <option value="mug">Mug</option>
-        <option value="bonus">Bonus</option>
-        <option value="run2nd3rd" disabled>Run 2nd 3rd (coming soon)</option>
-        <option value="run2nd" disabled>Run 2nd (coming soon)</option>
-      </select>
-      <label for="stake-input">Stake</label>
-      <span>$</span>
-      <input type="number" id="stake-input" min="0" step="1" value="50" />
-      <label for="hedge-input">Hedge</label>
-      <input type="number" id="hedge-input" min="0" max="100" step="1" value="100" />
-      <span>%</span>
-      <span class="hedge-hint">100% = full lay, 0% = no lay</span>
-    </div>
-
-    <footer>
-      <span id="data-source-note">Showing mock data &mdash; live odds not yet connected.</span>
-      <button id="refresh-btn">Refresh live odds</button>
-    </footer>
 
     <script src="mock-data.js"></script>
     <script src="commission.js"></script>

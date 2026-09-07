@@ -293,10 +293,11 @@ async function refreshRaceInner(marketId) {
   // ACTIVE again) and the REST call stops returning fresh prices for any
   // of them — filtering to ACTIVE-only would empty the whole table out
   // right when we want to keep showing it with the result. REMOVED
-  // (scratched) is the only status actually worth dropping.
+  // (scratched) runners are kept too, purely so the UI can render them as
+  // placeholder rows (a full-field view) — nothing below computes a real
+  // price for one, and the final filter explicitly keeps them anyway.
   const bookmakerMatched = Object.fromEntries(Object.keys(BOOKIES).map((id) => [id, 0]));
   const runners = book.runners
-    .filter((r) => r.status !== "REMOVED")
     .map((r) => {
       const name = runnerNames.get(r.selectionId) || `Runner ${r.selectionId}`;
       const selectionId = String(r.selectionId);
@@ -356,7 +357,7 @@ async function refreshRaceInner(marketId) {
         bookmakers,
       };
     })
-    .filter((r) => r.betfair !== null);
+    .filter((r) => r.betfair !== null || r.result === "REMOVED");
 
   const winner = runners.find((r) => r.result === "WINNER")?.name ?? null;
 
@@ -380,6 +381,8 @@ async function refreshRaceInner(marketId) {
   const race = {
     race: `${track} — ${market.marketName}`,
     track,
+    marketId: market.marketId,
+    startTime: market.marketStartTime,
     sport: sport.id,
     sportLabel: sport.label,
     runners,
