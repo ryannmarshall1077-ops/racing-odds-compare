@@ -7,7 +7,10 @@
   </head>
   <body>
     <header>
-      <h1>Racing Odds Compare</h1>
+      <div class="header-top">
+        <h1>Racing Odds Compare</h1>
+        <button id="settings-btn" title="Settings">&#9881;</button>
+      </div>
       <p class="subtitle" id="race-subtitle">Horse &amp; Greyhound Racing &mdash; Betfair vs Sportsbet</p>
     </header>
 
@@ -36,8 +39,9 @@
           </th>
           <th>Sportsbet</th>
           <th>Betfair (Lay)</th>
-          <th title="Betfair liquidity available at the best Lay price">Liquidity</th>
+          <th class="col-liquidity" title="Betfair liquidity available at the best Lay price">Liquidity</th>
           <th>Lay $</th>
+          <th class="col-liability" title="What you'd owe if the lay bet loses: Lay $ × (Betfair odds − 1)">Liability</th>
           <th id="metric-header">Edge</th>
         </tr>
       </thead>
@@ -71,6 +75,7 @@
 
     <script src="mock-data.js"></script>
     <script src="commission.js"></script>
+    <script src="settings.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

@@ -35,9 +35,29 @@ header {
   border-bottom: 1px solid var(--border);
 }
 
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 h1 {
   margin: 0;
   font-size: 15px;
+}
+
+#settings-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+#settings-btn:hover {
+  color: var(--text);
 }
 
 .subtitle {
@@ -171,6 +191,28 @@ th, td {
   padding: 8px 10px;
   text-align: right;
   border-bottom: 1px solid var(--border);
+}
+
+/* Colours and Layout > Compact table rows setting. */
+body.compact-rows th,
+body.compact-rows td {
+  padding: 4px 10px;
+}
+
+/* Race Result / Display > Show Liquidity/Liability column settings.
+   Liability defaults hidden (matches showLiabilityColumn's own default of
+   false) even before settings.js has loaded, so there's no flash of an
+   extra column on first paint; Liquidity defaults shown the same way. */
+body.hide-liquidity .col-liquidity {
+  display: none;
+}
+
+.col-liability {
+  display: none;
+}
+
+body.show-liability .col-liability {
+  display: table-cell;
 }
 
 th:first-child, td:first-child {

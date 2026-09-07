@@ -141,6 +141,20 @@ let currentMode = "mug";
 let selectedRaceTypes = new Set(["horse", "harness", "greyhound"]);
 let latestRaces = [];
 
+// Populated once loadSettings() resolves (see the bottom of this file) —
+// starts at DEFAULT_SETTINGS so anything reading it before then (tab
+// opening, countdown rendering) still gets sane values rather than
+// undefined. Unlike the per-session controls above (sortMode, stakeAmount,
+// etc. — which the Settings page's Default* fields only seed the INITIAL
+// value of), currentSettings is read live by openRaceTabs/renderRacesList
+// on every use, since pin/focus/countdown-visibility are meant to apply
+// consistently for the whole session, not just at startup.
+let currentSettings = DEFAULT_SETTINGS;
+
+document.getElementById("settings-btn").addEventListener("click", () => {
+  chrome.runtime.openOptionsPage();
+});
+
 function parseRunnerNumber(name) {
   const match = name.match(/^(\d+)\./);
   return match ? Number(match[1]) : Infinity;
@@ -189,6 +203,15 @@ function formatLiquidity(liquidity) {
     : `$${Math.round(liquidity)}`;
 }
 
+// What you'd owe if the lay bet loses (the backed selection wins) — the
+// standard exchange lay-liability formula, stake × (odds - 1). Unlike
+// Liquidity this is always computable from data already on the row (no
+// "genuinely absent" case), since it's derived from our own Lay $, not
+// scraped.
+function liabilityFor(layDollars, betfairOdds) {
+  return layDollars * (betfairOdds - 1);
+}
+
 function renderRace(race) {
   currentRace = race;
 
@@ -201,20 +224,39 @@ function renderRace(race) {
   const tbody = document.getElementById("odds-body");
   tbody.innerHTML = "";
 
-  const commission = commissionForTrack(race.track, race.sport);
+  // Race Result / Display > Betfair commission discount — percentage
+  // points off whatever the track/sport would otherwise charge, floored
+  // at 0% so a discount larger than the base rate can't go negative.
+  const baseCommission = commissionForTrack(race.track, race.sport);
+  const commission = Math.max(0, baseCommission - currentSettings.commissionDiscount / 100);
   const hedge = hedgePercent / 100;
 
-  for (const runner of sortedRunners(race, commission, hedge)) {
+  let rows = sortedRunners(race, commission, hedge).map((runner) => {
     const metric = metricPercent(runner, commission, hedge);
     const layDollars = rowLayDollars(runner, commission, hedge);
+    const liability = liabilityFor(layDollars, runner.betfair);
+    return { runner, metric, layDollars, liability };
+  });
+
+  // Max liability filters displayed rows entirely (not just a visual
+  // flag), per the Settings page's own description of the setting.
+  if (currentSettings.maxLiability !== null) {
+    rows = rows.filter((r) => r.liability <= currentSettings.maxLiability);
+  }
+  if (currentSettings.maxResults !== null) {
+    rows = rows.slice(0, currentSettings.maxResults);
+  }
+
+  for (const { runner, metric, layDollars, liability } of rows) {
     const row = document.createElement("tr");
 
     row.innerHTML = `
       <td>${runner.name}</td>
       <td>${runner.bookmaker.toFixed(2)}</td>
       <td>${runner.betfair.toFixed(2)}</td>
-      <td>${formatLiquidity(runner.betfairLiquidity)}</td>
+      <td class="col-liquidity">${formatLiquidity(runner.betfairLiquidity)}</td>
       <td class="lay-dollars" title="Click to copy">${layDollars.toFixed(2)}</td>
+      <td class="col-liability">${liability.toFixed(2)}</td>
       <td class="${metric >= 0 ? "edge-positive" : "edge-negative"}">
         ${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%
       </td>
@@ -409,12 +451,16 @@ const racesListEl = document.getElementById("races-list");
 const racesRefreshBtn = document.getElementById("races-refresh-btn");
 
 // Navigates the given tab to a new URL in place if it still exists, or
-// opens a fresh (background — not stealing focus) tab if it doesn't. Either
-// way returns the tab id to remember for next time.
-async function openOrNavigateTab(tabId, url) {
+// opens a fresh tab if it doesn't. Either way returns the tab id to
+// remember for next time. `active` only ever explicitly sets true on the
+// update path (never force-defocuses an existing tab the user might be
+// looking at for unrelated reasons) — Tab and Window management's "Switch
+// focus to the race tabs" setting is the only thing that requests true;
+// left off (the default), tabs stay wherever they already were.
+async function openOrNavigateTab(tabId, url, { pinned = false, active = false } = {}) {
   if (tabId) {
     try {
-      await chrome.tabs.update(tabId, { url });
+      await chrome.tabs.update(tabId, { url, pinned, ...(active && { active: true }) });
       return tabId;
     } catch {
       // Closed by the user since we last used it — fall through to creating
@@ -422,7 +468,7 @@ async function openOrNavigateTab(tabId, url) {
     }
   }
 
-  const tab = await chrome.tabs.create({ url, active: false });
+  const tab = await chrome.tabs.create({ url, active, pinned });
   return tab.id;
 }
 
@@ -430,23 +476,36 @@ async function openOrNavigateTab(tabId, url) {
 // variable) since the popup's JS state is thrown away every time it closes,
 // but the tabs it opened live on. Reusing the same two tabs — navigating
 // them in place — instead of closing and recreating avoids the flicker of
-// old tabs disappearing and new ones appearing, and creating any new tab
-// `active: false` stops it from stealing focus away from this extension
-// tab. As a final safety net, this tab's own focus is explicitly
-// re-asserted afterward.
+// old tabs disappearing and new ones appearing.
+//
+// Focus behavior is Settings-driven (Tab and Window management >
+// focusRaceTabsOnOpen): by default the race tabs open/reuse in the
+// background and this extension tab's own focus is explicitly re-asserted
+// afterward (its prior behavior, unconditionally); with the setting on,
+// the Betfair tab becomes active instead and this tab's focus is left
+// alone, so the race tabs actually end up frontmost as the setting implies
+// — just skipping the refocus step wouldn't have been enough on its own,
+// since new tabs are still created inactive either way.
 async function openRaceTabs(race) {
   const stored = await chrome.storage.local.get(["betfairTabId", "sportsbetTabId"]);
 
-  const betfairTabId = await openOrNavigateTab(stored.betfairTabId, race.betfairUrl);
+  const betfairTabId = await openOrNavigateTab(stored.betfairTabId, race.betfairUrl, {
+    pinned: currentSettings.pinRaceTabs,
+    active: currentSettings.focusRaceTabsOnOpen,
+  });
   const sportsbetTabId = race.sportsbetUrl
-    ? await openOrNavigateTab(stored.sportsbetTabId, race.sportsbetUrl)
+    ? await openOrNavigateTab(stored.sportsbetTabId, race.sportsbetUrl, {
+        pinned: currentSettings.pinRaceTabs,
+      })
     : stored.sportsbetTabId;
 
   await chrome.storage.local.set({ betfairTabId, sportsbetTabId });
 
-  const ownTab = await chrome.tabs.getCurrent();
-  if (ownTab) {
-    await chrome.tabs.update(ownTab.id, { active: true });
+  if (!currentSettings.focusRaceTabsOnOpen) {
+    const ownTab = await chrome.tabs.getCurrent();
+    if (ownTab) {
+      await chrome.tabs.update(ownTab.id, { active: true });
+    }
   }
 }
 
@@ -480,10 +539,11 @@ function renderRacesList(races) {
     li.innerHTML = `
       <span class="race-track">${raceTypeEmoji(race.raceType)} ${race.track} R${race.raceNumber}</span>
       <span>
-        <span class="race-time">${time}</span>
-        <span class="race-countdown" data-start="${race.startTime}"></span>${
-      race.sportsbetUrl ? "" : '<span class="race-warn" title="No matching Sportsbet race found">!</span>'
-    }
+        <span class="race-time">${time}</span>${
+      currentSettings.showCountdowns
+        ? `<span class="race-countdown" data-start="${race.startTime}"></span>`
+        : ""
+    }${race.sportsbetUrl ? "" : '<span class="race-warn" title="No matching Sportsbet race found">!</span>'}
       </span>
     `;
 
@@ -562,3 +622,38 @@ for (const btn of document.querySelectorAll(".race-type-btn")) {
     renderFilteredRacesList();
   });
 }
+
+// Applies the user's saved Settings-page defaults over the hardcoded
+// fallbacks above. Runs concurrently with (not before) the liveRace/
+// upcomingRaces loads already kicked off above — whichever finishes last
+// naturally ends up correct either way: if this resolves first, the
+// race/list loads below will already pick up the right currentMode/
+// sortMode/etc. when they render; if it resolves after (settings is a
+// second storage round-trip, so this is the more likely order), it
+// re-renders whatever's already on screen rather than leaving it stuck on
+// the hardcoded defaults.
+loadSettings().then((settings) => {
+  currentSettings = settings;
+
+  currentMode = settings.defaultMode;
+  sortMode = settings.defaultSort;
+  hedgePercent = settings.defaultHedge;
+  stakeAmount = settings.defaultStake;
+  selectedRaceTypes = new Set(settings.defaultRaceTypes);
+
+  modeSelect.value = currentMode;
+  hedgeInput.value = hedgePercent;
+  stakeInput.value = stakeAmount;
+  sortToggleBtn.textContent = sortMode === "number" ? "Sort: Number" : "Sort: Edge";
+  for (const btn of document.querySelectorAll(".race-type-btn")) {
+    btn.classList.toggle("active", selectedRaceTypes.has(btn.dataset.raceType));
+  }
+
+  document.documentElement.style.setProperty("--accent", settings.accentColor);
+  document.body.classList.toggle("compact-rows", settings.compactRows);
+  document.body.classList.toggle("hide-liquidity", !settings.showLiquidityColumn);
+  document.body.classList.toggle("show-liability", settings.showLiabilityColumn);
+
+  if (currentRace) renderRace(currentRace);
+  if (latestRaces.length > 0) renderFilteredRacesList();
+});

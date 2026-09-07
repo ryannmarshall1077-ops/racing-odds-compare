@@ -1,4 +1,4 @@
-importScripts("js/betfair/auth.js", "js/betfair/api.js", "js/sportsbet/api.js");
+importScripts("js/betfair/auth.js", "js/betfair/api.js", "js/sportsbet/api.js", "settings.js");
 
 const AUTO_REFRESH_ALARM = "refreshRace";
 const BOOKMAKER_ODDS_MAX_AGE_MS = 10 * 60 * 1000;
@@ -71,6 +71,13 @@ ensureAutoRefreshAlarm();
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== AUTO_REFRESH_ALARM) return;
+
+  // Other Behaviour and Functionality > "Automatically refresh odds every
+  // minute" — the alarm itself stays registered either way (Chrome's
+  // per-extension alarm budget isn't worth churning on and off), this just
+  // skips doing anything on each tick when the user's turned it off.
+  const { autoRefresh } = await loadSettings();
+  if (!autoRefresh) return;
 
   // Re-scrape the tracked Sportsbet tab (the one this race's "Upcoming
   // Races" click opened/reused) before refreshing Betfair, so refreshRace()

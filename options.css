@@ -3,11 +3,119 @@
   padding: 4px 0 20px;
 }
 
+.options-body header {
+  padding: 14px 14px 8px;
+}
+
+.options-body h1 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.settings-accordion {
+  border-top: 1px solid var(--border);
+}
+
+.settings-section {
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-section summary {
+  padding: 12px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  list-style: none; /* hide the default marker so our own ::marker below is the only one */
+}
+
+.settings-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-section summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 14px;
+  color: var(--muted);
+}
+
+.settings-section[open] > summary::before {
+  content: "▾";
+}
+
+.settings-section summary:hover {
+  background: var(--panel);
+}
+
+.settings-section-body {
+  padding: 4px 14px 16px 28px; /* left-indented under the summary's chevron */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-section-body .subtitle {
+  margin: 0 0 4px;
+}
+
+.checkbox-group {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.checkbox-group legend {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0;
+  margin-bottom: 2px;
+}
+
+.checkbox-label {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px !important;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--accent);
+}
+
+input[type="color"] {
+  width: 60px;
+  padding: 2px;
+  cursor: pointer;
+}
+
+.settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
 form {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px 14px 0;
+  padding: 0;
 }
 
 label {
@@ -16,6 +124,19 @@ label {
   gap: 4px;
   font-size: 12px;
   color: var(--muted);
+}
+
+.field-name {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.field-hint {
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.75;
+  font-weight: normal;
 }
 
 input {
@@ -45,6 +166,15 @@ button:hover {
 .status {
   margin: 12px 14px 0;
   font-size: 12px;
+}
+
+/* Both re-uses of .status sit inside their own already-spaced flex
+   container (the accordion body's own `gap`, the footer's own layout) —
+   the base margin above is only right for the old standalone-form context. */
+.settings-section-body .status,
+.settings-footer .status {
+  margin: 0;
+  color: var(--accent);
 }
 
 .status.ok {
