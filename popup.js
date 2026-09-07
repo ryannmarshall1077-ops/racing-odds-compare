@@ -13,6 +13,19 @@ function edgePercent(betfair, bookmaker, commission, hedge) {
   return ((bookmaker * (1 - c)) / (betfair - c) - 1) * 100;
 }
 
+// Betfair lay stake required to hedge a back bet, adjusted for commission
+// (the naive stake×backOdds/layOdds ignores that Betfair takes a cut of
+// the lay side's winnings, understating the true required stake). Hedge
+// scales this linearly — unlike edgePercent's partial-hedge treatment,
+// this is a literal stake amount: laying half the position means staking
+// half of the full hedge amount, no more complex interpolation needed.
+// Verified against real HorsePower output for stake=$50: back=15/lay=14
+// -> $53.88, back=7/lay=7 -> $50.58, back=17/lay=22 -> $38.78 (all exact).
+function layStake(stake, betfair, bookmaker, commission, hedge) {
+  const fullHedge = (stake * bookmaker) / (betfair - commission);
+  return fullHedge * hedge;
+}
+
 function normalizeName(name) {
   // Sportsbet's runner name markup splits the barrier/handicap suffix into
   // a separate span starting with "&nbsp;" (U+00A0), not a regular space —
@@ -76,6 +89,9 @@ let sortMode = "edge";
 // re-renders for the same reason sortMode does.
 let hedgePercent = 100;
 
+// Back stake used to compute the Lay $ column. Persists the same way.
+let stakeAmount = 50;
+
 function parseRunnerNumber(name) {
   const match = name.match(/^(\d+)\./);
   return match ? Number(match[1]) : Infinity;
@@ -111,12 +127,14 @@ function renderRace(race) {
 
   for (const runner of sortedRunners(race, commission, hedge)) {
     const edge = edgePercent(runner.betfair, runner.bookmaker, commission, hedge);
+    const layDollars = layStake(stakeAmount, runner.betfair, runner.bookmaker, commission, hedge);
     const row = document.createElement("tr");
 
     row.innerHTML = `
       <td>${runner.name}</td>
       <td>${runner.bookmaker.toFixed(2)}</td>
       <td>${runner.betfair.toFixed(2)}</td>
+      <td>${layDollars.toFixed(2)}</td>
       <td class="${edge >= 0 ? "edge-positive" : "edge-negative"}">
         ${edge >= 0 ? "+" : ""}${edge.toFixed(1)}%
       </td>
@@ -148,6 +166,15 @@ hedgeInput.addEventListener("input", () => {
   const value = Number(hedgeInput.value);
   if (Number.isNaN(value)) return; // mid-edit (e.g. field momentarily empty) — wait for a valid number
   hedgePercent = Math.min(100, Math.max(0, value));
+  if (currentRace) renderRace(currentRace);
+});
+
+const stakeInput = document.getElementById("stake-input");
+
+stakeInput.addEventListener("input", () => {
+  const value = Number(stakeInput.value);
+  if (Number.isNaN(value)) return; // mid-edit — wait for a valid number
+  stakeAmount = Math.max(0, value);
   if (currentRace) renderRace(currentRace);
 });
 

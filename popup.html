@@ -30,6 +30,7 @@
           </th>
           <th>Sportsbet</th>
           <th>Betfair (Lay)</th>
+          <th>Lay $</th>
           <th>Edge</th>
         </tr>
       </thead>
@@ -39,6 +40,9 @@
     </table>
 
     <div id="hedge-control">
+      <label for="stake-input">Stake</label>
+      <span>$</span>
+      <input type="number" id="stake-input" min="0" step="1" value="50" />
       <label for="hedge-input">Hedge</label>
       <input type="number" id="hedge-input" min="0" max="100" step="1" value="100" />
       <span>%</span>
