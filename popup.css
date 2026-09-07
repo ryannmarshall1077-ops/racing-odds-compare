@@ -142,6 +142,19 @@ th {
   text-transform: uppercase;
 }
 
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+th.sortable:hover {
+  color: var(--text);
+}
+
+th.sortable.active {
+  color: var(--accent);
+}
+
 .edge-positive {
   color: var(--accent);
   font-weight: 600;

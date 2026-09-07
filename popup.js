@@ -58,6 +58,32 @@ function noteFor(race) {
 
 let currentRace = null;
 
+// "number" (by runner number, ascending) or "edge" (by edge %, lowest to
+// highest). Persists across re-renders of the same popup session so
+// auto-refresh/live updates don't keep resetting it back to the default.
+let sortMode = "number";
+
+function parseRunnerNumber(name) {
+  const match = name.match(/^(\d+)\./);
+  return match ? Number(match[1]) : Infinity;
+}
+
+function sortedRunners(race, commission) {
+  const runners = [...race.runners];
+
+  if (sortMode === "edge") {
+    runners.sort(
+      (a, b) =>
+        edgePercent(a.betfair, a.bookmaker, commission) -
+        edgePercent(b.betfair, b.bookmaker, commission)
+    );
+  } else {
+    runners.sort((a, b) => parseRunnerNumber(a.name) - parseRunnerNumber(b.name));
+  }
+
+  return runners;
+}
+
 function renderRace(race) {
   currentRace = race;
 
@@ -69,7 +95,7 @@ function renderRace(race) {
 
   const commission = commissionForTrack(race.track);
 
-  for (const runner of race.runners) {
+  for (const runner of sortedRunners(race, commission)) {
     const edge = edgePercent(runner.betfair, runner.bookmaker, commission);
     const row = document.createElement("tr");
 
@@ -87,6 +113,20 @@ function renderRace(race) {
 
   document.getElementById("data-source-note").textContent = noteFor(race);
 }
+
+const sortNumberBtn = document.getElementById("sort-number-btn");
+const sortEdgeBtn = document.getElementById("sort-edge-btn");
+
+function setSortMode(mode) {
+  sortMode = mode;
+  sortNumberBtn.classList.toggle("active", mode === "number");
+  sortEdgeBtn.classList.toggle("active", mode === "edge");
+  if (currentRace) renderRace(currentRace);
+}
+
+sortNumberBtn.addEventListener("click", () => setSortMode("number"));
+sortEdgeBtn.addEventListener("click", () => setSortMode("edge"));
+setSortMode("number"); // sets the initial active-header styling
 
 function mergeBookmakerOdds(race, bookmakerRunners) {
   let matched = 0;
