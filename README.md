@@ -196,8 +196,8 @@ https://developer.betfair.com/.
       object never carried a plain `track` field (only a combined display
       string), so this lookup was silently always hitting the fallback
       before the fix.
-- [x] Sortable runner list — click the "Runner" header to sort by runner
-      number (default), or "Edge" to sort lowest to highest. The active
-      sort is highlighted and persists across live re-renders (auto-refresh
-      re-applies whichever sort is currently selected instead of resetting
-      it).
+- [x] Sortable runner list — an explicit "Sort: Number" / "Sort: Edge"
+      toggle button sits in the Runner header. Number order is the default;
+      toggling switches to lowest-to-highest edge. Persists across live
+      re-renders (auto-refresh re-applies whichever sort is currently
+      selected instead of resetting it).
