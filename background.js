@@ -1,4 +1,10 @@
-importScripts("js/betfair/auth.js", "js/betfair/api.js", "js/sportsbet/api.js", "settings.js");
+importScripts(
+  "js/betfair/auth.js",
+  "js/betfair/api.js",
+  "js/sportsbet/api.js",
+  "settings.js",
+  "bookies.js"
+);
 
 const AUTO_REFRESH_ALARM = "refreshRace";
 const BOOKMAKER_ODDS_MAX_AGE_MS = 10 * 60 * 1000;
@@ -34,6 +40,53 @@ function sportForMarket(market) {
   return (
     RACING_SPORTS.find((s) => s.betfairEventType === market.eventType?.name) || RACING_SPORTS[0]
   );
+}
+
+// Extends the shared id/label pairs from bookies.js with what only
+// background.js needs — each bookie's own scraper script and where its
+// tracked-tab id lives in storage. TAB has no public race-list API like
+// Sportsbet's (js/sportsbet/api.js), so its URLs are instead built from
+// codes learned by tabMeetings.js (see tabRaceUrlFromCodes below), simply
+// absent for a race until a code for that venue's been seen.
+const BOOKIE_EXTRAS = {
+  sportsbet: { scraperFile: "js/contentScripts/sportsbet.js", tabIdKey: "sportsbetTabId" },
+  tab: { scraperFile: "js/contentScripts/tab.js", tabIdKey: "tabTabId" },
+};
+const BOOKIES = Object.fromEntries(
+  BOOKIE_LIST.map((b) => [b.id, { ...b, ...BOOKIE_EXTRAS[b.id] }])
+);
+const RACE_TYPE_TO_TAB_CODE = { horse: "R", harness: "H", greyhound: "G" };
+
+// Builds a direct TAB race URL from an already-loaded venue-codes table
+// (see TAB_VENUE_CODES_LEARNED below) — null if this venue/sport combo
+// hasn't been seen on a TAB meetings page yet. Keyed by (normalized venue,
+// sport) since a single venue can host more than one sport (on different
+// days), each under its own TAB code. Synchronous and takes the table as a
+// parameter (rather than reading storage itself) so callers building a
+// whole race list can fetch it once instead of once per race.
+function tabRaceUrlFromCodes(tabVenueCodes, track, sport, raceNumber, startTimeIso) {
+  const key = `${normalizeVenue(track)}|${sport}`;
+  const learned = tabVenueCodes[key];
+  if (!learned) return null;
+
+  const date = startTimeIso.slice(0, 10); // YYYY-MM-DD, matches TAB's own URL date segment
+  const raceTypeCode = RACE_TYPE_TO_TAB_CODE[sport];
+  return `https://www.tab.com.au/racing/${date}/${learned.slug}/${learned.code}/${raceTypeCode}/${raceNumber}`;
+}
+
+// Merges freshly-learned TAB venue codes (from tabMeetings.js) into the
+// persisted table — upserts by (venue, sport), so a later, possibly
+// corrected sighting of the same venue always wins over an older one.
+async function learnTabVenueCodes(entries) {
+  const { tabVenueCodes = {} } = await chrome.storage.local.get(["tabVenueCodes"]);
+  const next = { ...tabVenueCodes };
+
+  for (const { venueName, sport, slug, code } of entries) {
+    const key = `${normalizeVenue(venueName)}|${sport}`;
+    next[key] = { slug, code, learnedAt: Date.now() };
+  }
+
+  await chrome.storage.local.set({ tabVenueCodes: next });
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -79,17 +132,21 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   const { autoRefresh } = await loadSettings();
   if (!autoRefresh) return;
 
-  // Re-scrape the tracked Sportsbet tab (the one this race's "Upcoming
+  // Re-scrape each tracked bookmaker tab (the ones this race's "Upcoming
   // Races" click opened/reused) before refreshing Betfair, so refreshRace()
-  // picks up fresh bookmaker prices instead of one aging up to 10 minutes.
+  // picks up fresh bookmaker prices instead of ones aging up to 10 minutes.
   // Best-effort: a missing/closed tab or a page that isn't a priced race
-  // right now shouldn't block the Betfair side from refreshing.
-  const { sportsbetTabId } = await chrome.storage.local.get(["sportsbetTabId"]);
-  if (sportsbetTabId) {
+  // right now shouldn't block the Betfair side from refreshing, or any
+  // other bookmaker's own scan.
+  const tabIdKeys = Object.values(BOOKIES).map((b) => b.tabIdKey);
+  const trackedTabIds = await chrome.storage.local.get(tabIdKeys);
+  for (const bookie of Object.values(BOOKIES)) {
+    const tabId = trackedTabIds[bookie.tabIdKey];
+    if (!tabId) continue;
     try {
-      await scrapeBookmakerTab(sportsbetTabId);
+      await scrapeBookieTab(bookie.id, tabId);
     } catch (err) {
-      console.warn("Auto-scan of Sportsbet tab skipped:", err.message);
+      console.warn(`Auto-scan of ${bookie.label} tab skipped:`, err.message);
     }
   }
 
@@ -208,11 +265,15 @@ async function refreshRaceInner(marketId) {
     market.runners.map((r) => [r.selectionId, r.runnerName])
   );
 
-  const recentBookmakerRunners =
-    stored.bookmakerOdds &&
-    Date.now() - stored.bookmakerOdds.scrapedAt < BOOKMAKER_ODDS_MAX_AGE_MS
-      ? stored.bookmakerOdds.runners
-      : null;
+  // stored.bookmakerOdds is keyed by bookie id: { sportsbet: {runners,
+  // scrapedAt}, tab: {...} } — each bookie's own cache aged out
+  // independently, same MAX_AGE for all of them for now.
+  const recentBookieRunners = {};
+  for (const bookieId of Object.keys(BOOKIES)) {
+    const cached = stored.bookmakerOdds?.[bookieId];
+    recentBookieRunners[bookieId] =
+      cached && Date.now() - cached.scrapedAt < BOOKMAKER_ODDS_MAX_AGE_MS ? cached.runners : null;
+  }
 
   // betfairWatcher.js keeps a runner's betfair price current in near
   // real-time by reading Betfair's own page directly — genuinely fresher
@@ -233,7 +294,7 @@ async function refreshRaceInner(marketId) {
   // of them — filtering to ACTIVE-only would empty the whole table out
   // right when we want to keep showing it with the result. REMOVED
   // (scratched) is the only status actually worth dropping.
-  let bookmakerMatched = 0;
+  const bookmakerMatched = Object.fromEntries(Object.keys(BOOKIES).map((id) => [id, 0]));
   const runners = book.runners
     .filter((r) => r.status !== "REMOVED")
     .map((r) => {
@@ -263,11 +324,24 @@ async function refreshRaceInner(marketId) {
       const betfairLiquidity = domIsFresh
         ? existingRunner.betfairLiquidity ?? null
         : restBetfairLiquidity ?? (restBetfairPrice === null ? existingRunner?.betfairLiquidity ?? null : null);
-      const scannedPrice = recentBookmakerRunners
-        ? findBookmakerPrice(name, recentBookmakerRunners)
-        : undefined;
+      // One price per bookie, keyed by id — Sportsbet keeps its historical
+      // placeholder fallback (betfair×1.08) so its column was never empty
+      // before the first real scan; a newer bookie just shows nothing
+      // (null -> "—" in the UI) until its own first real scrape/watch
+      // update arrives, rather than inventing a second synthetic guess.
+      const bookmakers = {};
+      for (const bookieId of Object.keys(BOOKIES)) {
+        const recent = recentBookieRunners[bookieId];
+        const scannedPrice = recent ? findBookmakerPrice(name, recent) : undefined;
+        if (scannedPrice !== undefined) bookmakerMatched[bookieId]++;
 
-      if (scannedPrice !== undefined) bookmakerMatched++;
+        bookmakers[bookieId] =
+          scannedPrice !== undefined
+            ? scannedPrice
+            : bookieId === "sportsbet" && betfairPrice
+            ? Number((betfairPrice * 1.08).toFixed(2))
+            : null;
+      }
 
       return {
         name,
@@ -279,29 +353,27 @@ async function refreshRaceInner(marketId) {
         // separate settlement check of its own.
         result: r.status,
         ...(domIsFresh && { betfairPricedAt: existingRunner.betfairPricedAt }),
-        bookmaker:
-          scannedPrice !== undefined
-            ? scannedPrice
-            : betfairPrice
-            ? Number((betfairPrice * 1.08).toFixed(2))
-            : null,
+        bookmakers,
       };
     })
     .filter((r) => r.betfair !== null);
 
   const winner = runners.find((r) => r.result === "WINNER")?.name ?? null;
 
-  // Diagnostic: when we have a recent Sportsbet scan but it matched none of
-  // this race's runners, log both name lists side by side so a mismatch
+  // Diagnostic: when we have a recent scan for a bookie but it matched none
+  // of this race's runners, log both name lists side by side so a mismatch
   // (spelling, punctuation, etc.) is visible instead of just "0 matched".
-  if (recentBookmakerRunners && bookmakerMatched === 0) {
-    console.warn(
-      "Sportsbet scan found runners, but none matched this Betfair race by name.",
-      "\nBetfair (normalized):",
-      runners.map((r) => normalizeName(r.name)),
-      "\nSportsbet (normalized):",
-      recentBookmakerRunners.map((r) => normalizeName(r.name))
-    );
+  for (const bookieId of Object.keys(BOOKIES)) {
+    const recent = recentBookieRunners[bookieId];
+    if (recent && bookmakerMatched[bookieId] === 0) {
+      console.warn(
+        `${BOOKIES[bookieId].label} scan found runners, but none matched this Betfair race by name.`,
+        "\nBetfair (normalized):",
+        runners.map((r) => normalizeName(r.name)),
+        `\n${BOOKIES[bookieId].label} (normalized):`,
+        recent.map((r) => normalizeName(r.name))
+      );
+    }
   }
 
   const track = market.event.venue || market.event.name;
@@ -313,7 +385,9 @@ async function refreshRaceInner(marketId) {
     runners,
     winner,
     source: "live-betfair",
-    bookmakerSource: bookmakerMatched > 0 ? "live-sportsbet" : "placeholder",
+    bookmakerSources: Object.fromEntries(
+      Object.keys(BOOKIES).map((id) => [id, bookmakerMatched[id] > 0 ? "live" : "placeholder"])
+    ),
     fetchedAt: Date.now(),
     ...(selectionExpired && {
       systemNote: "Your selected race has finished — showing the next upcoming race instead.",
@@ -361,12 +435,13 @@ async function listUpcomingRacesInner() {
     sessionToken,
     RACING_SPORTS.map((s) => s.betfairEventType)
   );
-  const [markets, sportsbetEvents] = await Promise.all([
+  const [markets, sportsbetEvents, { tabVenueCodes = {} }] = await Promise.all([
     // 20, not 15 — now split across every supported sport instead of just
     // horse racing, so the same-ish count needs a bit more headroom to
     // still show a reasonable spread of both.
     listWinMarkets(appKey, sessionToken, [...eventTypeIds.values()], 20),
     fetchSportsbetNextEvents(),
+    chrome.storage.local.get(["tabVenueCodes"]),
   ]);
 
   const races = markets
@@ -407,6 +482,11 @@ async function listUpcomingRacesInner() {
         marketId: market.marketId,
         betfairUrl: `https://www.betfair.com.au/exchange/plus/${sport.betfairUrlSegment}/market/${market.marketId}`,
         sportsbetUrl: sbMatch ? buildSportsbetRaceUrl(sbMatch) : null,
+        // null until tabMeetings.js has learned this venue/sport's TAB
+        // code — no "!" warning marker for this one, unlike Sportsbet,
+        // since not knowing yet is the expected steady state for most
+        // tracks rather than something to flag as wrong.
+        tabUrl: tabRaceUrlFromCodes(tabVenueCodes, track, sport.id, raceNumber, market.marketStartTime),
       };
     })
     .filter((r) => r.raceNumber !== null);
@@ -455,14 +535,15 @@ async function listUpcomingRaces() {
   return withSessionRetry(listUpcomingRacesInner);
 }
 
-// Scrapes Win odds off the given tab's currently displayed Sportsbet race
-// page. The tab must already be showing a Sportsbet racing page.
-async function scrapeBookmakerTab(tabId) {
+// Scrapes Win odds off the given tab's currently displayed bookmaker race
+// page. The tab must already be showing that bookie's own racing page.
+async function scrapeBookieTab(bookieId, tabId) {
+  const bookie = BOOKIES[bookieId];
   let result;
   try {
     [{ result }] = await chrome.scripting.executeScript({
       target: { tabId },
-      files: ["js/contentScripts/sportsbet.js"],
+      files: [bookie.scraperFile],
     });
   } catch (err) {
     if (err.message.includes("No tab with id")) {
@@ -470,12 +551,12 @@ async function scrapeBookmakerTab(tabId) {
       // or Chrome restarted and reassigned ids (tab ids don't survive a
       // browser restart). Clear it so future attempts don't keep silently
       // retrying a dead reference forever.
-      const { sportsbetTabId } = await chrome.storage.local.get(["sportsbetTabId"]);
-      if (sportsbetTabId === tabId) {
-        await chrome.storage.local.set({ sportsbetTabId: null });
+      const stored = await chrome.storage.local.get([bookie.tabIdKey]);
+      if (stored[bookie.tabIdKey] === tabId) {
+        await chrome.storage.local.set({ [bookie.tabIdKey]: null });
       }
       throw new Error(
-        "That Sportsbet tab is no longer open — click a race in Upcoming Races to open a fresh one."
+        `That ${bookie.label} tab is no longer open — click a race in Upcoming Races to open a fresh one.`
       );
     }
     throw err;
@@ -483,23 +564,30 @@ async function scrapeBookmakerTab(tabId) {
 
   if (!result || result.runners.length === 0) {
     throw new Error(
-      "No runners found on that tab — make sure it's a Sportsbet racing page with the market open."
+      `No runners found on that tab — make sure it's a ${bookie.label} racing page with the market open.`
     );
   }
 
-  await chrome.storage.local.set({ bookmakerOdds: result });
+  const { bookmakerOdds = {} } = await chrome.storage.local.get(["bookmakerOdds"]);
+  await chrome.storage.local.set({
+    bookmakerOdds: { ...bookmakerOdds, [bookieId]: result },
+  });
   return result;
 }
 
-// Called whenever the Sportsbet DOM watcher (sportsbetWatcher.js) detects a
-// real odds change on the page and pushes it here unsolicited. Stores the
-// raw scrape (refreshRace()'s periodic Betfair polling re-applies this too)
-// and, if a race is already loaded, merges the new prices into it
-// immediately by runner name — this is what makes the bookmaker column
-// update at the same time Sportsbet's own page does, rather than waiting
-// for the next scheduled refresh.
-async function applyBookmakerOdds(odds) {
-  await chrome.storage.local.set({ bookmakerOdds: odds });
+// Called whenever a bookmaker's own DOM watcher (sportsbetWatcher.js,
+// tabWatcher.js, ...) detects a real odds change on the page and pushes it
+// here unsolicited. Stores the raw scrape under that bookie's own key
+// (refreshRace()'s periodic Betfair polling re-applies this too) and, if a
+// race is already loaded, merges the new prices into it immediately by
+// runner name — this is what makes a bookmaker's column update at the same
+// time its own page does, rather than waiting for the next scheduled
+// refresh.
+async function applyBookieOdds(bookieId, odds) {
+  const { bookmakerOdds = {} } = await chrome.storage.local.get(["bookmakerOdds"]);
+  await chrome.storage.local.set({
+    bookmakerOdds: { ...bookmakerOdds, [bookieId]: odds },
+  });
 
   const { liveRace } = await chrome.storage.local.get(["liveRace"]);
   if (!liveRace || liveRace.source !== "live-betfair") return;
@@ -509,7 +597,7 @@ async function applyBookmakerOdds(odds) {
     const price = findBookmakerPrice(runner.name, odds.runners);
     if (price !== undefined) {
       matched++;
-      return { ...runner, bookmaker: price };
+      return { ...runner, bookmakers: { ...runner.bookmakers, [bookieId]: price } };
     }
     return runner;
   });
@@ -517,7 +605,11 @@ async function applyBookmakerOdds(odds) {
   if (matched === 0) return; // this update doesn't concern the loaded race
 
   await chrome.storage.local.set({
-    liveRace: { ...liveRace, runners, bookmakerSource: "live-sportsbet" },
+    liveRace: {
+      ...liveRace,
+      runners,
+      bookmakerSources: { ...liveRace.bookmakerSources, [bookieId]: "live" },
+    },
   });
 }
 
@@ -572,8 +664,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === "BOOKMAKER_ODDS_UPDATED") {
-    applyBookmakerOdds(message.odds).catch((err) =>
+    applyBookieOdds("sportsbet", message.odds).catch((err) =>
       console.warn("Failed to apply live Sportsbet update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  if (message.type === "TAB_ODDS_UPDATED") {
+    applyBookieOdds("tab", message.odds).catch((err) =>
+      console.warn("Failed to apply live TAB update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  if (message.type === "TAB_VENUE_CODES_LEARNED") {
+    learnTabVenueCodes(message.entries).catch((err) =>
+      console.warn("Failed to store learned TAB venue codes:", err.message)
     );
     return; // fire-and-forget — the content script isn't awaiting a reply
   }
