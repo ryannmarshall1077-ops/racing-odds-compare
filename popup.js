@@ -1,9 +1,16 @@
-// Commission-adjusted edge — matches HorsePower's QL% math exactly (it's the
-// same formula, just expressed directly as a percentage rather than scaled
-// by stake, since stake cancels out of that ratio anyway). See commission.js
-// for the Betfair Market Base Rate table this pulls from.
-function edgePercent(betfair, bookmaker, commission) {
-  return ((bookmaker * (1 - commission)) / (betfair - commission) - 1) * 100;
+// Commission-adjusted edge, generalized for a partial hedge (0-100% of a
+// full lay). At hedge=1 this is exactly the standard QL% formula
+// (100 × [B(1-c) - (L-c)] / (L-c)); at hedge=0 commission drops out
+// entirely, leaving the plain (B-L)/L ratio — since a bet you never lay
+// off never touches Betfair, so no commission applies. Values in between
+// scale commission's effect by the hedge fraction. Verified against a
+// real matched-betting tool's output at both endpoints for the same
+// runner/prices: hedge=1 and hedge=0 each matched its QL% column exactly.
+// See commission.js for the Betfair Market Base Rate table `commission`
+// pulls from.
+function edgePercent(betfair, bookmaker, commission, hedge) {
+  const c = commission * hedge;
+  return ((bookmaker * (1 - c)) / (betfair - c) - 1) * 100;
 }
 
 function normalizeName(name) {
@@ -64,19 +71,24 @@ let currentRace = null;
 // back to the default.
 let sortMode = "edge";
 
+// 0-100, how much of the recommended lay to factor into Edge% — 100 = full
+// lay (standard QL%), 0 = back bet only (no commission). Persists across
+// re-renders for the same reason sortMode does.
+let hedgePercent = 100;
+
 function parseRunnerNumber(name) {
   const match = name.match(/^(\d+)\./);
   return match ? Number(match[1]) : Infinity;
 }
 
-function sortedRunners(race, commission) {
+function sortedRunners(race, commission, hedge) {
   const runners = [...race.runners];
 
   if (sortMode === "edge") {
     runners.sort(
       (a, b) =>
-        edgePercent(b.betfair, b.bookmaker, commission) -
-        edgePercent(a.betfair, a.bookmaker, commission)
+        edgePercent(b.betfair, b.bookmaker, commission, hedge) -
+        edgePercent(a.betfair, a.bookmaker, commission, hedge)
     );
   } else {
     runners.sort((a, b) => parseRunnerNumber(a.name) - parseRunnerNumber(b.name));
@@ -95,9 +107,10 @@ function renderRace(race) {
   tbody.innerHTML = "";
 
   const commission = commissionForTrack(race.track);
+  const hedge = hedgePercent / 100;
 
-  for (const runner of sortedRunners(race, commission)) {
-    const edge = edgePercent(runner.betfair, runner.bookmaker, commission);
+  for (const runner of sortedRunners(race, commission, hedge)) {
+    const edge = edgePercent(runner.betfair, runner.bookmaker, commission, hedge);
     const row = document.createElement("tr");
 
     row.innerHTML = `
@@ -128,6 +141,15 @@ sortToggleBtn.addEventListener("click", (event) => {
   setSortMode(sortMode === "number" ? "edge" : "number");
 });
 sortToggleBtn.textContent = sortMode === "number" ? "Sort: Number" : "Sort: Edge";
+
+const hedgeInput = document.getElementById("hedge-input");
+
+hedgeInput.addEventListener("input", () => {
+  const value = Number(hedgeInput.value);
+  if (Number.isNaN(value)) return; // mid-edit (e.g. field momentarily empty) — wait for a valid number
+  hedgePercent = Math.min(100, Math.max(0, value));
+  if (currentRace) renderRace(currentRace);
+});
 
 function mergeBookmakerOdds(race, bookmakerRunners) {
   let matched = 0;
