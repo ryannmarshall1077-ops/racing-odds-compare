@@ -1032,3 +1032,31 @@ https://developer.betfair.com/.
       `refreshRaceInner`/`applyBetfairOdds` prefer that DOM-scraped
       status over REST's whenever it's under 90s old, same freshness
       pattern as totalMatched/betfairPricedAt.
+      - **Follow-up, same session**: user-reported the countdown said
+        "Jumped" on the top bar, then reverted to counting down again
+        a while later — the 90s freshness/expiry window copied from
+        totalMatched was the wrong model for this field. totalMatched
+        is a number that's merely "a bit stale" once its 90s expire;
+        marketStatus is a one-way state (OPEN -> SUSPENDED -> CLOSED,
+        never back), so expiring it fell straight through to REST's
+        own still-stale "OPEN", undoing the fix. Replaced with a sticky
+        rule instead: once either source has confirmed a market
+        non-OPEN, that sticks for as long as it stays selected, no
+        expiry at all — matched by marketId so switching races doesn't
+        inherit the old one's status. Applied the same fix to
+        `checkPendingResultsInner`'s own REST-only tracking (used for
+        every *other* race besides the selected one), which had the
+        same regress-to-OPEN flaw independently.
+      - **Follow-up, same session**: user-reported the top bar
+        correctly said "Jumped" for the selected race, but that same
+        race's row in the sidebar's Upcoming Races list still counted
+        down — a second, entirely separate marketStatus pipeline
+        (`listUpcomingRacesInner`'s `pendingResultChecks`, REST-only,
+        batch-checked) that the DOM-scrape fix above never touched.
+        Layered the currently-selected race's own (DOM-confirmed)
+        `liveRace.marketStatus` into `listUpcomingRacesInner`'s
+        `marketStatusByMarketId` map, so the sidebar row for that one
+        race stops disagreeing with its own top-bar countdown. Every
+        *other* row still relies on `pendingResultChecks`' REST-only
+        status (no live DOM signal exists for a race that isn't the
+        one currently open), now at least sticky per the fix above.
