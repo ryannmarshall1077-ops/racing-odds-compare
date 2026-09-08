@@ -1182,3 +1182,17 @@ https://developer.betfair.com/.
       a new detection mechanism. Verified via the local popup preview
       harness: marking a mock runner WINNER shows the tag on its row
       alongside the existing banner.
+      - **Follow-up, same session**: user-reported Betfair's own page
+        already showed "Closed" with a named winner while the
+        extension still showed "IN PLAY" with no winner tag. The
+        currently-selected race's own winner detection
+        (`refreshRaceInner`) only refreshes on the ~60s
+        `chrome.alarms` tick, so up to a minute's lag here is expected
+        on its own, not necessarily a bug — asked the user to confirm
+        whether it resolves after another ~60-90s before assuming
+        otherwise. Added a diagnostic either way: logs every runner's
+        raw REST status whenever the market itself looks closed but no
+        WINNER was found, so if it's still missing well past that
+        window the next reproduction shows whether REST genuinely
+        hasn't caught up yet or something else is dropping it, instead
+        of guessing between those two again.

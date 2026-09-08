@@ -481,6 +481,21 @@ async function refreshRaceInner(marketId) {
 
   const winner = runners.find((r) => r.result === "WINNER")?.name ?? null;
 
+  // Diagnostic: user-reported Betfair's own page already showed
+  // "Closed"/a named winner while this extension still showed "IN
+  // PLAY" with no winner tag. This refresh only runs on the ~60s
+  // chrome.alarms tick, so up to a minute's lag here is expected and
+  // not itself a bug — but if it's STILL missing well past that,
+  // logging the raw per-runner statuses whenever the market itself
+  // looks closed shows whether REST genuinely hasn't caught up yet, or
+  // whether it has and something else is dropping it.
+  if (winner == null && book.status && book.status !== "OPEN") {
+    console.warn(
+      `No WINNER found for market ${market.marketId} despite book.status=${book.status}. Runner statuses:`,
+      book.runners.map((r) => ({ selectionId: r.selectionId, status: r.status }))
+    );
+  }
+
   // Diagnostic: when we have a recent scan for a bookie but it matched none
   // of this race's runners, log both name lists side by side so a mismatch
   // (spelling, punctuation, etc.) is visible instead of just "0 matched".
