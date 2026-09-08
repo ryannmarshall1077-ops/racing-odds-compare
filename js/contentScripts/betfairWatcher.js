@@ -72,20 +72,40 @@
     return runners;
   }
 
+  // Total matched — same "Matched: AUD X" figure at the top of the market
+  // page. Confirmed via a live market's own DOM: single <span
+  // class="total-matched"> under .mv-header-total-matched-wrapper, text
+  // like "AUD 6,726". REST's listMarketBook does return this field too,
+  // but only on the ~60s chrome.alarms poll — too slow when a market's
+  // matched volume can multiply in the couple of minutes before jump, so
+  // this is scraped live the same way Back/Lay prices are.
+  function scrapeTotalMatched() {
+    const el = document.querySelector(".total-matched");
+    if (!el) return undefined;
+    const value = parseFloat(el.textContent.replace(/[^0-9.]/g, ""));
+    return Number.isNaN(value) ? undefined : value;
+  }
+
   let lastSentSignature = null;
 
   function sendUpdateIfChanged() {
     const runners = scrapeRunners();
-    if (runners.length === 0) return;
+    const totalMatched = scrapeTotalMatched();
+    if (runners.length === 0 && totalMatched === undefined) return;
 
-    const signature = JSON.stringify(runners);
+    const signature = JSON.stringify({ runners, totalMatched });
     if (signature === lastSentSignature) return;
     lastSentSignature = signature;
 
     try {
       chrome.runtime.sendMessage({
         type: "BETFAIR_ODDS_UPDATED",
-        odds: { runners, scrapedAt: Date.now(), url: location.href },
+        odds: {
+          runners,
+          ...(totalMatched !== undefined && { totalMatched }),
+          scrapedAt: Date.now(),
+          url: location.href,
+        },
       });
     } catch {
       // Extension context invalidated (e.g. reloaded while this tab stayed

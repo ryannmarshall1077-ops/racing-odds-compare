@@ -939,3 +939,18 @@ https://developer.betfair.com/.
         `book.totalMatched` is null/undefined, so the next real
         reproduction shows the actual REST shape instead of guessing at
         it again.
+      - **Follow-up, same session**: diagnostic showed `book.totalMatched`
+        was never null — the console filter for it stayed empty across a
+        real refresh. The actual bug: it *was* showing a value, just a
+        stale/wrong one — extension read $138 while Betfair's own page
+        read AUD 1,705 for the same market moments later. Root cause:
+        `book.totalMatched` only comes from REST, which only refreshes on
+        the ~60s `chrome.alarms` poll — too slow when matched volume can
+        multiply within a couple of minutes of a jump. Fixed the same way
+        Back/Lay prices already are: `betfairWatcher.js` now also scrapes
+        the page's own live `.total-matched` span ("Matched: AUD X"),
+        confirmed against real market pages for both greyhound and horse
+        racing, and `refreshRaceInner`/`applyBetfairOdds` prefer that
+        DOM-scraped value over REST's whenever it's under 90s old (same
+        freshness pattern as `betfairPricedAt`). Removed the now-resolved
+        diagnostic.
