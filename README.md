@@ -890,3 +890,20 @@ https://developer.betfair.com/.
       (`listWinMarkets(..., 20)`, no `to` bound), and a race either gets
       a real Sportsbet match or shows "!" — no horizon-based exclusion,
       no alternate data source.
+- [x] TAB venue codes are now learned automatically, without the user
+      manually visiting TAB's own meetings pages — user-reported "TAB
+      doesn't auto-open when I select a race", root-caused to exactly
+      that manual-visit dependency (`tabMeetings.js` only ever learns a
+      code from a real meetings page actually being open, and previously
+      nothing opened one on its own). `ensureTabVenueCodesLearnedToday`
+      opens each sport's meetings page (`R`/`H`/`G`) in a background tab
+      (`active: false`, doesn't steal focus — briefly visible in the tab
+      strip, then closes itself ~6s later once `tabMeetings.js` has had
+      time to report what it found), sequential rather than all 3 at
+      once. Date-gated (`tabVenueCodesLearnedDate`, once per day) —
+      checked on every alarm tick regardless (cheap once already done
+      today), and once immediately at service-worker startup so it
+      doesn't wait for the first tick. Deliberately not gated by
+      Settings > Automatically refresh odds — learning static venue-code
+      data is an unrelated concern from refreshing live odds, so turning
+      that off shouldn't stop this too.

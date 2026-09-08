@@ -100,6 +100,56 @@ async function learnTabVenueCodes(entries) {
   await chrome.storage.local.set({ tabVenueCodes: next });
 }
 
+// TAB has no public race-list API — the only way a venue's TAB code gets
+// learned at all is tabMeetings.js actually seeing it on a real meetings
+// page (see learnTabVenueCodes above). That used to mean nothing got
+// learned until the user happened to visit one by hand — user asked for
+// this to just work without manually clicking through every sport's
+// meetings page. This automates that same visit: opens each sport's
+// meetings page in a background tab (active: false, doesn't steal
+// focus — you may notice it briefly appear and disappear in your tab
+// strip), gives tabMeetings.js a few seconds to report what it finds,
+// then closes it again. Date-gated (once per day, not once per tick) so
+// this doesn't repeatedly reopen tabs for no reason — checked every
+// alarm tick regardless, so it still runs today even if the very first
+// attempt (extension startup, or whenever this next ships) happened to
+// fail (e.g. no network yet).
+const TAB_MEETINGS_LEARN_DELAY_MS = 6000;
+
+async function visitTabMeetingsPage(raceTypeCode) {
+  const tab = await chrome.tabs.create({
+    url: `https://www.tab.com.au/racing/meetings/today/${raceTypeCode}`,
+    active: false,
+  });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, TAB_MEETINGS_LEARN_DELAY_MS));
+  } finally {
+    // Already closed by the user in the meantime, e.g. — harmless either way.
+    await chrome.tabs.remove(tab.id).catch(() => {});
+  }
+}
+
+async function ensureTabVenueCodesLearnedToday() {
+  const today = new Date().toISOString().slice(0, 10);
+  const { tabVenueCodesLearnedDate } = await chrome.storage.local.get([
+    "tabVenueCodesLearnedDate",
+  ]);
+  if (tabVenueCodesLearnedDate === today) return;
+
+  // Sequential, not parallel — no need to have all 3 open at once, and
+  // it keeps this a predictable, one-at-a-time visit rather than a
+  // sudden burst of tabs.
+  for (const raceTypeCode of Object.values(RACE_TYPE_TO_TAB_CODE)) {
+    try {
+      await visitTabMeetingsPage(raceTypeCode);
+    } catch (err) {
+      console.warn(`Learning TAB venue codes for "${raceTypeCode}" skipped:`, err.message);
+    }
+  }
+
+  await chrome.storage.local.set({ tabVenueCodesLearnedDate: today });
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   console.log("RaceOdds installed");
 });
@@ -133,8 +183,23 @@ async function ensureAutoRefreshAlarm() {
 }
 ensureAutoRefreshAlarm();
 
+// Runs once immediately at service-worker startup too, not just on the
+// next alarm tick (up to a minute away) — so TAB venue codes start being
+// learned as soon as possible after a reload rather than waiting.
+ensureTabVenueCodesLearnedToday().catch((err) =>
+  console.warn("Learning TAB venue codes skipped:", err.message)
+);
+
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== AUTO_REFRESH_ALARM) return;
+
+  // Deliberately not gated by "Automatically refresh odds every minute"
+  // below — this is a once-a-day, unrelated maintenance task (learning
+  // static venue-code data, not refreshing live odds), so turning that
+  // setting off shouldn't stop it.
+  ensureTabVenueCodesLearnedToday().catch((err) =>
+    console.warn("Learning TAB venue codes skipped:", err.message)
+  );
 
   // Other Behaviour and Functionality > "Automatically refresh odds every
   // minute" — the alarm itself stays registered either way (Chrome's
