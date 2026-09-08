@@ -438,6 +438,8 @@ function renderRace(race) {
 
   document.getElementById("race-jump-time").textContent = formatJumpTime(race.startTime);
 
+  renderTrackRacesRow(race);
+
   // Shown once Betfair settles the market and this race is still the one
   // loaded — refreshRace() (manual click, or the ~60s auto-refresh alarm)
   // is what actually detects this (race.winner, set from Betfair's own
@@ -777,14 +779,64 @@ function renderRacesList(races) {
       </span>
     `;
 
-    li.addEventListener("click", () => {
-      selectedMarketId = race.marketId;
-      openRaceTabs(race);
-      loadRaceIntoTable(race.marketId);
-      renderFilteredRacesList(); // re-render so the "selected" highlight moves immediately
-    });
+    li.addEventListener("click", () => selectRace(race));
 
     racesListEl.appendChild(li);
+  }
+}
+
+// Shared by the sidebar's race list and the race-number pills under the
+// jump-time line — opens/reuses this race's Betfair/bookmaker tabs, loads
+// it into the main table, and re-renders both places a "currently
+// selected" highlight can show so neither one is left pointing at the
+// race that was previously loaded.
+function selectRace(race) {
+  selectedMarketId = race.marketId;
+  openRaceTabs(race);
+  loadRaceIntoTable(race.marketId);
+  renderFilteredRacesList();
+}
+
+// Quick race-number pills for jumping between other races at the same
+// track as the one currently loaded — sits right under the jump-time
+// line. Only ever shows races actually present in latestRaces (plus the
+// currently-loaded race itself, in case it's fallen out of that list —
+// e.g. mock data, or a race background.js already swapped out because
+// its own selection expired): Betfair's API drops a race entirely once
+// it jumps (see loadUpcomingRaces/background.js), so there's no reliable
+// way to know a track's full R1..R10 range in advance, and a disabled
+// placeholder pill for a race we have no real data for isn't something
+// to fake.
+function renderTrackRacesRow(race) {
+  const rowEl = document.getElementById("track-races-row");
+
+  if (!race?.track) {
+    rowEl.innerHTML = "";
+    return;
+  }
+
+  const trackRaces = latestRaces.filter((r) => r.track === race.track && r.sport === race.sport);
+  if (!trackRaces.some((r) => r.marketId === race.marketId) && race.raceNumber != null) {
+    trackRaces.push(race);
+  }
+  trackRaces.sort((a, b) => (a.raceNumber ?? 0) - (b.raceNumber ?? 0));
+
+  rowEl.innerHTML = trackRaces
+    .map(
+      (r) =>
+        `<button class="race-pill${
+          r.marketId === race.marketId ? " active" : ""
+        }" data-market-id="${r.marketId}">R${r.raceNumber}</button>`
+    )
+    .join("");
+
+  for (const btn of rowEl.querySelectorAll(".race-pill")) {
+    btn.addEventListener("click", () => {
+      const target =
+        latestRaces.find((r) => r.marketId === btn.dataset.marketId) ||
+        (currentRace?.marketId === btn.dataset.marketId ? currentRace : null);
+      if (target) selectRace(target);
+    });
   }
 }
 
@@ -834,6 +886,7 @@ function loadUpcomingRaces() {
 
     latestRaces = response.races;
     renderFilteredRacesList();
+    if (currentRace) renderTrackRacesRow(currentRace); // other races at this track may have just appeared/dropped off
   });
 }
 

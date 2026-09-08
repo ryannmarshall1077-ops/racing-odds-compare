@@ -745,3 +745,27 @@ https://developer.betfair.com/.
         far right of a full-width bar) was dropped too — it just flows
         normally after the Hedge % input now that the bar lives in a
         much narrower right-hand slot.
+- [x] Race-number pills (R5, R6, R7, ...) underneath the jump-time line,
+      per a reference screenshot — quick jumps between other races at
+      the *same track* as the one currently loaded, without going back
+      to the sidebar list:
+      - Only ever shows races actually present in `latestRaces` (plus
+        the currently-loaded race itself, in case it's fallen out of
+        that list — e.g. mock data, or a race background.js already
+        swapped out because its own selection expired), matched on both
+        `track` and `sport`. Deliberately does NOT pad out a fake
+        R1..R10 range with disabled placeholders for races we have no
+        data for — Betfair's own API drops a race entirely once it
+        jumps (see `loadUpcomingRaces`), so there's no reliable way to
+        know a track's full race count in advance, and faking placeholder
+        pills for races we can't actually back with real data isn't
+        something this project does.
+      - Clicking a pill reuses the exact same "load this race" logic the
+        sidebar list's own rows already used — extracted into a shared
+        `selectRace(race)` rather than duplicating it, so the two stay
+        in sync structurally, not just by coincidence.
+      - Verified against injected mock `latestRaces` data (3 races at one
+        track, 1 at another) via a local static preview: the pill row
+        correctly showed only the 3 same-track races in ascending order,
+        and clicking one updated `selectedMarketId` and the sidebar's own
+        "selected" highlight immediately.
