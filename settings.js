@@ -58,17 +58,21 @@ const DEFAULT_SETTINGS = {
   // negative, Bonus's Ret% is normally 0-100%, Promo is a placeholder for
   // whenever Run 2nd 3rd/Run 2nd actually compute one) and colour. A
   // cell's Edge%/Ret% is coloured with the highest tier whose threshold
-  // it meets or exceeds; below every tier's threshold it keeps the
-  // existing plain red (bad) styling instead of a configured colour.
-  // Promo covers both still-disabled modes (one shared threshold set,
-  // not two) since neither has a verified EV formula yet to tell them
-  // apart by.
+  // it meets or exceeds; below every tier's threshold it uses
+  // edgeBelowThresholdColor instead. Promo covers both still-disabled
+  // modes (one shared threshold set, not two) since neither has a
+  // verified EV formula yet to tell them apart by.
   edgeColorBands: [
     { color: "#e69138", thresholds: { mug: -15, bonus: 50, promo: 0 } },
     { color: "#f1c232", thresholds: { mug: -10, bonus: 60, promo: 5 } },
     { color: "#93c47d", thresholds: { mug: -5, bonus: 70, promo: 10 } },
     { color: "#6aa84f", thresholds: { mug: -2, bonus: 80, promo: 15 } },
   ],
+  // The catch-all colour for a value that doesn't clear even the lowest
+  // tier above — no threshold of its own (it's whatever's left over once
+  // the 4 tiers above don't match), just a colour. Defaults to the same
+  // red already used elsewhere for "bad" (--accent-neg).
+  edgeBelowThresholdColor: "#ff6b6b",
 };
 
 // Merges over DEFAULT_SETTINGS rather than returning the stored value
