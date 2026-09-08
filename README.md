@@ -876,42 +876,17 @@ https://developer.betfair.com/.
         local static preview: an OPEN, past-start race counted down
         "-1m 35s" -> "-1m 42s" over several real seconds, while a
         SUSPENDED one alongside it still correctly showed "Jumped".
-- [x] Upcoming Races now loads every AU race today, not just the next 20
-      — `listWinMarkets` gained an optional `to` bound (an ISO
-      timestamp, e.g. end of today) alongside its existing `maxResults`;
-      `listUpcomingRacesInner` now passes `endOfTodayIso()` and
-      `maxResults: 1000` (Betfair's own ceiling for `listMarketCatalogue`,
-      comfortably above how many horse+greyhound WIN markets AU actually
-      runs in a day — `to` is the real cap that matters here). The other
-      caller (`refreshRaceInner`'s "no selection, find the single soonest
-      race" fallback) omits `to` and stays unbounded going forward on
-      purpose — late at night with nothing left today, it should still
-      find tomorrow's first race rather than coming back empty.
-      - **Follow-up, same session, reverted**: replaced the Sportsbet
-        matching source with `/racing-schedule`'s embedded
-        `__PRELOADED_STATE__` (uncapped, unlike `NextEvents`' 40-per-
-        category ceiling — see the commit this reverts for the full
-        writeup, including live verification against a real race that
-        ceiling was hiding). User asked to revert it back — the ~1.7MB
-        HTML fetch + brace-depth parsing needed to pull a JSON object out
-        of a server-rendered page was more complexity than wanted for
-        this. Back to `fetchSportsbetNextEvents`/`NextEvents` as before:
-        races further out than Sportsbet's own nearest ~40-per-sport
-        window will show the "!" no-match warning again until that
-        window slides forward far enough to include them (self-resolves
-        as the day goes on, via the existing periodic re-poll).
-      - **Follow-up, same session**: the "!" for a race beyond that
-        window read as an error rather than "too far out to check yet"
-        (confusing, per user feedback) — those races are now excluded
-        from Upcoming Races entirely instead. `listUpcomingRacesInner`
-        computes, per Sportsbet event type, the furthest-out event
-        `sportsbetEvents` actually contains right now
-        (`sportsbetMaxStartTimeByType`) and drops any Betfair race
-        starting after that. Bounded by whichever of a sport's matching
-        Sportsbet categories reaches furthest — Betfair's single "Horse
-        Racing" event type covers both actual gallops and harness/trots
-        (`sport.sportsbetTypes` lists both), so the later of the two
-        categories' own horizon is what's actually used. No data at all
-        for a sport right now (a Sportsbet hiccup, not a real absence)
-        fails open — nothing gets excluded on that sport's account
-        rather than the whole sport silently vanishing from the list.
+- [x] Reverted a run of 4 follow-on changes (loading every race today
+      instead of the next 20, two different attempts at getting
+      Sportsbet matches for races that far out, then excluding
+      far-out/unmatchable races from the list instead) back to exactly
+      this point — user asked to revert everything past here, having
+      decided the simpler original behaviour (next 20 races, `!` on
+      whichever ones don't get a Sportsbet match) was preferable to any
+      of what came after. `background.js` and `js/betfair/api.js`
+      restored file-for-file from this commit; `js/sportsbet/api.js` was
+      already back to this state from an earlier revert in that same
+      run. Upcoming Races is back to showing the next 20 races
+      (`listWinMarkets(..., 20)`, no `to` bound), and a race either gets
+      a real Sportsbet match or shows "!" — no horizon-based exclusion,
+      no alternate data source.
