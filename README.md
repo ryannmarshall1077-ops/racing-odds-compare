@@ -660,3 +660,40 @@ https://developer.betfair.com/.
         none }` was added. Caught via an automated preview before
         shipping — the tab buttons visually switched, but the wrong
         panel's content kept showing underneath.
+- [x] Configurable Edge %/Ret% colour thresholds ("EV Colours and
+      Thresholds", a new Settings tab/accordion section), per a reference
+      screenshot:
+      - 4 fixed ascending colour tiers (not user-extensible), each with
+        its own hex colour and a threshold per row. The reference's 4 rows
+        (Qualifying/Mug/FVF/Bonus) don't map onto what we actually have,
+        so ours are **Mug, Bonus, and Promo** — Promo covers both
+        still-disabled Run 2nd 3rd/Run 2nd (one shared threshold set, not
+        two, since neither has a verified EV formula yet to tell them
+        apart by). Mug and Bonus run on very different scales (Edge% can
+        run deeply negative; Ret% is normally 0-100%), which is exactly
+        why thresholds are per-row rather than one shared set.
+      - A cell's Edge%/Ret% is coloured with the **highest tier it meets
+        or exceeds** (`edgeTierColor`) — inline `style`, not a CSS class,
+        since a user's own hex code isn't limited to whatever a class
+        could express. Below every tier's threshold, it keeps the
+        original plain green/red-by-sign styling instead.
+      - Applies everywhere Edge%/Ret% is shown: each bookie's own cell
+        and the Best Price cell (`edgeMetricHtml`, shared by
+        `bookieCellHtml`/`bestPriceCellHtml`).
+      - Colour swatch and hex text field stay in sync either direction
+        (`normalizeHex` accepts with/without a leading "#", 3 or 6 hex
+        digits) — same UX as the reference. Each band's own box border
+        is set inline to match its current colour.
+      - Same markup (`.ev-band` and its children, matched by
+        `data-band`/`data-mode`) exists on both the modal (popup.html)
+        and the standalone options.html page — `options.js` populates and
+        auto-saves both identically, unmodified, same pattern as every
+        other setting.
+      - Verified end-to-end against mock data via a local static preview:
+        checked the tier maths by hand for 5 different Edge% values
+        (all landed on the exactly-expected band), edited a band's hex
+        and threshold live in the modal and confirmed the saved
+        `chrome.storage.sync` value matched, then confirmed the table
+        re-coloured with that exact custom colour immediately on closing
+        the modal — and separately confirmed the same `.ev-band` markup
+        renders correctly on the standalone options.html page too.

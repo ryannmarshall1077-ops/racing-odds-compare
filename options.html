@@ -158,6 +158,95 @@
           </label>
         </div>
       </details>
+
+      <details class="settings-section">
+        <summary>EV Colours and Thresholds</summary>
+        <div class="settings-section-body">
+          <p class="subtitle">
+            Edge%/Ret% is coloured with the highest tier below whose threshold it meets or
+            exceeds &mdash; Mug and Bonus run on very different scales, so each tier has its own
+            threshold per mode. Promo covers Run 2nd 3rd/Run 2nd (still disabled &mdash;
+            placeholder until either has a real EV formula). Below every tier's threshold, the
+            plain red "bad" styling is used instead.
+          </p>
+
+          <div class="ev-band" data-band="0">
+            <div class="ev-band-swatch-row">
+              <input type="color" class="ev-band-color" data-band="0" />
+              <input type="text" class="ev-band-hex" data-band="0" placeholder="Hex code" />
+            </div>
+            <label>
+              Mug (%)
+              <input type="number" class="ev-band-threshold" data-band="0" data-mode="mug" step="0.5" />
+            </label>
+            <label>
+              Bonus (%)
+              <input type="number" class="ev-band-threshold" data-band="0" data-mode="bonus" step="0.5" />
+            </label>
+            <label>
+              Promo (%)
+              <input type="number" class="ev-band-threshold" data-band="0" data-mode="promo" step="0.5" />
+            </label>
+          </div>
+
+          <div class="ev-band" data-band="1">
+            <div class="ev-band-swatch-row">
+              <input type="color" class="ev-band-color" data-band="1" />
+              <input type="text" class="ev-band-hex" data-band="1" placeholder="Hex code" />
+            </div>
+            <label>
+              Mug (%)
+              <input type="number" class="ev-band-threshold" data-band="1" data-mode="mug" step="0.5" />
+            </label>
+            <label>
+              Bonus (%)
+              <input type="number" class="ev-band-threshold" data-band="1" data-mode="bonus" step="0.5" />
+            </label>
+            <label>
+              Promo (%)
+              <input type="number" class="ev-band-threshold" data-band="1" data-mode="promo" step="0.5" />
+            </label>
+          </div>
+
+          <div class="ev-band" data-band="2">
+            <div class="ev-band-swatch-row">
+              <input type="color" class="ev-band-color" data-band="2" />
+              <input type="text" class="ev-band-hex" data-band="2" placeholder="Hex code" />
+            </div>
+            <label>
+              Mug (%)
+              <input type="number" class="ev-band-threshold" data-band="2" data-mode="mug" step="0.5" />
+            </label>
+            <label>
+              Bonus (%)
+              <input type="number" class="ev-band-threshold" data-band="2" data-mode="bonus" step="0.5" />
+            </label>
+            <label>
+              Promo (%)
+              <input type="number" class="ev-band-threshold" data-band="2" data-mode="promo" step="0.5" />
+            </label>
+          </div>
+
+          <div class="ev-band" data-band="3">
+            <div class="ev-band-swatch-row">
+              <input type="color" class="ev-band-color" data-band="3" />
+              <input type="text" class="ev-band-hex" data-band="3" placeholder="Hex code" />
+            </div>
+            <label>
+              Mug (%)
+              <input type="number" class="ev-band-threshold" data-band="3" data-mode="mug" step="0.5" />
+            </label>
+            <label>
+              Bonus (%)
+              <input type="number" class="ev-band-threshold" data-band="3" data-mode="bonus" step="0.5" />
+            </label>
+            <label>
+              Promo (%)
+              <input type="number" class="ev-band-threshold" data-band="3" data-mode="promo" step="0.5" />
+            </label>
+          </div>
+        </div>
+      </details>
     </div>
 
     <div class="settings-footer">

@@ -120,6 +120,8 @@ function applySettingsToForm(settings) {
   for (const [type, checkbox] of Object.entries(raceTypeCheckboxes)) {
     checkbox.checked = settings.defaultRaceTypes.includes(type);
   }
+
+  applyEdgeBandsToForm(settings.edgeColorBands);
 }
 
 function selectedRaceTypesFromForm() {
@@ -127,6 +129,88 @@ function selectedRaceTypesFromForm() {
     .filter(([, checkbox]) => checkbox.checked)
     .map(([type]) => type);
 }
+
+// --- EV Colours and Thresholds ---
+// 4 fixed bands (not user-extensible), each a colour + a threshold per
+// mode. Bands are queried by data-band rather than assuming DOM order
+// matches array order, in case markup ever gets reordered.
+const EDGE_BAND_MODES = ["mug", "bonus", "promo"];
+const evBandEls = [0, 1, 2, 3].map((i) => ({
+  box: document.querySelector(`.ev-band[data-band="${i}"]`),
+  color: document.querySelector(`.ev-band-color[data-band="${i}"]`),
+  hex: document.querySelector(`.ev-band-hex[data-band="${i}"]`),
+  thresholds: Object.fromEntries(
+    EDGE_BAND_MODES.map((mode) => [
+      mode,
+      document.querySelector(`.ev-band-threshold[data-band="${i}"][data-mode="${mode}"]`),
+    ])
+  ),
+}));
+
+// Accepts with or without a leading "#", 3 or 6 hex digits (typed hex
+// codes are easy to get wrong) — returns a normalized "#rrggbb", or null
+// if it's not a valid colour at all, so an in-progress/invalid edit isn't
+// saved over a previously-good value.
+function normalizeHex(value) {
+  const trimmed = value.trim().replace(/^#/, "");
+  if (/^[0-9a-fA-F]{6}$/.test(trimmed)) return `#${trimmed.toLowerCase()}`;
+  if (/^[0-9a-fA-F]{3}$/.test(trimmed)) {
+    return `#${trimmed
+      .toLowerCase()
+      .split("")
+      .map((c) => c + c)
+      .join("")}`;
+  }
+  return null;
+}
+
+function applyEdgeBandsToForm(bands) {
+  evBandEls.forEach((els, i) => {
+    const band = bands[i];
+    els.color.value = band.color;
+    els.hex.value = band.color.replace("#", "").toUpperCase();
+    els.box.style.borderColor = band.color;
+    for (const mode of EDGE_BAND_MODES) {
+      els.thresholds[mode].value = band.thresholds[mode];
+    }
+  });
+}
+
+function saveEdgeBands() {
+  const bands = evBandEls.map((els) => ({
+    color: els.color.value,
+    thresholds: Object.fromEntries(
+      EDGE_BAND_MODES.map((mode) => [mode, Number(els.thresholds[mode].value) || 0])
+    ),
+  }));
+  saveSettings({ edgeColorBands: bands }).then(() => flashSettingsStatus("Saved"));
+}
+
+evBandEls.forEach((els) => {
+  els.color.addEventListener("input", () => {
+    els.hex.value = els.color.value.replace("#", "").toUpperCase();
+    els.box.style.borderColor = els.color.value;
+    saveEdgeBands();
+  });
+
+  els.hex.addEventListener("change", () => {
+    const normalized = normalizeHex(els.hex.value);
+    if (!normalized) {
+      // Invalid entry — revert to whatever the swatch still holds rather
+      // than saving garbage or leaving the two controls out of sync.
+      els.hex.value = els.color.value.replace("#", "").toUpperCase();
+      return;
+    }
+    els.color.value = normalized;
+    els.hex.value = normalized.replace("#", "").toUpperCase();
+    els.box.style.borderColor = normalized;
+    saveEdgeBands();
+  });
+
+  for (const mode of EDGE_BAND_MODES) {
+    els.thresholds[mode].addEventListener("change", saveEdgeBands);
+  }
+});
 
 loadSettings().then(applySettingsToForm);
 

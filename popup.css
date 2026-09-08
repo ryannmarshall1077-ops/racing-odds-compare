@@ -523,6 +523,14 @@ th:first-child {
   color: var(--accent-neg);
 }
 
+/* An Edge%/Ret% value that matched one of Settings > EV Colours and
+   Thresholds' configured tiers — the actual colour is always inline
+   (a user's hex code isn't limited to whatever a CSS class could
+   express), this just supplies the bold weight every tier shares. */
+.edge-tier {
+  font-weight: 600;
+}
+
 /* A bookmaker's own price cell — that bookie's own Edge%/Ret% (against
    its own price, not just the best one) stacked beneath its price,
    same treatment as the liquidity figure under Back/Lay, replacing the
@@ -889,4 +897,62 @@ footer {
 
 #settings-modal .status.error {
   color: var(--accent-neg);
+}
+
+/* --- EV Colours and Thresholds bands — unscoped (not #settings-modal-
+   prefixed like the rest of this file's modal styles) since options.html
+   uses this same markup on its own standalone page, which doesn't load
+   the modal wrapper at all. The class names are specific enough (ev-band-
+   *) that there's no risk of them colliding with anything else on either
+   page the way a bare label/input/button selector would. Border colour
+   is set inline per band (options.js) to match its own configured
+   colour — matching the reference screenshot's per-band colour framing. */
+.ev-band {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+}
+
+.ev-band-swatch-row {
+  display: flex;
+  gap: 8px;
+}
+
+/* Each rule below is duplicated with a #settings-modal- prefixed
+   selector: that page's own #settings-modal label/input[type="color"]
+   rules (higher specificity than a plain .ev-band-* class, since they
+   carry an id) would otherwise win inside the modal and override these —
+   same fix #winner-banner/.modal-tab-panel already needed for a [hidden]
+   specificity clash, just for id-vs-class here instead. */
+.ev-band-swatch-row input[type="color"],
+#settings-modal .ev-band-swatch-row input[type="color"] {
+  width: 44px;
+  padding: 2px;
+  cursor: pointer;
+}
+
+.ev-band-swatch-row input[type="text"],
+#settings-modal .ev-band-swatch-row input[type="text"] {
+  flex: 1;
+  text-transform: uppercase;
+}
+
+.ev-band label,
+#settings-modal .ev-band label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ev-band input[type="number"],
+#settings-modal .ev-band input[type="number"] {
+  width: 70px;
+  text-align: right;
 }
