@@ -570,3 +570,19 @@ https://developer.betfair.com/.
         branding) — the badge stays our own accent-tinted pill regardless
         of which bookie it names, same reasoning as the plain-text badges
         elsewhere in this project.
+- [x] Fixed: Betfair Back price/liquidity was occasionally badly wrong for
+      a volatile runner (real comparison against Betfair's own page found
+      21.00/$40 shown vs the real 30/$8, while that same runner's Lay side
+      matched perfectly). Root cause — the Back-cell DOM selector
+      (`.first-back-cell`, added alongside the Back column) was only ever
+      an inferred guess, never confirmed against a real logged-in Betfair
+      session, but it was trusted over REST for up to 90s the same way
+      Lay's *verified* selector is; once it produced one stale/wrong
+      reading, that window kept serving it over REST's current value.
+      Back price/liquidity is now always REST-sourced — dropped the
+      DOM-freshness branch in `refreshRaceInner` entirely, stopped
+      `applyBetfairOdds` from ever applying a DOM-reported Back price, and
+      removed the now-dead Back-cell scrape from `betfairWatcher.js`
+      rather than leave unverified, unused code in place. Only affects
+      Back's *display* value — Edge%/Lay $/Liability always used Lay and
+      were never affected.
