@@ -1182,3 +1182,38 @@ https://developer.betfair.com/.
       a new detection mechanism. Verified via the local popup preview
       harness: marking a mock runner WINNER shows the tag on its row
       alongside the existing banner.
+      - **Follow-up, same session**: user-reported Betfair's own page
+        already showed "Closed" with a named winner while the
+        extension still showed "IN PLAY" with no winner tag. The
+        currently-selected race's own winner detection
+        (`refreshRaceInner`) only refreshes on the ~60s
+        `chrome.alarms` tick, so up to a minute's lag here is expected
+        on its own, not necessarily a bug — asked the user to confirm
+        whether it resolves after another ~60-90s before assuming
+        otherwise. Added a diagnostic either way: logs every runner's
+        raw REST status whenever the market itself looks closed but no
+        WINNER was found, so if it's still missing well past that
+        window the next reproduction shows whether REST genuinely
+        hasn't caught up yet or something else is dropping it, instead
+        of guessing between those two again.
+      - **Follow-up, same session**: found the real bug from the
+        user's own reproduction (clicking "Refresh live odds" jumped
+        to a completely different, upcoming race instead of showing
+        the winner) — no need for the diagnostic to even fire.
+        `refreshRaceInner` checks `listMarketCatalogue` for the
+        selected market first; Betfair drops a market from catalogue
+        noticeably sooner than `listMarketBook` stops returning its
+        real result (same asymmetry `checkPendingResultsInner`
+        already relies on for the sidebar's own Past results, added
+        earlier but never reused here). Once catalogue came back
+        empty, the existing code assumed the race was simply gone and
+        silently switched the whole popup to the next upcoming race —
+        before ever trying `listMarketBook` for the real result.
+        Added `settledRaceFromBook()`: when catalogue is empty, try
+        `listMarketBook` for that exact market first; if it resolves a
+        real `WINNER`, keep showing that race (reusing its own
+        already-known track/runners/prices — none of that needs
+        refreshing once settled — just each runner's result, the
+        winner name, and marketStatus) instead of jumping away. Only
+        falls through to "next upcoming race" if `listMarketBook` has
+        nothing either (genuinely gone, not just resulted).
