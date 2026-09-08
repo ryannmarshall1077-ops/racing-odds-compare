@@ -1217,3 +1217,19 @@ https://developer.betfair.com/.
         winner name, and marketStatus) instead of jumping away. Only
         falls through to "next upcoming race" if `listMarketBook` has
         nothing either (genuinely gone, not just resulted).
+      - **Follow-up, same session**: user-reported the winner still
+        doesn't show even with this fix — and, checked separately,
+        the sidebar's own Past section (`checkPendingResultsInner`, an
+        entirely different code path to `listMarketBook` for the same
+        market) also has no winner for this race. That rules out a
+        bug specific to this new function and points at the shared
+        dependency instead: `listMarketBook` persisting after a market
+        goes non-OPEN *while still in catalogue* was directly
+        verified earlier; persisting after catalogue drops the market
+        *entirely* was assumed, by extrapolation, not verified the
+        same way. Added a diagnostic to find out which: logs the raw
+        `book` and every runner's status whenever `settledRaceFromBook`
+        finds no `WINNER`, so the next reproduction shows whether
+        `listMarketBook` genuinely has nothing left by that point, or
+        has something that just doesn't look like what this code
+        expects.
