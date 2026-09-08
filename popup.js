@@ -285,31 +285,68 @@ function backLayCellHtml(backPrice, backLiquidity, layPrice, layLiquidity) {
   </span>`;
 }
 
+// Which of the Settings > EV Colours and Thresholds per-band keys applies
+// to the current Mode — Run 2nd 3rd/Run 2nd share "promo" (one threshold
+// set, not two) since neither has a verified EV formula yet to actually
+// tell them apart by.
+function edgeThresholdKey(mode) {
+  if (mode === "bonus") return "bonus";
+  if (mode === "run2nd3rd" || mode === "run2nd") return "promo";
+  return "mug";
+}
+
+// The highest configured colour tier whose threshold this Edge%/Ret%
+// value meets or exceeds (tiers are ascending, so later/greener bands
+// override earlier ones once reached) — null if it's below every tier's
+// threshold, in which case the caller falls back to the existing plain
+// green/red-by-sign styling instead of a configured colour.
+function edgeTierColor(metric, mode) {
+  const key = edgeThresholdKey(mode);
+  const bands = currentSettings.edgeColorBands || DEFAULT_SETTINGS.edgeColorBands;
+  let color = null;
+  for (const band of bands) {
+    if (metric >= band.thresholds[key]) color = band.color;
+  }
+  return color;
+}
+
+// Renders one Edge%/Ret% value's class + inline colour — a matched tier
+// always wins (inline style, so a user's configured hex isn't limited to
+// whatever's expressible as a CSS class); otherwise falls back to the
+// original plain green/red-by-sign styling.
+function edgeMetricHtml(metric) {
+  if (metric == null) return { className: "", styleAttr: "" };
+  const tierColor = edgeTierColor(metric, currentMode);
+  if (tierColor) return { className: "edge-tier", styleAttr: ` style="color:${tierColor}"` };
+  return { className: metric >= 0 ? "edge-positive" : "edge-negative", styleAttr: "" };
+}
+
 // A bookmaker's own price cell: the price on top, that bookie's own Edge%/
 // Ret% (bookieMetricPercent, against this specific price rather than
 // always the best one) stacked beneath it — replaces the old dedicated
 // Edge column, same stacked-cell treatment as Back/Lay's liquidity.
 function bookieCellHtml(price, metric) {
   if (price == null) return "—";
-  const metricClass = metric == null ? "" : metric >= 0 ? "edge-positive" : "edge-negative";
+  const { className, styleAttr } = edgeMetricHtml(metric);
   const metricText = metric == null ? "—" : `${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%`;
   return `<span class="stacked-cell"><span class="cell-price">${price.toFixed(
     2
-  )}</span><span class="cell-sub ${metricClass}">${metricText}</span></span>`;
+  )}</span><span class="cell-sub ${className}"${styleAttr}>${metricText}</span></span>`;
 }
 
 // The Best Price cell: price + Edge%/Ret% (metricPercent — the same
 // formula, against this same best price) stacked on the left, colour-coded
-// by sign, with the winning bookie's badge(s) vertically centered on the
-// right — a wider "card row" layout rather than the plain stacked-cell
-// treatment every other column uses, since this is the headline column.
+// by its EV tier (or plain green/red-by-sign, below every tier), with the
+// winning bookie's badge(s) vertically centered on the right — a wider
+// "card row" layout rather than the plain stacked-cell treatment every
+// other column uses, since this is the headline column.
 function bestPriceCellHtml(price, badgesHtml, metric) {
   if (price == null) return "—";
-  const metricClass = metric == null ? "" : metric >= 0 ? "edge-positive" : "edge-negative";
+  const { className, styleAttr } = edgeMetricHtml(metric);
   const metricText = metric == null ? "—" : `${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%`;
-  return `<span class="best-price-cell"><span class="best-price-text"><span class="best-price-value ${metricClass}">${price.toFixed(
+  return `<span class="best-price-cell"><span class="best-price-text"><span class="best-price-value ${className}"${styleAttr}>${price.toFixed(
     2
-  )}</span><span class="best-price-edge ${metricClass}">${metricText}</span></span><span class="best-price-badges">${badgesHtml}</span></span>`;
+  )}</span><span class="best-price-edge ${className}"${styleAttr}>${metricText}</span></span><span class="best-price-badges">${badgesHtml}</span></span>`;
 }
 
 // What you'd owe if the lay bet loses (the backed selection wins) — the
