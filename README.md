@@ -1233,3 +1233,16 @@ https://developer.betfair.com/.
         `listMarketBook` genuinely has nothing left by that point, or
         has something that just doesn't look like what this code
         expects.
+      - **Follow-up, same session**: user's reproduction proved
+        `refreshRaceInner` genuinely ran for the exact stuck race (a
+        different, unrelated diagnostic a few lines below fired using
+        that same race's own runners), yet neither winner diagnostic
+        added so far logged anything — meaning the conditions gating
+        both of them were themselves hiding the one case actually
+        worth seeing (`settledRaceFromBook` never even got reached:
+        catalogue still had this market). Replaced the conditional
+        "only log when book.status isn't OPEN" diagnostic with an
+        unconditional one — logs `book.status`/`winner`/every runner's
+        status on *every* refresh of the selected race, so nothing
+        gets filtered out regardless of what those values turn out to
+        be this time.
