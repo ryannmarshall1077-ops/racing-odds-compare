@@ -1171,3 +1171,14 @@ https://developer.betfair.com/.
         replacing the just-frozen real price with a made-up one within
         a minute. Skipped that cache write specifically for a
         `marketClosed`-with-empty-`runners` update.
+- [x] Winning runner now also marked directly on its own row in the
+      odds table, not just the banner above it. Betfair settling the
+      market and marking a runner WINNER (`refreshRaceInner`,
+      background.js) already drove both `winner-row`'s subtle
+      background tint (existing, easy to miss on its own) and the
+      winner-banner — this is the same already-detected result shown
+      again right on that runner's row (a small "🏆 Winner" tag next to
+      its name, matching the existing `.scratched-tag` convention), not
+      a new detection mechanism. Verified via the local popup preview
+      harness: marking a mock runner WINNER shows the tag on its row
+      alongside the existing banner.

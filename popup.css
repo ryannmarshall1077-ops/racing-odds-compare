@@ -582,6 +582,14 @@ table {
   font-size: 11px;
 }
 
+.winner-tag {
+  margin-left: 6px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+  color: var(--accent);
+}
+
 /* The headline summary column — the highest price across every bookmaker
    compared, plus a badge naming which one(s) it came from. Price + Edge%
    sit left, stacked (large price, smaller Edge% underneath in the same

@@ -501,8 +501,18 @@ function renderRace(race) {
       return `<td class="col-bookie${bestClass}">${bookieCellHtml(price, bookieMetric)}</td>`;
     }).join("");
 
+    // Betfair settling the market and marking a runner WINNER (see
+    // refreshRaceInner, background.js) is what drives both this and the
+    // winner-banner above the table — this is just the same result
+    // shown again right on that runner's own row, not a separate
+    // detection of its own, so a race that's settled but hasn't been
+    // reselected recently still shows it clearly at a glance instead of
+    // only in the banner easily missed above a long runner list.
+    const winnerTag =
+      runner.result === "WINNER" ? ' <em class="winner-tag">&#127942; Winner</em>' : "";
+
     row.innerHTML = `
-      <td>${runner.name}</td>
+      <td>${runner.name}${winnerTag}</td>
       <td class="col-best-price">${bestPriceCellHtml(bestPrice, bestPriceBadges, bestPrice != null ? bestMetric : null)}</td>
       <td class="col-backlay">${backLayCellHtml(
         runner.betfairBack,
