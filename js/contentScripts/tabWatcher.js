@@ -31,20 +31,49 @@
     return runners;
   }
 
+  // Whether TAB itself has actually closed betting on this race — the
+  // true "gone in-play" signal per the user's own explicit direction
+  // (Betfair can and does stay tradeable well past the real jump, so its
+  // own status is unusable for this). Confirmed directly against a real
+  // race page: <li class="status-text"><time>...</time></li> holds a
+  // live duration ("-1m") while open, and switches to the literal text
+  // "Closed" the moment betting actually closes — verified end to end
+  // on the same race as it happened. Checking "isn't a duration" instead
+  // of allow-listing "Closed" specifically, same reasoning as
+  // sportsbetWatcher.js's own version of this — Sportsbet turned out to
+  // show a *different* word ("Final Results") once fully resulted, so an
+  // exact-word check risks missing whatever TAB's own equivalent is.
+  const DURATION_PATTERN = /^-?\d+m?\s*\d*s?$/;
+  function scrapeMarketClosed() {
+    const el = document.querySelector(".status-text");
+    const text = el?.textContent?.trim();
+    return text && !DURATION_PATTERN.test(text) ? true : undefined;
+  }
+
   let lastSentSignature = null;
 
   function sendUpdateIfChanged() {
     const runners = scrapeRunners();
-    if (runners.length === 0) return;
+    const marketClosed = scrapeMarketClosed();
+    // marketClosed can arrive on an update with no runners at all (odds
+    // cells commonly go blank/unparseable right as betting closes) —
+    // checked separately so that signal isn't dropped by the runners-only
+    // bail-out below.
+    if (runners.length === 0 && marketClosed === undefined) return;
 
-    const signature = JSON.stringify(runners);
+    const signature = JSON.stringify({ runners, marketClosed });
     if (signature === lastSentSignature) return;
     lastSentSignature = signature;
 
     try {
       chrome.runtime.sendMessage({
         type: "TAB_ODDS_UPDATED",
-        odds: { runners, scrapedAt: Date.now(), url: location.href },
+        odds: {
+          runners,
+          ...(marketClosed !== undefined && { marketClosed }),
+          scrapedAt: Date.now(),
+          url: location.href,
+        },
       });
     } catch {
       // Extension context invalidated (e.g. the extension was reloaded

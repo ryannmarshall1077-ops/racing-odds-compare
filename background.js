@@ -541,6 +541,21 @@ async function refreshRaceInner(marketId) {
     stored.liveRace?.marketStatus &&
     stored.liveRace.marketStatus !== "OPEN";
 
+  // The race timer's actual "gone in-play" trigger (see popup.js's
+  // isRaceInPlay) — Betfair's own marketStatus above plays no part in
+  // that any more, kept only for potential display. User-reported:
+  // Betfair itself commonly stays tradeable well past the real jump, so
+  // its status was never a reliable signal for this; the bookmaker
+  // (Sportsbet/TAB) actually closing its own market is. Set by
+  // applyBookieOdds() from sportsbetWatcher.js/tabWatcher.js's live DOM
+  // scrape — carried forward here the same sticky way as
+  // alreadyConfirmedNonOpen, since this REST refresh would otherwise
+  // silently overwrite (not just fail to update — genuinely erase, since
+  // storage.local.set replaces the whole liveRace object) whatever
+  // applyBookieOdds last wrote, the next time it runs.
+  const bookieMarketClosedConfirmed =
+    stored.liveRace?.marketId === market.marketId && stored.liveRace?.bookieMarketClosed === true;
+
   const race = {
     race: `${track} — ${market.marketName}`,
     track,
@@ -551,11 +566,12 @@ async function refreshRaceInner(marketId) {
     sportLabel: sport.label,
     runners,
     winner,
-    // OPEN/SUSPENDED/CLOSED — lets the UI tell "past its scheduled start
-    // time but genuinely still OPEN (a late jump, common and not an
-    // error)" apart from "actually gone in-running/closed", instead of
-    // assuming the schedule itself is accurate.
+    // OPEN/SUSPENDED/CLOSED — Betfair's own status. Display-only now (see
+    // bookieMarketClosed below for what actually drives "IN PLAY");
+    // kept around in case Betfair's own status is ever worth showing
+    // alongside the bookmaker-driven one.
     marketStatus: alreadyConfirmedNonOpen ? stored.liveRace.marketStatus : book.status,
+    ...(bookieMarketClosedConfirmed && { bookieMarketClosed: true }),
     // Total AUD matched on this market so far — same figure Betfair's
     // own market page shows as "Matched: AUD X" (confirmed directly
     // against a live market page before shipping). Display only.
@@ -647,6 +663,17 @@ async function listUpcomingRacesInner() {
     marketStatusByMarketId.set(liveRace.marketId, liveRace.marketStatus);
   }
 
+  // bookieMarketClosed (see refreshRaceInner) is what actually drives a
+  // race card's own "IN PLAY" now, not marketStatus above. It has no
+  // REST equivalent at all — nothing exposes a bookmaker's own market
+  // status via API, only sportsbetWatcher.js/tabWatcher.js's live DOM
+  // scrape of whichever ONE tab is actually open — so only the
+  // currently-selected race (liveRace) can ever carry it. Every other
+  // row simply has none, same inherent limitation pendingResultChecks
+  // already had for any race without a live tab open.
+  const bookieMarketClosedMarketId =
+    liveRace?.marketId && liveRace.bookieMarketClosed === true ? liveRace.marketId : null;
+
   const races = markets
     .map((market) => {
       const raceNumberMatch = market.marketName.match(/^R(\d+)/);
@@ -684,6 +711,7 @@ async function listUpcomingRacesInner() {
         startTime: market.marketStartTime,
         marketId: market.marketId,
         marketStatus: marketStatusByMarketId.get(market.marketId) ?? null,
+        bookieMarketClosed: market.marketId === bookieMarketClosedMarketId,
         betfairUrl: `https://www.betfair.com.au/exchange/plus/${sport.betfairUrlSegment}/market/${market.marketId}`,
         sportsbetUrl: sbMatch ? buildSportsbetRaceUrl(sbMatch) : null,
         // null until tabMeetings.js has learned this venue/sport's TAB
@@ -949,13 +977,28 @@ async function applyBookieOdds(bookieId, odds) {
     return runner;
   });
 
-  if (matched === 0) return; // this update doesn't concern the loaded race
+  // marketClosed (sportsbetWatcher.js/tabWatcher.js's own scrapeMarketClosed())
+  // — the race timer's actual "gone in-play" trigger now (see popup.js's
+  // isRaceInPlay). Betfair itself deliberately plays no part in this any
+  // more — user-reported it stays tradeable well past the real jump, so
+  // its own status was never a reliable signal for this. Checked
+  // separately from `matched` so it isn't dropped by the bail-out below —
+  // real risk either way is small: verified directly that Sportsbet's
+  // prices stay parseable as plain numbers (just visually dimmed) for a
+  // while after closing, so `matched` staying >0 right at the moment
+  // marketClosed flips true is the common case, not the exception.
+  const hasMarketClosed = odds.marketClosed === true;
+  if (matched === 0 && !hasMarketClosed) return; // this update doesn't concern the loaded race
 
   await chrome.storage.local.set({
     liveRace: {
       ...liveRace,
       runners,
       bookmakerSources: { ...liveRace.bookmakerSources, [bookieId]: "live" },
+      // Sticky, same reasoning as marketStatus's own alreadyConfirmedNonOpen
+      // — betting closing is one-way, so this must never be re-derived
+      // back to falsy by a later refresh that doesn't happen to touch it.
+      ...(hasMarketClosed && { bookieMarketClosed: true }),
     },
   });
 }

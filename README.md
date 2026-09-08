@@ -1078,3 +1078,47 @@ https://developer.betfair.com/.
       keeps counting down negative ("in -0m 55s"); switching
       `marketStatus` to SUSPENDED immediately shows "IN PLAY" with the
       "in" prefix gone.
+      - **Follow-up, same session**: user-reported "IN PLAY" still
+        showed too early, right at 0:00, before the market was actually
+        still open — and explicitly directed the fix: Betfair itself
+        commonly stays tradeable well past the real jump ("you can
+        still trade on Betfair after the race has jumped"), so its own
+        status is fundamentally unusable as the "gone in-play" trigger
+        no matter how fresh the read is. Stop using it entirely for
+        that; use whichever bookmaker (Sportsbet/TAB) tab is actually
+        open instead — the bookmaker's own market genuinely closing is
+        the real signal. Displayed countdown itself is untouched
+        (still Betfair's own scheduled `startTime`, still counts past
+        0:00 into negative exactly as before); only what triggers the
+        switch to "IN PLAY" changed.
+
+        Found and verified the real DOM signal on both sites directly,
+        the same rigor as Betfair's own `.market-status-label`:
+        Sportsbet's `[data-automation-id="racecard-clock"]` and TAB's
+        `.status-text` both hold a live duration while open and switch
+        to a status word once betting actually closes — confirmed
+        against real races as they closed live. Checking "doesn't look
+        like a duration" rather than allow-listing exact wording,
+        since Sportsbet turned out to show *different* words depending
+        on how long post-close it's checked ("Race Closed" right at
+        the jump, "Final Results" once fully resulted) — an exact
+        match on "Race Closed" alone, tried first, would have missed
+        the second case entirely.
+
+        `sportsbetWatcher.js`/`tabWatcher.js` now scrape this
+        (`scrapeMarketClosed()`) the same way `betfairWatcher.js`
+        already scrapes prices, feeding a new sticky
+        `liveRace.bookieMarketClosed` flag (background.js's
+        `applyBookieOdds`/`refreshRaceInner`, same one-way-only
+        reasoning as `marketStatus`'s own fix) that `popup.js`'s
+        `isRaceInPlay`/`formatCountdown` now key off instead of
+        `marketStatus`. Betfair's own `marketStatus` is kept on the
+        race object for potential display, just no longer drives
+        anything. Same inherent limitation as before for the sidebar's
+        *other* rows (nothing scrapes a bookmaker page for a race that
+        isn't the one currently open — no API exists for this either,
+        unlike Betfair's own status). Verified via the local popup
+        preview harness: Betfair `SUSPENDED` + bookie still open keeps
+        counting down negative; Betfair still `OPEN` + bookie closed
+        immediately shows "IN PLAY" — confirming Betfair has no say in
+        either direction any more.
