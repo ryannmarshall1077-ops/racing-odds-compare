@@ -635,7 +635,16 @@ async function listUpcomingRacesInner() {
         // code — no "!" warning marker for this one, unlike Sportsbet,
         // since not knowing yet is the expected steady state for most
         // tracks rather than something to flag as wrong.
-        tabUrl: tabRaceUrlFromCodes(tabVenueCodes, track, sport.id, raceNumber, market.marketStartTime),
+        //
+        // raceType, not sport.id — tabMeetings.js learns codes keyed by
+        // TAB's own R/H/G scheme (harness genuinely stored under
+        // "harness"), but sport.id is always "horse" for anything under
+        // Betfair's single "Horse Racing" event type, never "harness".
+        // Passing sport.id here meant harness venues' codes, learned
+        // correctly, were never found by a lookup that only ever
+        // searched under "horse" — user-reported as "TAB doesn't
+        // auto-load harness races".
+        tabUrl: tabRaceUrlFromCodes(tabVenueCodes, track, raceType, raceNumber, market.marketStartTime),
       };
     })
     .filter((r) => r.raceNumber !== null);

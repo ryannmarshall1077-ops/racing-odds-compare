@@ -907,3 +907,17 @@ https://developer.betfair.com/.
       Settings > Automatically refresh odds — learning static venue-code
       data is an unrelated concern from refreshing live odds, so turning
       that off shouldn't stop this too.
+      - **Follow-up, same session**: user-reported harness races
+        specifically still not auto-loading TAB even after the above.
+        Real bug, not another learning gap: `listUpcomingRacesInner`
+        already computes `raceType` ("horse" vs "harness", disambiguated
+        via a matched Sportsbet event's own type — Betfair's single
+        "Horse Racing" event type covers both) but was passing
+        `sport.id` — always "horse" for anything under that one event
+        type, never "harness" — into `tabRaceUrlFromCodes` instead.
+        `tabMeetings.js` genuinely learns a harness venue's code keyed
+        under "harness", so a lookup that only ever searched under
+        "horse" could never find it, no matter how well the automatic
+        learning above worked. Switched the one call site to pass
+        `raceType` instead — a no-op for horse/greyhound (where it
+        already equalled `sport.id`), fixes exactly the harness case.
