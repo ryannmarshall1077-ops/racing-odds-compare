@@ -484,6 +484,17 @@ function normalizeVenue(name) {
   return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+// 23:59:59.999 today, in whatever timezone this service worker's own
+// system clock is set to — reasonable for an AU-only racing extension
+// running on an AU user's machine, same assumption toLocaleTimeString()
+// calls elsewhere in this codebase already make for displaying jump
+// times.
+function endOfTodayIso() {
+  const d = new Date();
+  d.setHours(23, 59, 59, 999);
+  return d.toISOString();
+}
+
 // Lists upcoming AU races with a direct link to that exact race on both
 // Betfair (built from our own marketId — always exact) and Sportsbet (built
 // by matching venue name + race number + start time against Sportsbet's own
@@ -507,10 +518,11 @@ async function listUpcomingRacesInner() {
   );
   const [markets, sportsbetEvents, { tabVenueCodes = {} }, { pendingResultChecks = [] }] =
     await Promise.all([
-      // 20, not 15 — now split across every supported sport instead of just
-      // horse racing, so the same-ish count needs a bit more headroom to
-      // still show a reasonable spread of both.
-      listWinMarkets(appKey, sessionToken, [...eventTypeIds.values()], 20),
+      // Every AU race today, not just the next N — maxResults 1000 is
+      // Betfair's own ceiling for listMarketCatalogue, comfortably above
+      // how many horse+greyhound WIN markets AU actually runs in a single
+      // day; endOfTodayIso() is the real cap that matters here.
+      listWinMarkets(appKey, sessionToken, [...eventTypeIds.values()], 1000, endOfTodayIso()),
       fetchSportsbetNextEvents(),
       chrome.storage.local.get(["tabVenueCodes"]),
       chrome.storage.local.get(["pendingResultChecks"]),

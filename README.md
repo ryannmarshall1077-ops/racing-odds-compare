@@ -876,3 +876,14 @@ https://developer.betfair.com/.
         local static preview: an OPEN, past-start race counted down
         "-1m 35s" -> "-1m 42s" over several real seconds, while a
         SUSPENDED one alongside it still correctly showed "Jumped".
+- [x] Upcoming Races now loads every AU race today, not just the next 20
+      — `listWinMarkets` gained an optional `to` bound (an ISO
+      timestamp, e.g. end of today) alongside its existing `maxResults`;
+      `listUpcomingRacesInner` now passes `endOfTodayIso()` and
+      `maxResults: 1000` (Betfair's own ceiling for `listMarketCatalogue`,
+      comfortably above how many horse+greyhound WIN markets AU actually
+      runs in a day — `to` is the real cap that matters here). The other
+      caller (`refreshRaceInner`'s "no selection, find the single soonest
+      race" fallback) omits `to` and stays unbounded going forward on
+      purpose — late at night with nothing left today, it should still
+      find tomorrow's first race rather than coming back empty.
