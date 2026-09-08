@@ -343,6 +343,21 @@ async function refreshRaceInner(marketId) {
         restBetfairBackLiquidity ??
         (restBetfairBackPrice === null ? existingRunner?.betfairBackLiquidity ?? null : null);
 
+      // Diagnostic: a real comparison against Betfair's own page found one
+      // runner's Back price frozen on an old, wrong value across multiple
+      // refreshes — consistent with REST genuinely returning nothing for
+      // that runner's availableToBack (the fallback above then just keeps
+      // re-serving the stale cache, since nothing ever overwrites it). This
+      // logs the raw array whenever that happens, so the actual REST
+      // response is visible instead of guessed at again.
+      if (restBetfairBackPrice === null && existingRunner?.betfairBack != null) {
+        console.warn(
+          `No REST availableToBack for ${name} (selectionId ${selectionId}) — ` +
+            `falling back to last known ${existingRunner.betfairBack}. Raw r.ex:`,
+          r.ex
+        );
+      }
+
       // One price per bookie, keyed by id — Sportsbet keeps its historical
       // placeholder fallback (betfair×1.08) so its column was never empty
       // before the first real scan; a newer bookie just shows nothing
