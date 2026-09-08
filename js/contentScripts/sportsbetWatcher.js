@@ -67,11 +67,26 @@
   let lastSentSignature = null;
 
   function sendUpdateIfChanged() {
-    const runners = scrapeRunners();
     const marketClosed = scrapeMarketClosed();
+    // Stop scraping runner prices the moment betting closes — user-
+    // reported the odds "shift around" once in-play; confirmed live on
+    // a real race as it went in-play: the number of
+    // [data-automation-id="racecard-outcome-name"] elements on the page
+    // jumped from 10 to 14 the instant it closed (Sportsbet adds an
+    // in-play market that reuses the exact same automation-id, with no
+    // way for scrapeRunners()'s name/price pairing — which assumes a
+    // stable 1:1 ordering between names and Win-column prices — to tell
+    // those new elements apart from the original Win market's own).
+    // Sending an empty runners array here is safe, not destructive:
+    // applyBookieOdds (background.js) finds no name match for any of
+    // them and leaves the race's existing prices exactly as they were,
+    // same as TAB's own prices effectively freezing once its market
+    // closes.
+    const runners = marketClosed ? [] : scrapeRunners();
     // marketClosed can arrive on an update with no runners at all (odds
-    // buttons commonly go blank/unparseable right as betting closes) —
-    // checked separately so that signal isn't dropped by the runners-only
+    // buttons commonly go blank/unparseable right as betting closes, and
+    // now also deliberately forced empty once closed above) — checked
+    // separately so that signal isn't dropped by the runners-only
     // bail-out below.
     if (runners.length === 0 && marketClosed === undefined) return;
 

@@ -960,9 +960,21 @@ async function scrapeBookieTab(bookieId, tabId) {
 // refresh.
 async function applyBookieOdds(bookieId, odds) {
   const { bookmakerOdds = {} } = await chrome.storage.local.get(["bookmakerOdds"]);
-  await chrome.storage.local.set({
-    bookmakerOdds: { ...bookmakerOdds, [bookieId]: odds },
-  });
+  // Once betting's closed, sportsbetWatcher.js deliberately stops
+  // scraping runner prices at all (its own market having gone in-play —
+  // see its own comment) and sends an empty runners array here just to
+  // still carry marketClosed through. Skip caching that as the "most
+  // recent scan": refreshRaceInner's own REST-refresh fallback
+  // (recentBookieRunners) reads this same cache, and an empty runners
+  // list there would make it find no price for anyone and fall back to
+  // the synthetic betfair×1.08 placeholder (or null) on its very next
+  // ~60s tick — silently replacing a real frozen price with a made-up
+  // one, undoing the whole point of freezing it in the first place.
+  if (!(odds.marketClosed === true && odds.runners.length === 0)) {
+    await chrome.storage.local.set({
+      bookmakerOdds: { ...bookmakerOdds, [bookieId]: odds },
+    });
+  }
 
   const { liveRace } = await chrome.storage.local.get(["liveRace"]);
   if (!liveRace || liveRace.source !== "live-betfair") return;
@@ -982,11 +994,12 @@ async function applyBookieOdds(bookieId, odds) {
   // isRaceInPlay). Betfair itself deliberately plays no part in this any
   // more — user-reported it stays tradeable well past the real jump, so
   // its own status was never a reliable signal for this. Checked
-  // separately from `matched` so it isn't dropped by the bail-out below —
-  // real risk either way is small: verified directly that Sportsbet's
-  // prices stay parseable as plain numbers (just visually dimmed) for a
-  // while after closing, so `matched` staying >0 right at the moment
-  // marketClosed flips true is the common case, not the exception.
+  // separately from `matched` so it isn't dropped by the bail-out below.
+  // `matched` is always 0 once marketClosed is true for Sportsbet
+  // specifically (it deliberately sends `runners: []` from that point
+  // on, rather than risk feeding misaligned in-play prices into the
+  // comparison table — see sportsbetWatcher.js's own comment), so this
+  // bypass is what lets the marketClosed flag itself still get written.
   const hasMarketClosed = odds.marketClosed === true;
   if (matched === 0 && !hasMarketClosed) return; // this update doesn't concern the loaded race
 
