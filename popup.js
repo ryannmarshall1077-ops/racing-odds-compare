@@ -521,9 +521,12 @@ function renderRace(race) {
   // Scratched runners (Betfair status REMOVED) render as placeholder rows
   // at the end, in box-number order — a full-field view instead of just
   // silently having fewer rows than the race actually has runners.
-  const scratchedRunners = race.runners
-    .filter((r) => r.result === "REMOVED")
-    .sort((a, b) => parseRunnerNumber(a.name) - parseRunnerNumber(b.name));
+  // showScratchedRunners (Settings > Display) lets that be turned off.
+  const scratchedRunners = currentSettings.showScratchedRunners
+    ? race.runners
+        .filter((r) => r.result === "REMOVED")
+        .sort((a, b) => parseRunnerNumber(a.name) - parseRunnerNumber(b.name))
+    : [];
 
   for (const runner of scratchedRunners) {
     const row = document.createElement("tr");
