@@ -505,13 +505,16 @@ async function refreshRaceInner(marketId) {
   const raceNumberMatch = market.marketName.match(/^R(\d+)/);
   const raceNumber = raceNumberMatch ? Number(raceNumberMatch[1]) : null;
 
-  // Diagnostic: user-reported the Matched badge always shows "—" (null)
-  // against real data, despite the concept being confirmed on a live
-  // Betfair market page. Logs the raw book object whenever that happens
-  // so the actual REST shape is visible instead of guessed at again.
-  if (book.totalMatched == null) {
-    console.warn(`No totalMatched on book for market ${market.marketId}. Raw book:`, book);
-  }
+  // REST's totalMatched genuinely is present, but only refreshes on the
+  // ~60s chrome.alarms poll below — too slow near jump time, when matched
+  // volume can multiply within a couple of minutes (confirmed: extension
+  // showed $138 while Betfair's own page already read AUD 1,705 for the
+  // same market seconds later). betfairWatcher.js now scrapes the page's
+  // own "Matched: AUD X" text in near real-time instead, so prefer that
+  // when it's recent enough, same pattern as betfairPricedAt for prices.
+  const totalMatchedIsFresh =
+    stored.liveRace?.totalMatchedUpdatedAt &&
+    Date.now() - stored.liveRace.totalMatchedUpdatedAt < 90 * 1000;
 
   const race = {
     race: `${track} — ${market.marketName}`,
@@ -531,7 +534,8 @@ async function refreshRaceInner(marketId) {
     // Total AUD matched on this market so far — same figure Betfair's
     // own market page shows as "Matched: AUD X" (confirmed directly
     // against a live market page before shipping). Display only.
-    totalMatched: book.totalMatched ?? null,
+    totalMatched: totalMatchedIsFresh ? stored.liveRace.totalMatched : (book.totalMatched ?? null),
+    ...(totalMatchedIsFresh && { totalMatchedUpdatedAt: stored.liveRace.totalMatchedUpdatedAt }),
     source: "live-betfair",
     bookmakerSources: Object.fromEntries(
       Object.keys(BOOKIES).map((id) => [id, bookmakerMatched[id] > 0 ? "live" : "placeholder"])
@@ -955,10 +959,27 @@ async function applyBetfairOdds(odds) {
     return runner;
   });
 
-  if (matched === 0) return; // this update doesn't concern the loaded race
+  // totalMatched (betfairWatcher.js's scrapeTotalMatched()) is race-wide,
+  // not per-runner, so it can arrive on an update that touched no runner
+  // price at all (e.g. only the matched-volume text changed) — checked
+  // separately from `matched` so that update isn't dropped by the bail-out
+  // below.
+  const hasTotalMatched = typeof odds.totalMatched === "number";
+  if (matched === 0 && !hasTotalMatched) return; // this update doesn't concern the loaded race
 
   await chrome.storage.local.set({
-    liveRace: { ...liveRace, runners, fetchedAt: Date.now() },
+    liveRace: {
+      ...liveRace,
+      runners,
+      // Stamped so refreshRaceInner() knows this is fresher than whatever
+      // REST's own totalMatched says on its next ~60s poll, same idea as
+      // betfairPricedAt for prices.
+      ...(hasTotalMatched && {
+        totalMatched: odds.totalMatched,
+        totalMatchedUpdatedAt: Date.now(),
+      }),
+      fetchedAt: Date.now(),
+    },
   });
 }
 
