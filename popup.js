@@ -451,19 +451,6 @@ function renderRace(race) {
 
   renderTrackRacesRow(race);
 
-  // Shown once Betfair settles the market and this race is still the one
-  // loaded — refreshRace() (manual click, or the ~60s auto-refresh alarm)
-  // is what actually detects this (race.winner, set from Betfair's own
-  // per-runner WINNER/LOSER status), not anything specific to rendering;
-  // this just reflects whatever the currently loaded race object says.
-  const winnerBanner = document.getElementById("winner-banner");
-  if (race.winner) {
-    winnerBanner.textContent = `🏆 Winner: ${race.winner}`;
-    winnerBanner.hidden = false;
-  } else {
-    winnerBanner.hidden = true;
-  }
-
   const tbody = document.getElementById("odds-body");
   tbody.innerHTML = "";
 
@@ -502,12 +489,10 @@ function renderRace(race) {
     }).join("");
 
     // Betfair settling the market and marking a runner WINNER (see
-    // refreshRaceInner, background.js) is what drives both this and the
-    // winner-banner above the table — this is just the same result
-    // shown again right on that runner's own row, not a separate
-    // detection of its own, so a race that's settled but hasn't been
-    // reselected recently still shows it clearly at a glance instead of
-    // only in the banner easily missed above a long runner list.
+    // refreshRaceInner/applyBetfairOdds, background.js) is what drives
+    // this — shown right on that runner's own row (a separate banner
+    // above the table used to duplicate this, removed per request as
+    // redundant once this tag existed).
     const winnerTag =
       runner.result === "WINNER" ? ' <em class="winner-tag">&#127942; Winner</em>' : "";
 
@@ -574,6 +559,7 @@ function renderRace(race) {
   const countdownMainEl = document.getElementById("race-countdown-main");
   countdownMainEl.dataset.start = race.startTime || "";
   countdownMainEl.dataset.bookieMarketClosed = race.bookieMarketClosed ? "true" : "";
+  countdownMainEl.dataset.hasWinner = race.winner ? "true" : "";
 
   document.getElementById("data-source-note").textContent = noteFor(race);
 }
@@ -687,19 +673,23 @@ chrome.storage.onChanged.addListener((changes, area) => {
     // Keep the sidebar's own cached copy of this same race in sync at the
     // same time, instead of leaving it to catch up on the next
     // loadUpcomingRaces() poll (~60s away, see the setInterval further
-    // down) — bookieMarketClosed lands here instantly (applyBetfairOdds/
-    // applyBookieOdds write it the moment the DOM scrape detects it), so
-    // without this the top bar could say "IN PLAY" up to a minute before
-    // the identical race's sidebar row did, despite it being the exact
-    // same signal (user-reported: wanted both to flip together).
+    // down) — bookieMarketClosed/winner both land here instantly
+    // (applyBetfairOdds/applyBookieOdds write them the moment the DOM
+    // scrape detects them), so without this the top bar could say
+    // "IN PLAY"/"RESULTED" up to a minute before the identical race's
+    // sidebar row did, despite it being the exact same signal (user-
+    // reported: wanted both to flip together).
     if (race?.marketId) {
       const cached = latestRaces.find((r) => r.marketId === race.marketId);
       if (
         cached &&
-        (cached.bookieMarketClosed !== race.bookieMarketClosed || cached.marketStatus !== race.marketStatus)
+        (cached.bookieMarketClosed !== race.bookieMarketClosed ||
+          cached.marketStatus !== race.marketStatus ||
+          cached.winner !== race.winner)
       ) {
         cached.bookieMarketClosed = race.bookieMarketClosed;
         cached.marketStatus = race.marketStatus;
+        cached.winner = race.winner;
         renderFilteredRacesList();
       }
     }
@@ -812,7 +802,7 @@ function raceCardHtml(race, { isPast }) {
     : currentSettings.showCountdowns
     ? `<span class="race-countdown" data-start="${race.startTime}" data-bookie-market-closed="${
         race.bookieMarketClosed ? "true" : ""
-      }"></span>`
+      }" data-has-winner="${race.winner ? "true" : ""}"></span>`
     : "";
 
   return `
@@ -965,18 +955,32 @@ function formatDuration(totalSeconds) {
 // the race-info bar's "in" prefix (only makes sense before a duration,
 // not in front of the word "IN PLAY") can key off the exact same rule
 // instead of a second copy of it drifting out of sync.
-function isRaceInPlay(startTimeIso, bookieMarketClosed) {
-  // "true" (string), not a boolean — every real caller sources this from
-  // a DOM dataset attribute (renderRace/raceCardHtml both write
-  // race.bookieMarketClosed ? "true" : "" there), and dataset values are
-  // always strings.
-  return new Date(startTimeIso).getTime() - Date.now() <= 0 && bookieMarketClosed === "true";
+// "true" (string), not a boolean, for both params below — every real
+// caller sources these from DOM dataset attributes (renderRace/
+// raceCardHtml both write race.bookieMarketClosed/race.winner through
+// a `? "true" : ""` ternary), and dataset values are always strings.
+function isPastJumpTime(startTimeIso) {
+  return new Date(startTimeIso).getTime() - Date.now() <= 0;
 }
 
-function formatCountdown(startTimeIso, bookieMarketClosed) {
+// Whether the countdown is currently showing a status word ("IN PLAY"/
+// "RESULTED") rather than a duration — exported as its own check (not
+// just inlined in formatCountdown) so the race-info bar's "in" prefix
+// (only makes sense before a duration) can key off the exact same rule
+// instead of a second copy of it drifting out of sync.
+function isShowingStatusWord(startTimeIso, bookieMarketClosed, hasWinner) {
+  return isPastJumpTime(startTimeIso) && (hasWinner === "true" || bookieMarketClosed === "true");
+}
+
+function formatCountdown(startTimeIso, bookieMarketClosed, hasWinner) {
   const diffMs = new Date(startTimeIso).getTime() - Date.now();
   if (diffMs > 0) return formatDuration(Math.floor(diffMs / 1000));
-  if (isRaceInPlay(startTimeIso, bookieMarketClosed)) return "IN PLAY";
+  // RESULTED takes priority over IN PLAY — a winner being known means
+  // the race is definitely done, regardless of what bookieMarketClosed
+  // (which only tracks betting having closed, not the actual result)
+  // says by this point.
+  if (hasWinner === "true") return "RESULTED";
+  if (isPastJumpTime(startTimeIso) && bookieMarketClosed === "true") return "IN PLAY";
   return `-${formatDuration(Math.floor(-diffMs / 1000))}`;
 }
 
@@ -994,7 +998,7 @@ function formatElapsed(settledAtMs) {
 // across re-renders without needing its own cleanup/restart logic.
 function tickCountdowns() {
   for (const el of document.querySelectorAll(".race-countdown")) {
-    el.textContent = formatCountdown(el.dataset.start, el.dataset.bookieMarketClosed);
+    el.textContent = formatCountdown(el.dataset.start, el.dataset.bookieMarketClosed, el.dataset.hasWinner);
   }
 
   for (const el of document.querySelectorAll(".race-elapsed")) {
@@ -1003,14 +1007,22 @@ function tickCountdowns() {
 
   const countdownMainEl = document.getElementById("race-countdown-main");
   countdownMainEl.textContent = countdownMainEl.dataset.start
-    ? formatCountdown(countdownMainEl.dataset.start, countdownMainEl.dataset.bookieMarketClosed)
+    ? formatCountdown(
+        countdownMainEl.dataset.start,
+        countdownMainEl.dataset.bookieMarketClosed,
+        countdownMainEl.dataset.hasWinner
+      )
     : "";
   // "Jumps at HH:MM · in -1m 02s" reads fine; "Jumps at HH:MM · in IN
-  // PLAY" doesn't — hide the "in" the same moment the countdown itself
-  // switches to the status word.
+  // PLAY"/"in RESULTED" doesn't — hide the "in" the same moment the
+  // countdown itself switches to a status word.
   document.getElementById("race-countdown-prefix").hidden = Boolean(
     countdownMainEl.dataset.start &&
-      isRaceInPlay(countdownMainEl.dataset.start, countdownMainEl.dataset.bookieMarketClosed)
+      isShowingStatusWord(
+        countdownMainEl.dataset.start,
+        countdownMainEl.dataset.bookieMarketClosed,
+        countdownMainEl.dataset.hasWinner
+      )
   );
 }
 tickCountdowns();

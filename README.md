@@ -1270,3 +1270,28 @@ https://developer.betfair.com/.
         existing winner-banner and in-table "Winner" tag (already
         keyed off `runner.result === "WINNER"`, regardless of source)
         needed no changes at all to pick this up.
+- [x] Removed the winner-banner (the standalone bar above the odds
+      table) per request, now redundant with the in-table "Winner" tag
+      it duplicated. Deleted its markup/logic/CSS outright, and tidied
+      three unrelated comments elsewhere in popup.css that referenced
+      it only as a historical example of an id-vs-class `[hidden]`
+      specificity fix (that pattern's other examples still stand on
+      their own without it).
+- [x] Countdown now shows "RESULTED" (not "IN PLAY") once a winner is
+      actually known — `hasWinner` takes priority over
+      `bookieMarketClosed` in `formatCountdown`, since a known winner
+      means the race is definitely done regardless of what
+      bookieMarketClosed (betting merely having closed, not the actual
+      result) still says. `isRaceInPlay` broadened into
+      `isShowingStatusWord` (now covers either status word, for the
+      race-info bar's "in" prefix-hiding check) plus a small
+      `isPastJumpTime` split out from it. Wired `winner` through the
+      exact same two paths bookieMarketClosed already uses for the
+      sidebar: `listUpcomingRacesInner`'s own liveRace-layering (for
+      the ~60s poll) and the `chrome.storage.onChanged` listener's
+      instant `latestRaces` patch (so the sidebar row flips to
+      "RESULTED" the same instant the top bar does, not up to a minute
+      later). Verified via the local popup preview harness: a mock
+      race with `bookieMarketClosed: true` and a `WINNER` runner shows
+      "RESULTED" (not "IN PLAY"), "in" prefix hidden, banner gone,
+      winner tag still showing on the runner's own row.
