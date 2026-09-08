@@ -930,3 +930,12 @@ https://developer.betfair.com/.
       figure as "Matched: AUD X" there. Display only, same as Liquidity
       — whole dollars with a thousands separator once large enough to
       need one, matching Betfair's own display.
+      - **Follow-up, same session**: user-reported the badge always
+        shows "—" against real data — verifying the *concept* against
+        Betfair's own page (what this was checked against before
+        shipping) turned out not to be enough to confirm the REST field
+        itself actually comes back populated. Added a diagnostic
+        (`console.warn` with the raw `book` object) for whenever
+        `book.totalMatched` is null/undefined, so the next real
+        reproduction shows the actual REST shape instead of guessing at
+        it again.

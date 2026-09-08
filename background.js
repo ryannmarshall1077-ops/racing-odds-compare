@@ -504,6 +504,15 @@ async function refreshRaceInner(marketId) {
   // regex against the same marketName format either way.
   const raceNumberMatch = market.marketName.match(/^R(\d+)/);
   const raceNumber = raceNumberMatch ? Number(raceNumberMatch[1]) : null;
+
+  // Diagnostic: user-reported the Matched badge always shows "—" (null)
+  // against real data, despite the concept being confirmed on a live
+  // Betfair market page. Logs the raw book object whenever that happens
+  // so the actual REST shape is visible instead of guessed at again.
+  if (book.totalMatched == null) {
+    console.warn(`No totalMatched on book for market ${market.marketId}. Raw book:`, book);
+  }
+
   const race = {
     race: `${track} — ${market.marketName}`,
     track,
