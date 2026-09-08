@@ -711,3 +711,16 @@ https://developer.betfair.com/.
         `edgeMetricHtml` directly against the exact values from the
         user's screenshot (42.5/39.3/35.7/20.0/9.4 -> plain,
         53.1/50.0 -> tier 1 orange, -5 -> red) before shipping.
+      - **Follow-up, same session**: replaced that plain/red split with a
+        single configurable "Below every threshold" colour
+        (`edgeBelowThresholdColor`, defaulting to the same red) — a 5th
+        box in the EV Colours tab/section, same swatch+hex sync pattern
+        as the 4 tiers but with no threshold of its own (it's just
+        whatever's left over once those don't match). `edgeMetricHtml`
+        simplified to always return a configured colour now — a matched
+        tier, or this catch-all — rather than branching on the value's
+        sign; removed the now-fully-unused `.edge-positive`/
+        `.edge-negative` CSS classes. Verified: 42.5 (positive, below
+        every tier) and -5 (negative) both now resolve to the same
+        configured colour; editing the hex field live and closing the
+        modal changed that colour immediately.

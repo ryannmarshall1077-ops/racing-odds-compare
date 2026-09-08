@@ -122,6 +122,7 @@ function applySettingsToForm(settings) {
   }
 
   applyEdgeBandsToForm(settings.edgeColorBands);
+  applyEdgeBelowColorToForm(settings.edgeBelowThresholdColor);
 }
 
 function selectedRaceTypesFromForm() {
@@ -210,6 +211,40 @@ evBandEls.forEach((els) => {
   for (const mode of EDGE_BAND_MODES) {
     els.thresholds[mode].addEventListener("change", saveEdgeBands);
   }
+});
+
+// The catch-all colour for a value that doesn't clear even the lowest
+// tier above — same swatch/hex sync pattern as each band, just no
+// threshold of its own and no per-band array index (a single setting,
+// not part of edgeColorBands).
+const edgeBelowColorEl = document.getElementById("setting-edge-below-color");
+const edgeBelowHexEl = document.getElementById("setting-edge-below-hex");
+const edgeBelowBoxEl = edgeBelowColorEl.closest(".ev-band");
+
+function applyEdgeBelowColorToForm(color) {
+  edgeBelowColorEl.value = color;
+  edgeBelowHexEl.value = color.replace("#", "").toUpperCase();
+  edgeBelowBoxEl.style.borderColor = color;
+}
+
+edgeBelowColorEl.addEventListener("input", () => {
+  edgeBelowHexEl.value = edgeBelowColorEl.value.replace("#", "").toUpperCase();
+  edgeBelowBoxEl.style.borderColor = edgeBelowColorEl.value;
+  saveSettings({ edgeBelowThresholdColor: edgeBelowColorEl.value }).then(() =>
+    flashSettingsStatus("Saved")
+  );
+});
+
+edgeBelowHexEl.addEventListener("change", () => {
+  const normalized = normalizeHex(edgeBelowHexEl.value);
+  if (!normalized) {
+    edgeBelowHexEl.value = edgeBelowColorEl.value.replace("#", "").toUpperCase();
+    return;
+  }
+  edgeBelowColorEl.value = normalized;
+  edgeBelowHexEl.value = normalized.replace("#", "").toUpperCase();
+  edgeBelowBoxEl.style.borderColor = normalized;
+  saveSettings({ edgeBelowThresholdColor: normalized }).then(() => flashSettingsStatus("Saved"));
 });
 
 loadSettings().then(applySettingsToForm);

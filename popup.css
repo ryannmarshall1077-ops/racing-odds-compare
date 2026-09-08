@@ -514,19 +514,12 @@ th:first-child {
   color: var(--accent);
 }
 
-.edge-positive {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.edge-negative {
-  color: var(--accent-neg);
-}
-
-/* An Edge%/Ret% value that matched one of Settings > EV Colours and
-   Thresholds' configured tiers — the actual colour is always inline
-   (a user's hex code isn't limited to whatever a CSS class could
-   express), this just supplies the bold weight every tier shares. */
+/* Every Edge%/Ret% value now gets a configured colour (a matched EV
+   tier, or edgeBelowThresholdColor as the catch-all) rather than a fixed
+   green/red-by-sign — the actual colour is always inline (a user's hex
+   code isn't limited to whatever a CSS class could express), this just
+   supplies the bold weight every case shares. Replaces the old
+   .edge-positive/.edge-negative classes, now unused. */
 .edge-tier {
   font-weight: 600;
 }

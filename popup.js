@@ -310,27 +310,25 @@ function edgeTierColor(metric, mode) {
   return color;
 }
 
-// Renders one Edge%/Ret% value's class + inline colour — a matched tier
-// always wins (inline style, so a user's configured hex isn't limited to
-// whatever's expressible as a CSS class).
-//
-// Below every tier's threshold: a genuinely negative value still falls
-// back to the original plain red "bad" styling, but a positive one gets
-// NO colour at all (plain default text) rather than the old green
-// fallback. Bonus's tiers commonly start well above 0 (default lowest
-// threshold: 50%) — with the old "positive -> green" fallback, a real
-// 42% Ret% (below every tier) rendered in the SAME green as a
-// legitimately excellent 90% Ret%, and visually outranked a 50% Ret%
-// that correctly earned tier 1's orange, making a table that was
-// actually sorted correctly look wrong at a glance. Confirmed against a
-// real screenshot: 42.5%/39.3%/35.7%/20.0%/9.4% (all below the 50%
-// floor) were rendering green while 53.1%/52.6%/50.0% sat right above
-// them in orange.
+// Renders one Edge%/Ret% value's class + inline colour — always a
+// configured colour, never a hardcoded one, so every case (including
+// "below every tier") is user-editable via Settings > EV Colours and
+// Thresholds rather than baked in. A matched tier wins first; otherwise
+// edgeBelowThresholdColor (defaults to the same red already used
+// elsewhere for "bad"). Previously a below-every-tier value split on
+// sign — negative fell back to plain red, positive got no colour at all
+// — because Bonus's tiers commonly start well above 0 (default lowest
+// threshold: 50%), so a real 42% Ret% (below every tier, but positive)
+// rendered with no colour while a genuinely bad negative Mug Edge% still
+// went red. Both cases are just "didn't clear the lowest tier" now, one
+// single configured colour either way.
 function edgeMetricHtml(metric) {
   if (metric == null) return { className: "", styleAttr: "" };
-  const tierColor = edgeTierColor(metric, currentMode);
-  if (tierColor) return { className: "edge-tier", styleAttr: ` style="color:${tierColor}"` };
-  return { className: metric < 0 ? "edge-negative" : "", styleAttr: "" };
+  const color =
+    edgeTierColor(metric, currentMode) ??
+    currentSettings.edgeBelowThresholdColor ??
+    DEFAULT_SETTINGS.edgeBelowThresholdColor;
+  return { className: "edge-tier", styleAttr: ` style="color:${color}"` };
 }
 
 // A bookmaker's own price cell: the price on top, that bookie's own Edge%/
