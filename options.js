@@ -100,7 +100,21 @@ const raceTypeCheckboxes = {
 // Reflects a settings object into every control on the page — used both on
 // initial load and after "Restore defaults", so the two never drift out of
 // sync with each other.
+// Same THEME_DEFAULT_ACCENT idea popup.js's own applyTheme()/
+// applyDisplaySettings() use, duplicated rather than shared since this
+// file also runs standalone on options.html (no popup.js there at all)
+// — an untouched accentColor should still resolve to each theme's own
+// legible default here too, not just inside the popup.
+function applyThemeToPage(settings) {
+  document.documentElement.dataset.theme = settings.theme;
+  const themeDefaultAccent = settings.theme === "light" ? "#1f9d68" : DEFAULT_SETTINGS.accentColor;
+  const accentColor =
+    settings.accentColor === DEFAULT_SETTINGS.accentColor ? themeDefaultAccent : settings.accentColor;
+  document.documentElement.style.setProperty("--accent", accentColor);
+}
+
 function applySettingsToForm(settings) {
+  applyThemeToPage(settings);
   settingFields.defaultMode.value = settings.defaultMode;
   settingFields.defaultSort.value = settings.defaultSort;
   settingFields.defaultStake.value = settings.defaultStake;

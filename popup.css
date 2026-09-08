@@ -1,4 +1,9 @@
 :root {
+  /* Tells the browser this page manages its own theme (also fixes
+     native form-control colours — scrollbars, checkboxes — to match)
+     instead of leaving it to guess and potentially auto-dark-invert an
+     explicitly light page back to dark. */
+  color-scheme: dark;
   --bg: #0f1720;
   --panel: #17212b;
   --text: #e6edf3;
@@ -9,6 +14,33 @@
   --back-color: #4fa8f5;
   --lay-color: #ef6fb0;
   --amber: #ffb454;
+}
+
+/* Light mode — toggled via #theme-toggle-btn (popup.js sets
+   document.documentElement.dataset.theme), not an OS-level media query;
+   this is a page the user explicitly switches, same idea as the
+   Colours tab's own accentColor. Every dark-mode rule elsewhere in this
+   file reads these same variables, so overriding just the tokens here
+   is enough — no rule needed a separate light-mode copy. --accent is
+   the one exception: it's also set inline by applyDisplaySettings()
+   (popup.js) from the user's own accentColor setting, so its
+   theme-appropriate default (darker, for contrast on a light --bg) is
+   applied there instead of here — an untouched accentColor still needs
+   to resolve differently per theme, which a CSS override alone can't
+   do once JS has already written an inline style. --back-color/
+   --lay-color/--amber are darkened here the same way (paler on light
+   backgrounds otherwise) since nothing sets those inline. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f6f8;
+  --panel: #ffffff;
+  --text: #1a2530;
+  --muted: #5b6b7c;
+  --accent-neg: #d93a3a;
+  --border: #dde3ea;
+  --back-color: #2f80d6;
+  --lay-color: #cf4691;
+  --amber: #c97a12;
 }
 
 * {
@@ -59,7 +91,14 @@ h1 {
   font-size: 15px;
 }
 
-#settings-btn {
+.sidebar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#settings-btn,
+#theme-toggle-btn {
   background: none;
   border: none;
   color: var(--muted);
@@ -69,7 +108,8 @@ h1 {
   padding: 2px 4px;
 }
 
-#settings-btn:hover {
+#settings-btn:hover,
+#theme-toggle-btn:hover {
   color: var(--text);
 }
 

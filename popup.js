@@ -1068,6 +1068,30 @@ for (const btn of document.querySelectorAll(".race-type-btn")) {
   });
 }
 
+// Light mode's own legible defaults for the two colours nothing else
+// overrides at the :root level (popup.css's own [data-theme="light"]
+// block handles every other variable) — --accent is set inline below
+// instead, since an untouched accentColor needs to resolve differently
+// per theme and a plain CSS override can't win against an inline style.
+const THEME_DEFAULT_ACCENT = { dark: "#3ddc97", light: "#1f9d68" };
+
+const themeToggleBtn = document.getElementById("theme-toggle-btn");
+
+// Just the toggle button's own icon/title + the data-theme attribute
+// popup.css's light-mode block keys off — split out from
+// applyDisplaySettings so the button reacts the instant it's clicked,
+// without waiting on a settings round-trip first.
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  if (theme === "light") {
+    themeToggleBtn.textContent = "\u{1F319}"; // 🌙 — click to go dark
+    themeToggleBtn.title = "Switch to dark mode";
+  } else {
+    themeToggleBtn.textContent = "\u{2600}\u{FE0F}"; // ☀️ — click to go light
+    themeToggleBtn.title = "Switch to light mode";
+  }
+}
+
 // The settings that apply live, for the whole session, every time they
 // change — as opposed to Default Mode/Sort/Stake/Hedge/Race Types below,
 // which only ever SEED the session once at startup (changing them later
@@ -1079,7 +1103,17 @@ for (const btn of document.querySelectorAll(".race-type-btn")) {
 function applyDisplaySettings(settings) {
   currentSettings = settings;
 
-  document.documentElement.style.setProperty("--accent", settings.accentColor);
+  applyTheme(settings.theme);
+  // An untouched accentColor (still DEFAULT_SETTINGS' own dark-mode
+  // value) resolves to the active theme's own default instead of
+  // forcing dark mode's bright mint onto a light background where it'd
+  // barely be legible as text. A colour the user actually picked in
+  // Settings > Colours always applies literally, in either theme.
+  const accentColor =
+    settings.accentColor === DEFAULT_SETTINGS.accentColor
+      ? THEME_DEFAULT_ACCENT[settings.theme] || THEME_DEFAULT_ACCENT.dark
+      : settings.accentColor;
+  document.documentElement.style.setProperty("--accent", accentColor);
   document.body.classList.toggle("compact-rows", settings.compactRows);
   document.body.classList.toggle("hide-liquidity", !settings.showLiquidityColumn);
   document.body.classList.toggle("show-liability", settings.showLiabilityColumn);
@@ -1087,6 +1121,11 @@ function applyDisplaySettings(settings) {
   if (currentRace) renderRace(currentRace);
   if (latestRaces.length > 0) renderFilteredRacesList();
 }
+
+themeToggleBtn.addEventListener("click", () => {
+  const nextTheme = currentSettings.theme === "light" ? "dark" : "light";
+  saveSettings({ theme: nextTheme }).then(applyDisplaySettings);
+});
 
 // Applies the user's saved Settings-page defaults over the hardcoded
 // fallbacks above. Runs concurrently with (not before) the liveRace/

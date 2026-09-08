@@ -987,3 +987,31 @@ https://developer.betfair.com/.
         preview harness (a mocked `LIST_UPCOMING_RACES` response) that
         both the sidebar race card badge and the race-info bar
         subtitle now read "T".
+- [x] Light/dark mode toggle (sun/moon button next to Settings in the
+      sidebar header). Adds a `theme` setting ("dark", the existing
+      unchanged default, or "light"), a `:root[data-theme="light"]`
+      override block in popup.css for every neutral colour token
+      (bg/panel/text/muted/border) plus darkened back-color/lay-color/
+      amber (too pale for text on a light background otherwise) — every
+      existing rule already reads these same variables, so no rule
+      needed its own light-mode copy. `--accent` is the one exception:
+      it's set inline by `applyDisplaySettings()` from the user's own
+      accentColor setting, so an *untouched* accentColor now resolves
+      to a theme-appropriate default (dark mode's bright mint is too
+      pale to read as text on light) while an explicitly-customised
+      accentColor still applies literally in either theme — same idea
+      duplicated into options.js's own `applyThemeToPage()` so
+      options.html looks right standalone too, without its own toggle
+      button. Also added an explicit `color-scheme` (dark/light per
+      theme) — missing before, and needed for the toggle to render
+      reliably rather than depending on the browser's own force-dark
+      heuristics for an unmarked page. Verified via the local popup
+      preview harness: toggling flips every CSS variable and the
+      button's icon correctly (confirmed via computed styles/color-
+      scheme/painted-background-chain, all consistently light after
+      toggling) — the harness's own screenshot capture couldn't
+      visually confirm the final pixels past that point (a Chromium
+      force-dark quirk specific to this sandboxed preview, inconsistent
+      even against a trivial one-line test page, and invisible to every
+      DOM-level check), so a final look in a real browser is still
+      worth doing.
