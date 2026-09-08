@@ -887,3 +887,16 @@ https://developer.betfair.com/.
       race" fallback) omits `to` and stays unbounded going forward on
       purpose — late at night with nothing left today, it should still
       find tomorrow's first race rather than coming back empty.
+      - **Follow-up, same session, reverted**: replaced the Sportsbet
+        matching source with `/racing-schedule`'s embedded
+        `__PRELOADED_STATE__` (uncapped, unlike `NextEvents`' 40-per-
+        category ceiling — see the commit this reverts for the full
+        writeup, including live verification against a real race that
+        ceiling was hiding). User asked to revert it back — the ~1.7MB
+        HTML fetch + brace-depth parsing needed to pull a JSON object out
+        of a server-rendered page was more complexity than wanted for
+        this. Back to `fetchSportsbetNextEvents`/`NextEvents` as before:
+        races further out than Sportsbet's own nearest ~40-per-sport
+        window will show the "!" no-match warning again until that
+        window slides forward far enough to include them (self-resolves
+        as the day goes on, via the existing periodic re-poll).
