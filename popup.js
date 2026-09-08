@@ -924,15 +924,23 @@ function formatDuration(totalSeconds) {
 // marketStatus is a real Betfair check (OPEN/SUSPENDED/CLOSED — see
 // checkPendingResults/refreshRaceInner in background.js), not just the
 // clock — races commonly go off a few minutes late while still
-// genuinely OPEN, so the scheduled time alone passing doesn't mean it's
-// actually jumped. Confirmed non-OPEN reads as "Jumped"; otherwise this
-// just keeps counting past zero into negative (same shape as
-// formatElapsed) rather than switching to a static "Delayed" label, so
-// it's still obviously live and ticking rather than looking stuck.
+// genuinely OPEN, so the scheduled time alone passing doesn't mean the
+// market has actually gone in-play. The clock reaching 0:00 never
+// switches this on its own — it just keeps counting past zero into
+// negative (same shape as formatElapsed) until marketStatus itself is
+// confirmed non-OPEN, which is what actually triggers "IN PLAY".
+// Exported as its own check (not just inlined in formatCountdown) so
+// the race-info bar's "in" prefix (only makes sense before a duration,
+// not in front of the word "IN PLAY") can key off the exact same rule
+// instead of a second copy of it drifting out of sync.
+function isRaceInPlay(startTimeIso, marketStatus) {
+  return new Date(startTimeIso).getTime() - Date.now() <= 0 && !!marketStatus && marketStatus !== "OPEN";
+}
+
 function formatCountdown(startTimeIso, marketStatus) {
   const diffMs = new Date(startTimeIso).getTime() - Date.now();
   if (diffMs > 0) return formatDuration(Math.floor(diffMs / 1000));
-  if (marketStatus && marketStatus !== "OPEN") return "Jumped";
+  if (isRaceInPlay(startTimeIso, marketStatus)) return "IN PLAY";
   return `-${formatDuration(Math.floor(-diffMs / 1000))}`;
 }
 
@@ -961,6 +969,13 @@ function tickCountdowns() {
   countdownMainEl.textContent = countdownMainEl.dataset.start
     ? formatCountdown(countdownMainEl.dataset.start, countdownMainEl.dataset.marketStatus)
     : "";
+  // "Jumps at HH:MM · in -1m 02s" reads fine; "Jumps at HH:MM · in IN
+  // PLAY" doesn't — hide the "in" the same moment the countdown itself
+  // switches to the status word.
+  document.getElementById("race-countdown-prefix").hidden = Boolean(
+    countdownMainEl.dataset.start &&
+      isRaceInPlay(countdownMainEl.dataset.start, countdownMainEl.dataset.marketStatus)
+  );
 }
 tickCountdowns();
 setInterval(tickCountdowns, 1000);
@@ -1029,9 +1044,9 @@ loadUpcomingRaces();
 loadRecentResults();
 
 // Keeps the sidebar's Today/Past lists from going stale while the popup
-// stays open. Without this, a race that's already jumped just sits in
-// Today showing "Jumped" forever — its own countdown correctly detects
-// that client-side, but nothing was actually re-fetching the list to
+// stays open. Without this, a race that's already gone in-play just sits
+// in Today showing "IN PLAY" forever — its own countdown correctly
+// detects that client-side, but nothing was actually re-fetching the list to
 // drop it once Betfair's own upcoming-races feed does — and a race
 // background.js has since confirmed settled never shows up in Past
 // until something asks for it again. Same ~1-minute cadence as
