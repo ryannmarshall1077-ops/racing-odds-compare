@@ -33,17 +33,36 @@
 
       <main id="main-panel">
         <div id="race-info-bar">
-          <div class="race-info-top">
-            <span class="live-dot" id="race-live-dot" title="Live Betfair connection"></span>
-            <p class="subtitle" id="race-subtitle">Horse &amp; Greyhound Racing &mdash; Betfair vs Sportsbet</p>
-            <span
-              class="comms-badge"
-              title="Betfair commission for this track/sport (Settings > Betfair commission discount applied)"
-            >&#128202; Comms: <span id="race-comms-value">&mdash;</span></span>
+          <div class="race-info-left">
+            <div class="race-info-top">
+              <span class="live-dot" id="race-live-dot" title="Live Betfair connection"></span>
+              <p class="subtitle" id="race-subtitle">Horse &amp; Greyhound Racing &mdash; Betfair vs Sportsbet</p>
+              <span
+                class="comms-badge"
+                title="Betfair commission for this track/sport (Settings > Betfair commission discount applied)"
+              >&#128202; Comms: <span id="race-comms-value">&mdash;</span></span>
+            </div>
+            <div class="race-info-bottom">
+              Jumps at <span id="race-jump-time">&mdash;</span> &middot; in
+              <span id="race-countdown-main" class="race-countdown-main"></span>
+            </div>
           </div>
-          <div class="race-info-bottom">
-            Jumps at <span id="race-jump-time">&mdash;</span> &middot; in
-            <span id="race-countdown-main" class="race-countdown-main"></span>
+
+          <div id="hedge-control">
+            <label for="mode-select">Mode</label>
+            <select id="mode-select">
+              <option value="mug">Mug</option>
+              <option value="bonus">Bonus</option>
+              <option value="run2nd3rd" disabled>Run 2nd 3rd (coming soon)</option>
+              <option value="run2nd" disabled>Run 2nd (coming soon)</option>
+            </select>
+            <label for="stake-input">Stake</label>
+            <span>$</span>
+            <input type="number" id="stake-input" min="0" step="1" value="50" />
+            <label for="hedge-input">Hedge</label>
+            <input type="number" id="hedge-input" min="0" max="100" step="1" value="100" />
+            <span>%</span>
+            <span class="hedge-hint">100% = full lay, 0% = no lay</span>
           </div>
         </div>
 
@@ -77,23 +96,6 @@
               <!-- Market % row injected by popup.js -->
             </tfoot>
           </table>
-        </div>
-
-        <div id="hedge-control">
-          <label for="mode-select">Mode</label>
-          <select id="mode-select">
-            <option value="mug">Mug</option>
-            <option value="bonus">Bonus</option>
-            <option value="run2nd3rd" disabled>Run 2nd 3rd (coming soon)</option>
-            <option value="run2nd" disabled>Run 2nd (coming soon)</option>
-          </select>
-          <label for="stake-input">Stake</label>
-          <span>$</span>
-          <input type="number" id="stake-input" min="0" step="1" value="50" />
-          <label for="hedge-input">Hedge</label>
-          <input type="number" id="hedge-input" min="0" max="100" step="1" value="100" />
-          <span>%</span>
-          <span class="hedge-hint">100% = full lay, 0% = no lay</span>
         </div>
 
         <footer>
