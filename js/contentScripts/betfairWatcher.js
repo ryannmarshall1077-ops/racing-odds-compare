@@ -44,23 +44,28 @@
     // exact same selection id our REST API uses, so matching is exact —
     // no fuzzy name comparison needed like on the Sportsbet side. Verified
     // against a live market page.
-    //
-    // Lay-only, deliberately: a Back-cell selector (.first-back-cell) was
-    // tried here too, but it was only ever inferred from this Lay
-    // selector's naming convention, never independently confirmed against
-    // a real logged-in Betfair session — and it turned out to actively
-    // serve a stale/wrong Back price+liquidity for a volatile runner,
-    // overriding background.js's correct REST value for up to 90s. Back
-    // is REST-only now (refreshRaceInner) until a real session lets this
-    // be verified properly.
     const lay = scrapeSide(".first-lay-cell[bet-selection-id]");
+
+    // Back side — this time actually verified against a real logged-in
+    // Betfair session (a previous attempt guessed ".first-back-cell",
+    // inferred from the Lay selector's own naming, and shipped a stale/
+    // wrong Back price for a volatile runner because of it). The naming
+    // is NOT symmetric with Lay: Back's best (nearest-to-market) cell is
+    // marked "last-back-cell", not "first-back-cell" — confirmed directly
+    // against a live market page (Angle Park greyhounds), where
+    // .last-back-cell's price+size matched the page's own highlighted
+    // "Back all" column exactly for every runner checked.
+    const back = scrapeSide(".last-back-cell[bet-selection-id]");
 
     const runners = [];
     for (const [selectionId, layEntry] of lay) {
+      const backEntry = back.get(selectionId);
       runners.push({
         selectionId,
         price: layEntry.price,
         ...(layEntry.liquidity !== undefined && { liquidity: layEntry.liquidity }),
+        ...(backEntry && { backPrice: backEntry.price }),
+        ...(backEntry?.liquidity !== undefined && { backLiquidity: backEntry.liquidity }),
       });
     }
 
