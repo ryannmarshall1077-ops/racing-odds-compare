@@ -56,6 +56,10 @@ const DEFAULT_SETTINGS = {
   // Colours and Layout
   accentColor: "#3ddc97",
   compactRows: false,
+  // "dark" (default, unchanged existing look) or "light" — toggled via
+  // the sidebar's sun/moon button next to Settings, not this settings
+  // object's own form (see popup.js's theme-toggle-btn handler).
+  theme: "dark",
 
   // EV Colours and Thresholds — 4 ascending colour tiers, each with its
   // own per-row threshold (different scales: Mug's Edge% can run deeply
