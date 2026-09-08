@@ -398,9 +398,16 @@ async function refreshRaceInner(marketId) {
   }
 
   const track = market.event.venue || market.event.name;
+  // Same extraction listUpcomingRacesInner already uses for its own
+  // raceNumber field — duplicated rather than shared since the two loop
+  // over differently-shaped market objects, but it's the same one-line
+  // regex against the same marketName format either way.
+  const raceNumberMatch = market.marketName.match(/^R(\d+)/);
+  const raceNumber = raceNumberMatch ? Number(raceNumberMatch[1]) : null;
   const race = {
     race: `${track} — ${market.marketName}`,
     track,
+    raceNumber,
     marketId: market.marketId,
     startTime: market.marketStartTime,
     sport: sport.id,

@@ -33,8 +33,18 @@
 
       <main id="main-panel">
         <div id="race-info-bar">
-          <p class="subtitle" id="race-subtitle">Horse &amp; Greyhound Racing &mdash; Betfair vs Sportsbet</p>
-          <span id="race-countdown-main" class="race-countdown-main"></span>
+          <div class="race-info-top">
+            <span class="live-dot" id="race-live-dot" title="Live Betfair connection"></span>
+            <p class="subtitle" id="race-subtitle">Horse &amp; Greyhound Racing &mdash; Betfair vs Sportsbet</p>
+            <span
+              class="comms-badge"
+              title="Betfair commission for this track/sport (Settings > Betfair commission discount applied)"
+            >&#128202; Comms: <span id="race-comms-value">&mdash;</span></span>
+          </div>
+          <div class="race-info-bottom">
+            Jumps at <span id="race-jump-time">&mdash;</span> &middot; in
+            <span id="race-countdown-main" class="race-countdown-main"></span>
+          </div>
         </div>
 
         <div id="winner-banner" hidden></div>

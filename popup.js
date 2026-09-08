@@ -302,12 +302,52 @@ function formatMarketPct(pct) {
   return pct === null ? "—" : `${pct.toFixed(1)}%`;
 }
 
+// The race-info bar's Comms badge — commission as a whole percentage
+// (e.g. 0.08 -> "8%"), only falling back to one decimal place when a
+// commission discount actually leaves a fractional point (e.g. "7.5%")
+// rather than always showing a redundant ".0".
+function formatPercentWhole(fraction) {
+  const pct = fraction * 100;
+  return `${Number.isInteger(pct) ? pct : pct.toFixed(1)}%`;
+}
+
+// The race-info bar's "Jumps at HH:MM" — local time, 24-hour, no seconds.
+// Deliberately not toLocaleTimeString() (which can insert AM/PM depending
+// on the user's locale) — the reference bar this matches always shows
+// plain 24-hour digits.
+function formatJumpTime(startTimeIso) {
+  if (!startTimeIso) return "—";
+  const d = new Date(startTimeIso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 function renderRace(race) {
   currentRace = race;
   if (race.marketId) selectedMarketId = race.marketId;
 
+  // Race Result / Display > Betfair commission discount — percentage
+  // points off whatever the track/sport would otherwise charge, floored
+  // at 0% so a discount larger than the base rate can't go negative.
+  const baseCommission = commissionForTrack(race.track, race.sport);
+  const commission = Math.max(0, baseCommission - currentSettings.commissionDiscount / 100);
+  const hedge = hedgePercent / 100;
+
+  // Compact race-info bar: track + race number + single-letter sport code
+  // (RACE_TYPE_CODE, bookies.js — same R/H/G scheme TAB's own race URLs
+  // use), a live-connection dot, the commission this race is actually
+  // being charged, and jump time/countdown underneath.
+  const raceCode = RACE_TYPE_CODE[race.sport] || "";
+  const raceLabel = race.raceNumber != null ? ` R${race.raceNumber}` : "";
   document.getElementById("race-subtitle").textContent =
-    `${race.sportLabel || "Horse Racing"} — ${race.race}`;
+    `${race.track || race.race}${raceLabel}${raceCode ? ` (${raceCode})` : ""}`;
+
+  document
+    .getElementById("race-live-dot")
+    .classList.toggle("live", race.source === "live-betfair");
+
+  document.getElementById("race-comms-value").textContent = formatPercentWhole(commission);
+
+  document.getElementById("race-jump-time").textContent = formatJumpTime(race.startTime);
 
   // Shown once Betfair settles the market and this race is still the one
   // loaded — refreshRace() (manual click, or the ~60s auto-refresh alarm)
@@ -324,13 +364,6 @@ function renderRace(race) {
 
   const tbody = document.getElementById("odds-body");
   tbody.innerHTML = "";
-
-  // Race Result / Display > Betfair commission discount — percentage
-  // points off whatever the track/sport would otherwise charge, floored
-  // at 0% so a discount larger than the base rate can't go negative.
-  const baseCommission = commissionForTrack(race.track, race.sport);
-  const commission = Math.max(0, baseCommission - currentSettings.commissionDiscount / 100);
-  const hedge = hedgePercent / 100;
 
   let rows = sortedRunners(race, commission, hedge).map((runner) => {
     const layDollars = rowLayDollars(runner, commission, hedge);
