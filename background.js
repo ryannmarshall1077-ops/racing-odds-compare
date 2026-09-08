@@ -539,6 +539,21 @@ async function listUpcomingRacesInner() {
     pendingResultChecks.filter((r) => r.marketStatus).map((r) => [r.marketId, r.marketStatus])
   );
 
+  // Sportsbet's NextEvents feed hard-caps each racing category at ~40
+  // events, soonest-first — a race further out than that simply isn't in
+  // sportsbetEvents at all, so it could never get a real match no matter
+  // how good the matching below is. Rather than show it anyway with a
+  // permanent "!" (confusing — reads as an error, not "too far out to
+  // check yet"), races past this horizon are dropped from the list
+  // entirely further down. Keyed by Sportsbet's own event type
+  // (sportsbetTypes), since that's the granularity NextEvents' cap
+  // itself applies at.
+  const sportsbetMaxStartTimeByType = {};
+  for (const e of sportsbetEvents) {
+    const current = sportsbetMaxStartTimeByType[e.type];
+    if (current === undefined || e.startTime > current) sportsbetMaxStartTimeByType[e.type] = e.startTime;
+  }
+
   const races = markets
     .map((market) => {
       const raceNumberMatch = market.marketName.match(/^R(\d+)/);
@@ -546,6 +561,20 @@ async function listUpcomingRacesInner() {
       const track = market.event.venue || market.event.name;
       const startTimeMs = new Date(market.marketStartTime).getTime();
       const sport = sportForMarket(market);
+
+      // Betfair's single "Horse Racing" event type covers both actual
+      // gallops and harness/trots (sport.sportsbetTypes lists both for
+      // it), so the later of those two categories' own furthest-out
+      // event is what actually bounds visibility here. null (no data
+      // for this sport at all right now — a Sportsbet hiccup, not a
+      // real absence) fails open instead of hiding the whole sport.
+      const horizons = sport.sportsbetTypes
+        .map((t) => sportsbetMaxStartTimeByType[t])
+        .filter((t) => t !== undefined);
+      const sportsbetHorizon = horizons.length > 0 ? Math.max(...horizons) : null;
+      if (sportsbetHorizon !== null && startTimeMs / 1000 > sportsbetHorizon) {
+        return null;
+      }
 
       // Filtered by sportsbetTypes first — without it, a horse (or
       // harness) meeting and a greyhound meeting that happen to share a
@@ -585,7 +614,7 @@ async function listUpcomingRacesInner() {
         tabUrl: tabRaceUrlFromCodes(tabVenueCodes, track, sport.id, raceNumber, market.marketStartTime),
       };
     })
-    .filter((r) => r.raceNumber !== null);
+    .filter((r) => r !== null && r.raceNumber !== null);
 
   await chrome.storage.local.set({ upcomingRaces: races });
   await seedPendingResultChecks(races);
