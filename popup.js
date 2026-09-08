@@ -256,6 +256,20 @@ function bookieCellHtml(price, metric) {
   )}</span><span class="cell-sub ${metricClass}">${metricText}</span></span>`;
 }
 
+// The Best Price cell: that price plus its bookie badge(s) on top, and the
+// overall Edge%/Ret% it feeds (metricPercent — the same formula, against
+// this same best price) stacked beneath it — same treatment as every
+// bookie's own cell, since the Best Price column is really just "whichever
+// bookie column is currently highlighted", read together in one place.
+function bestPriceCellHtml(price, badgesHtml, metric) {
+  if (price == null) return "—";
+  const metricClass = metric == null ? "" : metric >= 0 ? "edge-positive" : "edge-negative";
+  const metricText = metric == null ? "—" : `${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%`;
+  return `<span class="stacked-cell"><span class="cell-price"><span class="best-price-value">${price.toFixed(
+    2
+  )}</span>${badgesHtml}</span><span class="cell-sub ${metricClass}">${metricText}</span></span>`;
+}
+
 // What you'd owe if the lay bet loses (the backed selection wins) — the
 // standard exchange lay-liability formula, stake × (odds - 1). Unlike
 // Liquidity this is always computable from data already on the row (no
@@ -344,6 +358,7 @@ function renderRace(race) {
         return `<span class="bookie-badge">${bookie.label}</span>`;
       })
       .join(" ");
+    const bestMetric = metricPercent(runner, commission, hedge);
     const bookieCells = BOOKIE_LIST.map((b) => {
       const price = runner.bookmakers?.[b.id];
       const bestClass = bestBookieIds.includes(b.id) ? " best-price" : "";
@@ -353,11 +368,7 @@ function renderRace(race) {
 
     row.innerHTML = `
       <td>${runner.name}</td>
-      <td class="col-best-price">${
-        bestPrice != null
-          ? `<span class="best-price-value">${bestPrice.toFixed(2)}</span>${bestPriceBadges}`
-          : "—"
-      }</td>
+      <td class="col-best-price">${bestPriceCellHtml(bestPrice, bestPriceBadges, bestPrice != null ? bestMetric : null)}</td>
       <td class="col-backlay">${backLayCellHtml(
         runner.betfairBack,
         runner.betfairBackLiquidity,

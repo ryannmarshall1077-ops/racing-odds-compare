@@ -551,3 +551,11 @@ https://developer.betfair.com/.
       Scratched placeholder rows now carry their "Scratched" label in the
       runner-name cell instead of the (now-removed) last column. Verified
       against mock data via a local static preview before committing.
+      - **Follow-up, same session**: the Best Price cell itself now also
+        shows its own Edge%/Ret% stacked underneath (`bestPriceCellHtml`,
+        `metricPercent` — the same overall best-price formula the old
+        Edge column used), alongside the price and bookie badge(s). Since
+        Best Price is always whichever bookie is currently winning, this
+        figure always matches that bookie's own column exactly — verified
+        against mock data (e.g. Best Price 3.90/TAB/+8.1% lines up with
+        TAB's own column independently showing 3.90/+8.1%).
