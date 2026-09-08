@@ -1141,3 +1141,33 @@ https://developer.betfair.com/.
         caught and fixed a stale-cached-script false negative in the
         harness itself along the way (cache-busted the script tag to
         get a trustworthy result).
+- [x] Fixed Sportsbet odds "shifting around" once a race goes in-play
+      (user-reported, with TAB's own prices staying accurate as the
+      point of comparison). Confirmed live on a real race as it went
+      in-play: the number of
+      `[data-automation-id="racecard-outcome-name"]` elements on the
+      page jumped from 10 to 14 the instant it closed — Sportsbet adds
+      an in-play market reusing the exact same automation-id, which
+      `scrapeRunners()`'s name/price pairing (assumes a stable 1:1
+      ordering between names and Win-column prices) has no way to
+      distinguish from the original Win market's own runners.
+      `sportsbetWatcher.js` now stops scraping runner prices entirely
+      the moment `scrapeMarketClosed()` is true, sending an empty
+      `runners` array from then on just to still carry the
+      `marketClosed` signal through. Confirmed this is safe, not
+      destructive: `applyBookieOdds` (background.js) finds no name
+      match for an empty list and leaves the race's existing prices
+      exactly as they were — matching TAB's own prices effectively
+      freezing once its market closes, which is what looked "accurate"
+      by comparison in the first place.
+      - **Follow-up, same session**: caught a second-order bug before
+        shipping (not user-reported — found reviewing the fix's own
+        knock-on effects). `applyBookieOdds` unconditionally cached the
+        raw scan (including the new empty `runners`) as the "most
+        recent scan" — `refreshRaceInner`'s own REST-refresh fallback
+        reads that same cache on its ~60s tick, and an empty list there
+        would make *it* find no price either and fall back to the
+        synthetic betfair×1.08 placeholder (or null), silently
+        replacing the just-frozen real price with a made-up one within
+        a minute. Skipped that cache write specifically for a
+        `marketClosed`-with-empty-`runners` update.
