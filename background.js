@@ -292,7 +292,26 @@ function findBookmakerPrice(runnerName, bookmakerRunners) {
 async function settledRaceFromBook(appKey, sessionToken, marketId, previousRace) {
   const [book] = await getMarketBook(appKey, sessionToken, [marketId]);
   const winnerRunner = book?.runners?.find((r) => r.status === "WINNER");
-  if (!winnerRunner) return null;
+
+  // Diagnostic: user-reported the winner still doesn't show even after
+  // this function was added — and the sidebar's own Past section
+  // (checkPendingResultsInner, a completely separate code path to
+  // listMarketBook for the same market) also has no winner for this
+  // race, so the common dependency worth actually confirming is
+  // whether listMarketBook itself still has anything for this exact
+  // marketId once catalogue's already dropped it — not necessarily
+  // true just because it's true while a market's still IN catalogue
+  // (the only case this was actually verified against before).
+  if (!winnerRunner) {
+    console.warn(
+      `settledRaceFromBook: no WINNER for market ${marketId} after catalogue dropped it.`,
+      "book:",
+      book,
+      "runner statuses:",
+      book?.runners?.map((r) => ({ selectionId: r.selectionId, status: r.status }))
+    );
+    return null;
+  }
 
   const bookStatusById = new Map(book.runners.map((r) => [String(r.selectionId), r.status]));
   const nameById = new Map(previousRace.runners.map((r) => [r.selectionId, r.name]));
