@@ -1122,3 +1122,22 @@ https://developer.betfair.com/.
         counting down negative; Betfair still `OPEN` + bookie closed
         immediately shows "IN PLAY" — confirming Betfair has no say in
         either direction any more.
+      - **Follow-up, same session**: user asked for the top bar and the
+        matching sidebar row to flip to "IN PLAY" at the same time —
+        `bookieMarketClosed` reaches the top bar instantly
+        (`chrome.storage.onChanged`, already reactive), but the
+        sidebar's own cached copy only got refreshed by
+        `loadUpcomingRaces()`'s own ~60s poll, so the top bar could say
+        "IN PLAY" up to a minute before the identical race's sidebar
+        row did. The `onChanged` handler now also patches the matching
+        `latestRaces` entry's `bookieMarketClosed`/`marketStatus`
+        in place and re-renders the filtered list immediately, instead
+        of waiting on the next poll. Verified via the local popup
+        preview harness (a working `chrome.storage.onChanged` in the
+        shim this time, not just a direct `renderRace()` call, to
+        actually exercise this code path): flipping `bookieMarketClosed`
+        in storage updates both the top bar and the sidebar row's
+        `data-bookie-market-closed` attribute on the very same tick —
+        caught and fixed a stale-cached-script false negative in the
+        harness itself along the way (cache-busted the script tag to
+        get a trustworthy result).

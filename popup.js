@@ -671,7 +671,28 @@ refreshBtn.addEventListener("click", () => loadRaceIntoTable());
 // be open, instead of only updating on the next manual click.
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes.liveRace) {
-    renderRace(changes.liveRace.newValue);
+    const race = changes.liveRace.newValue;
+    renderRace(race);
+
+    // Keep the sidebar's own cached copy of this same race in sync at the
+    // same time, instead of leaving it to catch up on the next
+    // loadUpcomingRaces() poll (~60s away, see the setInterval further
+    // down) — bookieMarketClosed lands here instantly (applyBetfairOdds/
+    // applyBookieOdds write it the moment the DOM scrape detects it), so
+    // without this the top bar could say "IN PLAY" up to a minute before
+    // the identical race's sidebar row did, despite it being the exact
+    // same signal (user-reported: wanted both to flip together).
+    if (race?.marketId) {
+      const cached = latestRaces.find((r) => r.marketId === race.marketId);
+      if (
+        cached &&
+        (cached.bookieMarketClosed !== race.bookieMarketClosed || cached.marketStatus !== race.marketStatus)
+      ) {
+        cached.bookieMarketClosed = race.bookieMarketClosed;
+        cached.marketStatus = race.marketStatus;
+        renderFilteredRacesList();
+      }
+    }
   }
 });
 
