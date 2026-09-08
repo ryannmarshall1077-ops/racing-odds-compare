@@ -570,3 +570,26 @@ https://developer.betfair.com/.
         branding) — the badge stays our own accent-tinted pill regardless
         of which bookie it names, same reasoning as the plain-text badges
         elsewhere in this project.
+- [x] Reworked the race-info bar into a compact two-line layout per a
+      reference screenshot: a live-connection dot + `{track} R{number}
+      ({sport code})` + a Comms badge on top, "Jumps at HH:MM · in Xm Ys"
+      underneath (amber countdown):
+      - **Live dot** — green with a soft glow once `race.source ===
+        "live-betfair"`, plain grey otherwise (mock/placeholder) — means
+        something rather than being purely decorative. Verified via the
+        DOM (not just eyeballing the screenshot) that it correctly stays
+        plain for mock data.
+      - **Race title** uses the same single-letter sport code (R/H/G)
+        TAB's own race URLs already use (`RACE_TYPE_CODE`, added to the
+        shared `bookies.js` rather than reusing background.js's
+        `RACE_TYPE_TO_TAB_CODE` directly, to avoid touching that
+        already-verified, safety-critical TAB URL logic for a purely
+        cosmetic duplicate). Needed a `raceNumber` field added to
+        `refreshRaceInner`'s own race object (the same one-line regex
+        `listUpcomingRacesInner` already used, just not previously carried
+        through here too).
+      - **Comms badge** — the same `commission` value (with any Settings
+        discount already applied) the table's own Edge%/Ret%/Lay $ already
+        use, just also surfaced here as a whole percentage.
+      - Verified the whole bar against mock data via a local static
+        preview before committing.

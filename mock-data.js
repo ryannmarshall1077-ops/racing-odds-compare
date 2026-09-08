@@ -4,6 +4,9 @@
 const MOCK_RACE = {
   race: "Race 5 - Flemington",
   track: "Flemington",
+  raceNumber: 5,
+  sport: "horse",
+  sportLabel: "Horse Racing",
   marketId: "1.mock",
   startTime: new Date(Date.now() + 12 * 60 * 1000).toISOString(),
   source: "mock",
