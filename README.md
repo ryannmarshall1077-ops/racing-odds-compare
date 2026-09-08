@@ -921,3 +921,12 @@ https://developer.betfair.com/.
         learning above worked. Switched the one call site to pass
         `raceType` instead — a no-op for horse/greyhound (where it
         already equalled `sport.id`), fixes exactly the harness case.
+- [x] "Matched: $X" badge in the race-info bar, next to Comms — total
+      AUD matched on the selected market so far. `refreshRaceInner`
+      already fetches `getMarketBook` for this race (same call
+      `marketStatus` already came from) — just also carries
+      `book.totalMatched` through now. Confirmed directly against a
+      real Betfair market page before shipping: it shows the exact same
+      figure as "Matched: AUD X" there. Display only, same as Liquidity
+      — whole dollars with a thousands separator once large enough to
+      need one, matching Betfair's own display.

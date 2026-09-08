@@ -519,6 +519,10 @@ async function refreshRaceInner(marketId) {
     // error)" apart from "actually gone in-running/closed", instead of
     // assuming the schedule itself is accurate.
     marketStatus: book.status,
+    // Total AUD matched on this market so far — same figure Betfair's
+    // own market page shows as "Matched: AUD X" (confirmed directly
+    // against a live market page before shipping). Display only.
+    totalMatched: book.totalMatched ?? null,
     source: "live-betfair",
     bookmakerSources: Object.fromEntries(
       Object.keys(BOOKIES).map((id) => [id, bookmakerMatched[id] > 0 ? "live" : "placeholder"])
