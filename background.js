@@ -279,6 +279,36 @@ function findBookmakerPrice(runnerName, bookmakerRunners) {
   return match?.price;
 }
 
+// Called only when the selected market has already dropped out of
+// listMarketCatalogue (refreshRaceInner's own catalogue call came back
+// empty) — a last attempt at the real result via listMarketBook before
+// giving up on the selection entirely. Returns the updated race (built
+// from `previousRace`, the last known-good liveRace for this exact
+// market — its own track/runners/prices/etc. are all still valid, only
+// each runner's result and the market's own status need refreshing)
+// with a resolved winner, or null if listMarketBook has nothing either
+// (genuinely gone, not just resulted — the caller falls back to "next
+// upcoming race" in that case).
+async function settledRaceFromBook(appKey, sessionToken, marketId, previousRace) {
+  const [book] = await getMarketBook(appKey, sessionToken, [marketId]);
+  const winnerRunner = book?.runners?.find((r) => r.status === "WINNER");
+  if (!winnerRunner) return null;
+
+  const bookStatusById = new Map(book.runners.map((r) => [String(r.selectionId), r.status]));
+  const nameById = new Map(previousRace.runners.map((r) => [r.selectionId, r.name]));
+
+  return {
+    ...previousRace,
+    runners: previousRace.runners.map((r) => {
+      const freshStatus = bookStatusById.get(r.selectionId);
+      return freshStatus ? { ...r, result: freshStatus } : r;
+    }),
+    winner: nameById.get(String(winnerRunner.selectionId)) ?? String(winnerRunner.selectionId),
+    marketStatus: book.status,
+    fetchedAt: Date.now(),
+  };
+}
+
 // Fetches the current Betfair prices for a race and re-renders the popup's
 // comparison table with them. If `marketId` is given, that becomes (and is
 // persisted as) the selected race; otherwise it follows whatever race was
@@ -318,10 +348,30 @@ async function refreshRaceInner(marketId) {
   if (targetMarketId) {
     markets = await listMarketsByIds(appKey, sessionToken, [targetMarketId]);
     if (markets.length === 0) {
-      // The selected race has jumped/closed and dropped out of Betfair's
-      // catalogue — rather than getting stuck forever re-throwing this on
-      // every refresh, clear the dead selection and fall through to "next
-      // upcoming race" below, same as if nothing had ever been selected.
+      // The selected race has dropped out of Betfair's catalogue — but
+      // listMarketBook (the actual result) persists noticeably longer
+      // than catalogue does, same asymmetry checkPendingResultsInner
+      // already relies on for the sidebar's own Past results. Check
+      // there before giving up on this selection: user-reported
+      // Betfair's own page already showed "Closed" with a named winner
+      // while this popup, unable to find the market in catalogue, was
+      // silently switching to the next race before ever trying to
+      // fetch that result. Only really "expired" (genuinely gone, not
+      // just resulted) if this comes back empty too.
+      const winnerRace =
+        stored.liveRace?.marketId === targetMarketId
+          ? await settledRaceFromBook(appKey, sessionToken, targetMarketId, stored.liveRace)
+          : null;
+      if (winnerRace) {
+        await chrome.storage.local.set({ liveRace: winnerRace });
+        return winnerRace;
+      }
+
+      // Genuinely gone (or the popup was never showing this race in the
+      // first place, e.g. after a reinstall) — rather than getting stuck
+      // forever re-throwing this on every refresh, clear the dead
+      // selection and fall through to "next upcoming race" below, same
+      // as if nothing had ever been selected.
       selectionExpired = true;
       targetMarketId = null;
       await chrome.storage.local.set({ selectedMarketId: null });
