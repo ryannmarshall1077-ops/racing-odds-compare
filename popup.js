@@ -256,6 +256,20 @@ function bookieCellHtml(price, metric) {
   )}</span><span class="cell-sub ${metricClass}">${metricText}</span></span>`;
 }
 
+// The Best Price cell: price + Edge%/Ret% (metricPercent — the same
+// formula, against this same best price) stacked on the left, colour-coded
+// by sign, with the winning bookie's badge(s) vertically centered on the
+// right — a wider "card row" layout rather than the plain stacked-cell
+// treatment every other column uses, since this is the headline column.
+function bestPriceCellHtml(price, badgesHtml, metric) {
+  if (price == null) return "—";
+  const metricClass = metric == null ? "" : metric >= 0 ? "edge-positive" : "edge-negative";
+  const metricText = metric == null ? "—" : `${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%`;
+  return `<span class="best-price-cell"><span class="best-price-text"><span class="best-price-value ${metricClass}">${price.toFixed(
+    2
+  )}</span><span class="best-price-edge ${metricClass}">${metricText}</span></span><span class="best-price-badges">${badgesHtml}</span></span>`;
+}
+
 // What you'd owe if the lay bet loses (the backed selection wins) — the
 // standard exchange lay-liability formula, stake × (odds - 1). Unlike
 // Liquidity this is always computable from data already on the row (no
@@ -344,6 +358,7 @@ function renderRace(race) {
         return `<span class="bookie-badge">${bookie.label}</span>`;
       })
       .join(" ");
+    const bestMetric = metricPercent(runner, commission, hedge);
     const bookieCells = BOOKIE_LIST.map((b) => {
       const price = runner.bookmakers?.[b.id];
       const bestClass = bestBookieIds.includes(b.id) ? " best-price" : "";
@@ -353,11 +368,7 @@ function renderRace(race) {
 
     row.innerHTML = `
       <td>${runner.name}</td>
-      <td class="col-best-price">${
-        bestPrice != null
-          ? `<span class="best-price-value">${bestPrice.toFixed(2)}</span>${bestPriceBadges}`
-          : "—"
-      }</td>
+      <td class="col-best-price">${bestPriceCellHtml(bestPrice, bestPriceBadges, bestPrice != null ? bestMetric : null)}</td>
       <td class="col-backlay">${backLayCellHtml(
         runner.betfairBack,
         runner.betfairBackLiquidity,

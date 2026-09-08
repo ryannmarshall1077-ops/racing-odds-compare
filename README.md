@@ -551,3 +551,22 @@ https://developer.betfair.com/.
       Scratched placeholder rows now carry their "Scratched" label in the
       runner-name cell instead of the (now-removed) last column. Verified
       against mock data via a local static preview before committing.
+      - **Follow-up, same session**: the Best Price cell itself now also
+        shows its own Edge%/Ret% stacked underneath (`bestPriceCellHtml`,
+        `metricPercent` — the same overall best-price formula the old
+        Edge column used), alongside the price and bookie badge(s). Since
+        Best Price is always whichever bookie is currently winning, this
+        figure always matches that bookie's own column exactly — verified
+        against mock data (e.g. Best Price 3.90/TAB/+8.1% lines up with
+        TAB's own column independently showing 3.90/+8.1%).
+      - **Follow-up, same session**: reworked the Best Price cell into a
+        wider "card row" layout per a reference screenshot — price and
+        Edge%/Ret% stacked left (colour-coded together by sign, green/red,
+        rather than price always being a fixed accent colour), the winning
+        bookie's badge(s) as a rounded pill vertically centered on the
+        right (`best-price-cell`/`best-price-text`/`best-price-badges`).
+        Deliberately did NOT copy the reference's actual per-bookmaker
+        brand colours (Palmerbet purple, Tab green, etc., real trademarked
+        branding) — the badge stays our own accent-tinted pill regardless
+        of which bookie it names, same reasoning as the plain-text badges
+        elsewhere in this project.
