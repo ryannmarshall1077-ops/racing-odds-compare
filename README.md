@@ -974,3 +974,16 @@ https://developer.betfair.com/.
       used for TAB URLs elsewhere) is untouched. Verified via the local
       popup preview harness: matches the reference styling, and
       toggling a pill off/on still filters the list correctly.
+      - **Follow-up, same session**: user-reported the "Today" sidebar's
+        race cards (and the race-info bar's subtitle, e.g. "Flemington
+        R5 (R)") still showed the old "R" badge for horse races,
+        inconsistent with the filter pill's new "T". That letter comes
+        from `RACE_TYPE_CODE` in `bookies.js` — confirmed via its own
+        comment and a repo-wide search to be purely cosmetic and
+        deliberately separate from `RACE_TYPE_TO_TAB_CODE`
+        (background.js, safety-critical real TAB URL building) —
+        safe to change without touching TAB scraping at all. Changed
+        `horse` to `"T"` there too. Verified via the local popup
+        preview harness (a mocked `LIST_UPCOMING_RACES` response) that
+        both the sidebar race card badge and the race-info bar
+        subtitle now read "T".

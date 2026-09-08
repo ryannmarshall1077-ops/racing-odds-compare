@@ -11,8 +11,10 @@ const BOOKIE_LIST = [
 ];
 
 // Single-letter race-type code shown in the compact race-info bar (e.g.
-// "Angle Park R1 (G)") — same R/H/G scheme TAB's own race URLs use (see
-// RACE_TYPE_TO_TAB_CODE in background.js), duplicated here rather than
-// shared with it since that one is safety-critical (verified TAB URL
-// construction) and this one is purely cosmetic.
-const RACE_TYPE_CODE = { horse: "R", harness: "H", greyhound: "G" };
+// "Angle Park G1 (G)") and the sidebar's race cards — purely cosmetic,
+// deliberately its own copy rather than shared with background.js's
+// RACE_TYPE_TO_TAB_CODE (that one is safety-critical, verified TAB URL
+// construction, and must stay R/H/G regardless of what this displays).
+// horse -> "T" (Thoroughbred) to match the Upcoming Races filter pill's
+// own T/H/G lettering, not TAB's own R/H/G scheme.
+const RACE_TYPE_CODE = { horse: "T", harness: "H", greyhound: "G" };
