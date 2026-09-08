@@ -9,3 +9,10 @@ const BOOKIE_LIST = [
   { id: "sportsbet", label: "Sportsbet" },
   { id: "tab", label: "TAB" },
 ];
+
+// Single-letter race-type code shown in the compact race-info bar (e.g.
+// "Angle Park R1 (G)") — same R/H/G scheme TAB's own race URLs use (see
+// RACE_TYPE_TO_TAB_CODE in background.js), duplicated here rather than
+// shared with it since that one is safety-critical (verified TAB URL
+// construction) and this one is purely cosmetic.
+const RACE_TYPE_CODE = { horse: "R", harness: "H", greyhound: "G" };
