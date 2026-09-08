@@ -900,3 +900,18 @@ https://developer.betfair.com/.
         window will show the "!" no-match warning again until that
         window slides forward far enough to include them (self-resolves
         as the day goes on, via the existing periodic re-poll).
+      - **Follow-up, same session**: the "!" for a race beyond that
+        window read as an error rather than "too far out to check yet"
+        (confusing, per user feedback) — those races are now excluded
+        from Upcoming Races entirely instead. `listUpcomingRacesInner`
+        computes, per Sportsbet event type, the furthest-out event
+        `sportsbetEvents` actually contains right now
+        (`sportsbetMaxStartTimeByType`) and drops any Betfair race
+        starting after that. Bounded by whichever of a sport's matching
+        Sportsbet categories reaches furthest — Betfair's single "Horse
+        Racing" event type covers both actual gallops and harness/trots
+        (`sport.sportsbetTypes` lists both), so the later of the two
+        categories' own horizon is what's actually used. No data at all
+        for a sport right now (a Sportsbet hiccup, not a real absence)
+        fails open — nothing gets excluded on that sport's account
+        rather than the whole sport silently vanishing from the list.
