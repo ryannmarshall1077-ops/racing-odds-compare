@@ -206,6 +206,17 @@ function formatLiquidity(liquidity) {
     : `$${Math.round(liquidity)}`;
 }
 
+// Renders a Back/Lay price cell's contents: the price on top, its own
+// liquidity figure stacked beneath it (hidden via the hide-liquidity body
+// class when Settings > Show liquidity is off) — instead of liquidity
+// living in its own separate column.
+function priceCellHtml(price, liquidity) {
+  if (price == null) return "—";
+  return `<span class="price-cell"><span class="cell-price">${price.toFixed(
+    2
+  )}</span><span class="cell-liquidity">${formatLiquidity(liquidity)}</span></span>`;
+}
+
 // What you'd owe if the lay bet loses (the backed selection wins) — the
 // standard exchange lay-liability formula, stake × (odds - 1). Unlike
 // Liquidity this is always computable from data already on the row (no
@@ -311,8 +322,8 @@ function renderRace(race) {
           ? `<span class="best-price-value">${bestPrice.toFixed(2)}</span>${bestPriceBadges}`
           : "—"
       }</td>
-      <td>${runner.betfair?.toFixed(2) ?? "—"}</td>
-      <td class="col-liquidity">${formatLiquidity(runner.betfairLiquidity)}</td>
+      <td class="col-back">${priceCellHtml(runner.betfairBack, runner.betfairBackLiquidity)}</td>
+      <td class="col-lay">${priceCellHtml(runner.betfair, runner.betfairLiquidity)}</td>
       ${bookieCells}
       <td class="lay-dollars" title="Click to copy">${layDollars.toFixed(2)}</td>
       <td class="col-liability">${liability.toFixed(2)}</td>
@@ -337,8 +348,8 @@ function renderRace(race) {
     row.innerHTML = `
       <td>${runner.name}</td>
       <td class="col-best-price">—</td>
-      <td>—</td>
-      <td class="col-liquidity">—</td>
+      <td class="col-back">—</td>
+      <td class="col-lay">—</td>
       ${BOOKIE_LIST.map(() => "<td>—</td>").join("")}
       <td>—</td>
       <td class="col-liability">—</td>
@@ -352,8 +363,10 @@ function renderRace(race) {
   const marketCells = [
     "<td>Market %</td>",
     `<td class="col-best-price"></td>`,
-    `<td>${formatMarketPct(marketPercentFor(race.runners, (r) => r.betfair))}</td>`,
-    `<td class="col-liquidity"></td>`,
+    `<td class="col-back">${formatMarketPct(
+      marketPercentFor(race.runners, (r) => r.betfairBack)
+    )}</td>`,
+    `<td class="col-lay">${formatMarketPct(marketPercentFor(race.runners, (r) => r.betfair))}</td>`,
     ...BOOKIE_LIST.map(
       (b) =>
         `<td>${formatMarketPct(marketPercentFor(race.runners, (r) => r.bookmakers?.[b.id]))}</td>`

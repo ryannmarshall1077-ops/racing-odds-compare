@@ -6,6 +6,8 @@
   --accent: #3ddc97;
   --accent-neg: #ff6b6b;
   --border: #263241;
+  --back-color: #4fa8f5;
+  --lay-color: #ef6fb0;
 }
 
 * {
@@ -324,11 +326,48 @@ body.compact-rows td {
   padding: 4px 10px;
 }
 
-/* Race Result / Display > Show Liquidity/Liability column settings.
-   Liability defaults hidden (matches showLiabilityColumn's own default of
-   false) even before settings.js has loaded, so there's no flash of an
-   extra column on first paint; Liquidity defaults shown the same way. */
-body.hide-liquidity .col-liquidity {
+/* Betfair Back/Lay — distinct colours so the two are readable at a glance
+   (blue for Back, pink/magenta for Lay), each price cell showing its own
+   liquidity figure stacked underneath rather than in a separate column. */
+th.col-back {
+  color: var(--back-color);
+}
+
+th.col-lay {
+  color: var(--lay-color);
+}
+
+.price-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.3;
+}
+
+.price-cell .cell-price {
+  font-weight: 700;
+}
+
+td.col-back .cell-price {
+  color: var(--back-color);
+}
+
+td.col-lay .cell-price {
+  color: var(--lay-color);
+}
+
+.price-cell .cell-liquidity {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* Race Result / Display > Show Liquidity/Liability settings. Liability
+   defaults hidden (matches showLiabilityColumn's own default of false)
+   even before settings.js has loaded, so there's no flash of an extra
+   column on first paint; the liquidity figures under each Back/Lay price
+   default shown the same way. */
+body.hide-liquidity .cell-liquidity {
   display: none;
 }
 

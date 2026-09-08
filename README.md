@@ -500,3 +500,30 @@ https://developer.betfair.com/.
         aren't ours to reproduce); and its bet-placement-workflow chrome
         (Comms/Depths header, Win/Place/Bonus/Promo buttons, Templates,
         Training) — this tool doesn't place bets, so none of that applies.
+- [x] Betfair Back column, and liquidity moved inline into each Back/Lay
+      price cell instead of its own column — matching the reference
+      dashboard's Back/Lay styling (adapted to our own dark theme's colour
+      palette, not copied literally):
+      - **Back column** — `runner.betfairBack`/`betfairBackLiquidity`,
+        `availableToBack[0]` from the same REST response `availableToLay[0]`
+        already came from, so no new verification needed there (it's the
+        same documented `ex` structure, just the other side). Display only:
+        Edge%/Ret%/Lay $/Liability all deliberately keep computing from the
+        Lay price, same as before — Back is never the relevant price for
+        laying a bookmaker price off, only Lay is.
+      - `betfairWatcher.js`'s live DOM scrape now also reads a
+        `.first-back-cell[bet-selection-id]` — inferred from the existing,
+        verified `.first-lay-cell` selector's own naming convention, since
+        Betfair's exchange page needed a logged-in session to check it
+        directly against the live DOM this time. Purely additive: if that
+        selector is actually wrong and never matches anything, Back simply
+        keeps falling back to the REST value above instead of going stale
+        or breaking the (unaffected, still-verified) Lay scrape.
+      - **Liquidity is no longer its own column** — each Back/Lay cell now
+        shows its price with that side's own `$` liquidity figure stacked
+        underneath it (`priceCellHtml`). The existing Settings > "Show
+        liquidity" toggle still works the same way, just hiding the inline
+        figures (`.cell-liquidity`) now instead of a whole column.
+      - Back (blue, `--back-color`) and Lay (pink/magenta, `--lay-color`)
+        get their own distinct text colour so the two are readable at a
+        glance in both the header and every price cell.
