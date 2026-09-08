@@ -71,22 +71,27 @@ function noteFor(race) {
   return systemNotePart + betfairPart + bookmakerPart;
 }
 
-// Whichever bookie currently has the higher price for this runner — that's
-// the one Edge%/Ret%/Lay $/Liability get computed against, so the table
-// always reflects the best real opportunity across every bookmaker
-// compared, not just whichever one happens to be listed first. The raw
-// per-bookie price columns still show every bookmaker's own number
-// alongside it (with this one highlighted), so nothing about the
-// comparison itself is hidden — this just picks what feeds the metric.
-function bestBookmakerPrice(runner) {
-  let best = null;
+// The highest price across every bookmaker compared for this runner, and
+// which bookie(s) it came from (more than one if tied) — that price is
+// what Edge%/Ret%/Lay $/Liability get computed against, so the table
+// always reflects the best real opportunity available, not just whichever
+// bookmaker happens to be listed first. The raw per-bookie price columns
+// still show every bookmaker's own number alongside it (with the winning
+// one(s) highlighted), so nothing about the comparison itself is hidden —
+// this just picks what feeds the metric, and what the dedicated Best
+// Price column displays.
+function bestBookmakerPrices(runner) {
+  let price = null;
   for (const bookie of BOOKIE_LIST) {
-    const price = runner.bookmakers?.[bookie.id];
-    if (price != null && (best === null || price > best.price)) {
-      best = { id: bookie.id, price };
-    }
+    const p = runner.bookmakers?.[bookie.id];
+    if (p != null && (price === null || p > price)) price = p;
   }
-  return best;
+  if (price === null) return { price: null, bookieIds: [] };
+
+  const bookieIds = BOOKIE_LIST.filter((b) => runner.bookmakers?.[b.id] === price).map(
+    (b) => b.id
+  );
+  return { price, bookieIds };
 }
 
 let currentRace = null;
@@ -120,6 +125,19 @@ let currentMode = "mug";
 let selectedRaceTypes = new Set(["horse", "harness", "greyhound"]);
 let latestRaces = [];
 
+// Free-text filter over the Upcoming Races list, matched against track
+// name — combined with the Race Types toggles and (like them) applied
+// client-side against the last-fetched list rather than re-querying
+// background.js on every keystroke.
+let trackSearchQuery = "";
+
+// Which race's marketId is currently loaded into the main table — purely
+// for highlighting that race's row in the sidebar list (renderRacesList),
+// kept in sync both on a manual click and whenever a race object with its
+// own marketId gets rendered (e.g. on startup, before the list has even
+// loaded yet).
+let selectedMarketId = null;
+
 // Populated once loadSettings() resolves (see the bottom of this file) —
 // starts at DEFAULT_SETTINGS so anything reading it before then (tab
 // opening, countdown rendering) still gets sane values rather than
@@ -143,21 +161,39 @@ function parseRunnerNumber(name) {
 // which formula is active — sorting, rendering, and the column header all
 // go through these.
 function metricPercent(runner, commission, hedge) {
-  const price = bestBookmakerPrice(runner)?.price ?? 0;
+  const price = bestBookmakerPrices(runner).price ?? 0;
+  return currentMode === "bonus"
+    ? bonusRetentionPercent(runner.betfair, price, commission, hedge)
+    : edgePercent(runner.betfair, price, commission, hedge);
+}
+
+// Same Edge%/Ret% formula as metricPercent, but against one specific
+// bookmaker's own price rather than always the best across all of them —
+// this is what's now shown underneath each bookie's own price cell
+// (see bookieCellHtml), instead of a single dedicated Edge column that
+// only ever reflected the best bookmaker. null when that bookie has no
+// price for this runner yet, so the cell can render "—" instead of a
+// misleading 0%/-100%.
+function bookieMetricPercent(runner, price, commission, hedge) {
+  if (price == null) return null;
   return currentMode === "bonus"
     ? bonusRetentionPercent(runner.betfair, price, commission, hedge)
     : edgePercent(runner.betfair, price, commission, hedge);
 }
 
 function rowLayDollars(runner, commission, hedge) {
-  const price = bestBookmakerPrice(runner)?.price ?? 0;
+  const price = bestBookmakerPrices(runner).price ?? 0;
   return currentMode === "bonus"
     ? layStakeBonus(stakeAmount, runner.betfair, price, commission, hedge)
     : layStake(stakeAmount, runner.betfair, price, commission, hedge);
 }
 
 function sortedRunners(race, commission, hedge) {
-  const runners = [...race.runners];
+  // Scratched runners (Betfair status REMOVED) are rendered separately, as
+  // placeholder rows at the end of the table (see renderRace) — they have
+  // no price to sort or compute a metric from, so they're excluded here
+  // rather than sorting alongside real contenders.
+  const runners = race.runners.filter((r) => r.result !== "REMOVED");
 
   if (sortMode === "edge") {
     runners.sort(
@@ -184,6 +220,42 @@ function formatLiquidity(liquidity) {
     : `$${Math.round(liquidity)}`;
 }
 
+// One half of a Back/Lay box: the price on top, its own liquidity figure
+// stacked beneath it (hidden via the hide-liquidity body class when
+// Settings > Show liquidity is off) — instead of liquidity living in its
+// own separate column.
+function priceCellInner(price, liquidity) {
+  if (price == null) return `<span class="cell-price">—</span>`;
+  return `<span class="cell-price">${price.toFixed(
+    2
+  )}</span><span class="cell-liquidity">${formatLiquidity(liquidity)}</span>`;
+}
+
+// Betfair Back and Lay grouped into a single box, side by side — matching
+// how Betfair's own market view presents them, rather than as two
+// disconnected table columns. Lay (right, pink/magenta) is still what
+// Edge%/Lay $/Liability are actually computed from; Back (left, blue) is
+// display only.
+function backLayCellHtml(backPrice, backLiquidity, layPrice, layLiquidity) {
+  return `<span class="backlay-box">
+    <span class="bl-cell bl-back">${priceCellInner(backPrice, backLiquidity)}</span>
+    <span class="bl-cell bl-lay">${priceCellInner(layPrice, layLiquidity)}</span>
+  </span>`;
+}
+
+// A bookmaker's own price cell: the price on top, that bookie's own Edge%/
+// Ret% (bookieMetricPercent, against this specific price rather than
+// always the best one) stacked beneath it — replaces the old dedicated
+// Edge column, same stacked-cell treatment as Back/Lay's liquidity.
+function bookieCellHtml(price, metric) {
+  if (price == null) return "—";
+  const metricClass = metric == null ? "" : metric >= 0 ? "edge-positive" : "edge-negative";
+  const metricText = metric == null ? "—" : `${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%`;
+  return `<span class="stacked-cell"><span class="cell-price">${price.toFixed(
+    2
+  )}</span><span class="cell-sub ${metricClass}">${metricText}</span></span>`;
+}
+
 // What you'd owe if the lay bet loses (the backed selection wins) — the
 // standard exchange lay-liability formula, stake × (odds - 1). Unlike
 // Liquidity this is always computable from data already on the row (no
@@ -193,14 +265,35 @@ function liabilityFor(layDollars, betfairOdds) {
   return layDollars * (betfairOdds - 1);
 }
 
+// Market overround for one price column (e.g. Betfair's Lay price, or one
+// bookmaker's) — the sum of implied probabilities (1/price) across every
+// runner that actually has a price there, expressed as a percentage.
+// Always computed from the race's full field (race.runners), not whatever
+// Max results/Max liability has left displayed, since overround is a
+// property of the whole market, not of a filtered subset of it.
+function marketPercentFor(runners, priceGetter) {
+  let sum = 0;
+  let any = false;
+  for (const runner of runners) {
+    const price = priceGetter(runner);
+    if (price != null && price > 0) {
+      sum += 1 / price;
+      any = true;
+    }
+  }
+  return any ? sum * 100 : null;
+}
+
+function formatMarketPct(pct) {
+  return pct === null ? "—" : `${pct.toFixed(1)}%`;
+}
+
 function renderRace(race) {
   currentRace = race;
+  if (race.marketId) selectedMarketId = race.marketId;
 
   document.getElementById("race-subtitle").textContent =
     `${race.sportLabel || "Horse Racing"} — ${race.race}`;
-
-  document.getElementById("metric-header").textContent =
-    currentMode === "bonus" ? "Ret%" : "Edge";
 
   // Shown once Betfair settles the market and this race is still the one
   // loaded — refreshRace() (manual click, or the ~60s auto-refresh alarm)
@@ -226,10 +319,9 @@ function renderRace(race) {
   const hedge = hedgePercent / 100;
 
   let rows = sortedRunners(race, commission, hedge).map((runner) => {
-    const metric = metricPercent(runner, commission, hedge);
     const layDollars = rowLayDollars(runner, commission, hedge);
     const liability = liabilityFor(layDollars, runner.betfair);
-    return { runner, metric, layDollars, liability };
+    return { runner, layDollars, liability };
   });
 
   // Max liability filters displayed rows entirely (not just a visual
@@ -241,31 +333,87 @@ function renderRace(race) {
     rows = rows.slice(0, currentSettings.maxResults);
   }
 
-  for (const { runner, metric, layDollars, liability } of rows) {
+  for (const { runner, layDollars, liability } of rows) {
     const row = document.createElement("tr");
     if (runner.result === "WINNER") row.className = "winner-row";
 
-    const best = bestBookmakerPrice(runner);
+    const { price: bestPrice, bookieIds: bestBookieIds } = bestBookmakerPrices(runner);
+    const bestPriceBadges = bestBookieIds
+      .map((id) => {
+        const bookie = BOOKIE_LIST.find((b) => b.id === id);
+        return `<span class="bookie-badge">${bookie.label}</span>`;
+      })
+      .join(" ");
     const bookieCells = BOOKIE_LIST.map((b) => {
       const price = runner.bookmakers?.[b.id];
-      const bestClass = best?.id === b.id ? " best-price" : "";
-      return `<td class="col-bookie${bestClass}">${price != null ? price.toFixed(2) : "—"}</td>`;
+      const bestClass = bestBookieIds.includes(b.id) ? " best-price" : "";
+      const bookieMetric = bookieMetricPercent(runner, price, commission, hedge);
+      return `<td class="col-bookie${bestClass}">${bookieCellHtml(price, bookieMetric)}</td>`;
     }).join("");
 
     row.innerHTML = `
       <td>${runner.name}</td>
+      <td class="col-best-price">${
+        bestPrice != null
+          ? `<span class="best-price-value">${bestPrice.toFixed(2)}</span>${bestPriceBadges}`
+          : "—"
+      }</td>
+      <td class="col-backlay">${backLayCellHtml(
+        runner.betfairBack,
+        runner.betfairBackLiquidity,
+        runner.betfair,
+        runner.betfairLiquidity
+      )}</td>
       ${bookieCells}
-      <td>${runner.betfair?.toFixed(2) ?? "—"}</td>
-      <td class="col-liquidity">${formatLiquidity(runner.betfairLiquidity)}</td>
       <td class="lay-dollars" title="Click to copy">${layDollars.toFixed(2)}</td>
       <td class="col-liability">${liability.toFixed(2)}</td>
-      <td class="${metric >= 0 ? "edge-positive" : "edge-negative"}">
-        ${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%
-      </td>
     `;
 
     tbody.appendChild(row);
   }
+
+  // Scratched runners (Betfair status REMOVED) render as placeholder rows
+  // at the end, in box-number order — a full-field view instead of just
+  // silently having fewer rows than the race actually has runners.
+  const scratchedRunners = race.runners
+    .filter((r) => r.result === "REMOVED")
+    .sort((a, b) => parseRunnerNumber(a.name) - parseRunnerNumber(b.name));
+
+  for (const runner of scratchedRunners) {
+    const row = document.createElement("tr");
+    row.className = "scratched-row";
+    row.innerHTML = `
+      <td>${runner.name} <em class="scratched-tag">Scratched</em></td>
+      <td class="col-best-price">—</td>
+      <td class="col-backlay">${backLayCellHtml(null, null, null, null)}</td>
+      ${BOOKIE_LIST.map(() => "<td>—</td>").join("")}
+      <td>—</td>
+      <td class="col-liability">—</td>
+    `;
+    tbody.appendChild(row);
+  }
+
+  // Market % footer — overround per price column, from the race's full
+  // field regardless of any display filtering above.
+  const marketCells = [
+    "<td>Market %</td>",
+    `<td class="col-best-price"></td>`,
+    `<td class="col-backlay"><span class="backlay-box"><span class="bl-cell bl-back">${formatMarketPct(
+      marketPercentFor(race.runners, (r) => r.betfairBack)
+    )}</span><span class="bl-cell bl-lay">${formatMarketPct(
+      marketPercentFor(race.runners, (r) => r.betfair)
+    )}</span></span></td>`,
+    ...BOOKIE_LIST.map(
+      (b) =>
+        `<td>${formatMarketPct(marketPercentFor(race.runners, (r) => r.bookmakers?.[b.id]))}</td>`
+    ),
+    "<td></td>",
+    `<td class="col-liability"></td>`,
+  ];
+  document.getElementById("odds-foot").innerHTML = `<tr>${marketCells.join("")}</tr>`;
+
+  const countdownMainEl = document.getElementById("race-countdown-main");
+  countdownMainEl.dataset.start = race.startTime || "";
 
   document.getElementById("data-source-note").textContent = noteFor(race);
 }
@@ -478,7 +626,7 @@ function renderRacesList(races) {
 
   for (const race of races) {
     const li = document.createElement("li");
-    li.className = "race-row";
+    li.className = race.marketId === selectedMarketId ? "race-row selected" : "race-row";
 
     const time = new Date(race.startTime).toLocaleTimeString([], {
       hour: "numeric",
@@ -497,8 +645,10 @@ function renderRacesList(races) {
     `;
 
     li.addEventListener("click", () => {
+      selectedMarketId = race.marketId;
       openRaceTabs(race);
       loadRaceIntoTable(race.marketId);
+      renderFilteredRacesList(); // re-render so the "selected" highlight moves immediately
     });
 
     racesListEl.appendChild(li);
@@ -526,6 +676,11 @@ function tickCountdowns() {
   for (const el of document.querySelectorAll(".race-countdown")) {
     el.textContent = formatCountdown(el.dataset.start);
   }
+
+  const countdownMainEl = document.getElementById("race-countdown-main");
+  countdownMainEl.textContent = countdownMainEl.dataset.start
+    ? formatCountdown(countdownMainEl.dataset.start)
+    : "";
 }
 tickCountdowns();
 setInterval(tickCountdowns, 1000);
@@ -549,12 +704,26 @@ function loadUpcomingRaces() {
   });
 }
 
-// Applies the Race Types toggle bar to the last-fetched list without
-// re-querying background.js — instant, and doesn't burn an extra Betfair
-// call just to hide/show rows the extension already has.
+// Applies the Race Types toggles and the track search box to the
+// last-fetched list without re-querying background.js — instant, and
+// doesn't burn an extra Betfair call just to hide/show rows the extension
+// already has.
 function renderFilteredRacesList() {
-  renderRacesList(latestRaces.filter((race) => selectedRaceTypes.has(race.raceType)));
+  const query = trackSearchQuery.trim().toLowerCase();
+  renderRacesList(
+    latestRaces.filter(
+      (race) =>
+        selectedRaceTypes.has(race.raceType) &&
+        (query === "" || race.track.toLowerCase().includes(query))
+    )
+  );
 }
+
+const trackSearchInput = document.getElementById("track-search");
+trackSearchInput.addEventListener("input", () => {
+  trackSearchQuery = trackSearchInput.value;
+  renderFilteredRacesList();
+});
 
 racesRefreshBtn.addEventListener("click", loadUpcomingRaces);
 loadUpcomingRaces();

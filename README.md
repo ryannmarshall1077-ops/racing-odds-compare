@@ -457,3 +457,97 @@ https://developer.betfair.com/.
       - The ~60s auto-refresh alarm now re-scans every tracked bookmaker
         tab (not just Sportsbet's), and the diagnostic "scan found
         runners, but none matched" console warning now fires per bookie.
+- [x] Sidebar + main-panel layout, matching a reference odds-comparison
+      dashboard's structure (not its branding/colours — kept our own dark
+      theme throughout):
+      - **Left sidebar**: Upcoming Races moved out of the page's top flow
+        into a dedicated, always-visible panel — race type filters, a
+        track search box (client-side, matched against `race.track`,
+        combined with the existing race type toggles), and the races list
+        below it. The Settings button now lives in the sidebar's own
+        header instead of the page's.
+      - **Main panel**: the selected race's own info (sport + race name,
+        plus a live countdown to its jump — `race.startTime`/`marketId`
+        are now included in the race object returned by `refreshRaceInner`
+        specifically so this could be shown; previously only the sidebar
+        list had a countdown, not the race actually loaded) and the full
+        odds table alongside it.
+      - **Dedicated Best Price column** — the highest price across every
+        bookmaker compared, with a badge naming which bookie(s) it came
+        from (more than one if tied) — right after Runner. This is also
+        exactly what Edge%/Ret%/Lay $/Liability get computed from
+        (`bestBookmakerPrices`, generalized from the single-bookie version
+        to return every tied bookie, not just the first found — so ties
+        now highlight every matching column, not just one).
+      - **Scratched runners now render as placeholder rows** instead of
+        being silently omitted — a full-field view, sorted by box number,
+        shown at the end of the table regardless of the active sort mode
+        (sorting scratched rows by Edge% wouldn't mean anything, since
+        they have no price). Needed loosening a filter in
+        `refreshRaceInner` that had been dropping REMOVED runners
+        entirely — they're kept now, purely so the UI has something to
+        render a placeholder from.
+      - **Market % footer row** — the overround (sum of implied
+        probabilities) for Betfair and each bookmaker, computed from the
+        race's full field regardless of any Max results/Max liability
+        filtering applied to the displayed rows above it.
+      - Deliberately left out: the reference's price-fluctuation
+        sparkline + move-%, which needs real price-history tracking we
+        don't have; its day-of-week quick filters and AU/NZ-vs-
+        International toggle, which don't apply (we're AU-only by design,
+        already Betfair-filtered); its actual bookmaker logos, replaced
+        with plain text badges (a specific product's trademarked logos
+        aren't ours to reproduce); and its bet-placement-workflow chrome
+        (Comms/Depths header, Win/Place/Bonus/Promo buttons, Templates,
+        Training) — this tool doesn't place bets, so none of that applies.
+- [x] Betfair Back column, and liquidity moved inline into each Back/Lay
+      price cell instead of its own column — matching the reference
+      dashboard's Back/Lay styling (adapted to our own dark theme's colour
+      palette, not copied literally):
+      - **Back column** — `runner.betfairBack`/`betfairBackLiquidity`,
+        `availableToBack[0]` from the same REST response `availableToLay[0]`
+        already came from, so no new verification needed there (it's the
+        same documented `ex` structure, just the other side). Display only:
+        Edge%/Ret%/Lay $/Liability all deliberately keep computing from the
+        Lay price, same as before — Back is never the relevant price for
+        laying a bookmaker price off, only Lay is.
+      - `betfairWatcher.js`'s live DOM scrape now also reads a
+        `.first-back-cell[bet-selection-id]` — inferred from the existing,
+        verified `.first-lay-cell` selector's own naming convention, since
+        Betfair's exchange page needed a logged-in session to check it
+        directly against the live DOM this time. Purely additive: if that
+        selector is actually wrong and never matches anything, Back simply
+        keeps falling back to the REST value above instead of going stale
+        or breaking the (unaffected, still-verified) Lay scrape.
+      - **Liquidity is no longer its own column** — each Back/Lay cell now
+        shows its price with that side's own `$` liquidity figure stacked
+        underneath it (`priceCellHtml`). The existing Settings > "Show
+        liquidity" toggle still works the same way, just hiding the inline
+        figures (`.cell-liquidity`) now instead of a whole column.
+      - Back (blue, `--back-color`) and Lay (pink/magenta, `--lay-color`)
+        get their own distinct text colour so the two are readable at a
+        glance in both the header and every price cell.
+      - **Follow-up, same session**: user feedback after trying this —
+        Back and Lay read as two disconnected table columns, not the
+        single grouped unit Betfair's own market view shows them as.
+        Restructured into one merged `col-backlay` column: a single
+        bordered `.backlay-box` per row containing two adjacent colour-
+        coded halves (`.bl-back`/`.bl-lay`) touching each other with no
+        gap, each still showing its own price + liquidity
+        (`backLayCellHtml`/`priceCellInner`). Header, scratched-row
+        placeholders, and the Market % footer row all use the same grouped
+        box, so the layout stays consistent whether real data, a
+        placeholder, or an aggregate is being shown. Verified the new
+        merged-box rendering against mock data (including the null/
+        scratched case) via a local static preview before committing.
+- [x] Removed the dedicated Edge/Ret% column — each bookmaker's own price
+      cell (Sportsbet, TAB) now shows that bookie's own Edge%/Ret%
+      (`bookieMetricPercent`, the existing formula against that specific
+      price instead of always the best one) stacked underneath its price,
+      same treatment as Back/Lay's liquidity (`bookieCellHtml`,
+      `.stacked-cell`/`.cell-sub`). The best-price highlight and Best
+      Price column are unaffected — Edge/Ret% for the *best* bookie is
+      just whichever bookie column's own figure happens to be highlighted.
+      Scratched placeholder rows now carry their "Scratched" label in the
+      runner-name cell instead of the (now-removed) last column. Verified
+      against mock data via a local static preview before committing.

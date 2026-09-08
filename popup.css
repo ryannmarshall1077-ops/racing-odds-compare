@@ -6,39 +6,51 @@
   --accent: #3ddc97;
   --accent-neg: #ff6b6b;
   --border: #263241;
+  --back-color: #4fa8f5;
+  --lay-color: #ef6fb0;
 }
 
 * {
   box-sizing: border-box;
 }
 
-body {
-  margin: 0 auto;
-  width: 360px;
+html, body {
+  margin: 0;
+  height: 100%;
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, Segoe UI, Roboto, sans-serif;
   font-size: 13px;
 }
 
-/* The popup itself is always narrow (its viewport IS the content size), but
-   when this same page is opened as a full tab there's real room to use —
-   this only kicks in there. */
-@media (min-width: 500px) {
-  body {
-    width: 640px;
-  }
+/* This page only ever opens as a full browser tab (no default_popup in the
+   manifest — see background.js's action.onClicked), never a cramped popup
+   viewport, so the layout can assume real width to work with instead of
+   accommodating a narrow popup case that doesn't exist here. */
+#app-layout {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
 }
 
-header {
-  padding: 12px 14px 8px;
-  border-bottom: 1px solid var(--border);
+/* --- Sidebar: Upcoming Races, race type/track filtering --- */
+
+#sidebar {
+  width: 300px;
+  flex: 0 0 300px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  max-height: 100vh;
+  overflow-y: auto;
 }
 
-.header-top {
+.sidebar-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--border);
 }
 
 h1 {
@@ -60,21 +72,11 @@ h1 {
   color: var(--text);
 }
 
-.subtitle {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-#upcoming-races {
-  border-bottom: 1px solid var(--border);
-}
-
 .section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 14px 4px;
+  padding: 10px 14px 4px;
 }
 
 .section-header h2 {
@@ -104,13 +106,7 @@ h1 {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 0 14px 8px;
-}
-
-.race-type-label {
-  color: var(--muted);
-  font-size: 11px;
-  margin-right: 2px;
+  padding: 4px 14px 8px;
 }
 
 .race-type-btn {
@@ -134,24 +130,48 @@ h1 {
   font-weight: 600;
 }
 
+#track-search {
+  margin: 0 14px 10px;
+  padding: 7px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+#track-search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+#track-search::-webkit-search-cancel-button {
+  filter: invert(0.6);
+}
+
 #races-list {
   list-style: none;
   margin: 0;
-  padding: 0 0 8px;
-  max-height: 160px;
+  padding: 0 0 10px;
   overflow-y: auto;
+  flex: 1;
 }
 
 .race-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 14px;
+  padding: 7px 14px;
   cursor: pointer;
 }
 
 .race-row:hover {
   background: var(--panel);
+}
+
+.race-row.selected {
+  background: rgba(61, 220, 151, 0.1);
+  border-left: 2px solid var(--accent);
 }
 
 .race-track {
@@ -182,8 +202,40 @@ h1 {
   color: var(--muted);
 }
 
+/* --- Main panel: selected race's odds table --- */
+
+#main-panel {
+  flex: 1;
+  min-width: 0; /* lets the table's own horizontal scroll do its job instead of the panel stretching the whole page */
+  display: flex;
+  flex-direction: column;
+}
+
+#race-info-bar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.race-countdown-main {
+  color: var(--accent);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 #winner-banner {
-  margin: 10px 14px 0;
+  margin: 10px 16px 0;
   padding: 8px 12px;
   background: rgba(61, 220, 151, 0.12);
   border: 1px solid var(--accent);
@@ -200,17 +252,19 @@ h1 {
   display: none;
 }
 
-/* One column per bookie (bookies.js) now makes the table wider than the
-   popup's own fixed body width can always fit — scrolling the table
-   itself, rather than trying to keep shrinking it to fit, means adding a
-   bookie doesn't force a redesign of everything else on the page. */
+/* One column per bookie (bookies.js) plus Best Price can make the table
+   wider than the window — scrolling the table itself, rather than trying
+   to keep shrinking it to fit, means adding a bookie doesn't force a
+   redesign of everything else on the page. */
 #odds-table-wrapper {
   overflow-x: auto;
+  flex: 1;
+  padding: 0 16px;
 }
 
 table {
   width: 100%;
-  min-width: 600px;
+  min-width: 700px;
   border-collapse: collapse;
 }
 
@@ -218,8 +272,47 @@ table {
   background: rgba(61, 220, 151, 0.08);
 }
 
-/* Whichever bookie has the best (highest) price for a runner — the one
-   Edge%/Ret%/Lay $/Liability are actually computed from. */
+.scratched-row td {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.scratched-tag {
+  margin-left: 6px;
+  font-size: 11px;
+}
+
+/* The headline summary column — the highest price across every bookmaker
+   compared, plus a badge naming which one(s) it came from. */
+.col-best-price {
+  background: rgba(61, 220, 151, 0.05);
+}
+
+th.col-best-price {
+  color: var(--accent);
+}
+
+.best-price-value {
+  font-weight: 700;
+  color: var(--accent);
+  margin-right: 6px;
+}
+
+.bookie-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Whichever bookie(s) tie for the best (highest) price for a runner — the
+   one Edge%/Ret%/Lay $/Liability are actually computed from. */
 .col-bookie.best-price {
   color: var(--accent);
   font-weight: 600;
@@ -229,6 +322,7 @@ th, td {
   padding: 8px 10px;
   text-align: right;
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 /* Colours and Layout > Compact table rows setting. */
@@ -237,11 +331,66 @@ body.compact-rows td {
   padding: 4px 10px;
 }
 
-/* Race Result / Display > Show Liquidity/Liability column settings.
-   Liability defaults hidden (matches showLiabilityColumn's own default of
-   false) even before settings.js has loaded, so there's no flash of an
-   extra column on first paint; Liquidity defaults shown the same way. */
-body.hide-liquidity .col-liquidity {
+/* Betfair Back and Lay, grouped into one visual box per runner — two
+   adjacent colour-coded halves (blue Back, pink/magenta Lay) touching
+   each other, matching how Betfair's own market view presents them,
+   rather than reading as two disconnected table columns. Each half shows
+   its own liquidity figure stacked underneath its price. */
+th.col-backlay,
+td.col-backlay {
+  padding: 6px 8px;
+}
+
+.backlay-box {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bl-cell {
+  flex: 1;
+  min-width: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 8px;
+  line-height: 1.3;
+}
+
+.header-box .bl-cell {
+  padding: 3px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.bl-back {
+  background: rgba(79, 168, 245, 0.12);
+  color: var(--back-color);
+}
+
+.bl-lay {
+  background: rgba(239, 111, 176, 0.12);
+  color: var(--lay-color);
+}
+
+.bl-cell .cell-price {
+  font-weight: 700;
+}
+
+.bl-cell .cell-liquidity {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* Race Result / Display > Show Liquidity/Liability settings. Liability
+   defaults hidden (matches showLiabilityColumn's own default of false)
+   even before settings.js has loaded, so there's no flash of an extra
+   column on first paint; the liquidity figures under each Back/Lay price
+   default shown the same way. */
+body.hide-liquidity .cell-liquidity {
   display: none;
 }
 
@@ -255,6 +404,7 @@ body.show-liability .col-liability {
 
 th:first-child, td:first-child {
   text-align: left;
+  white-space: normal;
 }
 
 th {
@@ -296,6 +446,25 @@ th:first-child {
   color: var(--accent-neg);
 }
 
+/* A bookmaker's own price cell — that bookie's own Edge%/Ret% (against
+   its own price, not just the best one) stacked beneath its price,
+   same treatment as the liquidity figure under Back/Lay, replacing the
+   old dedicated Edge column. */
+.stacked-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.3;
+}
+
+.stacked-cell .cell-price {
+  font-weight: 600;
+}
+
+.stacked-cell .cell-sub {
+  font-size: 10px;
+}
+
 .lay-dollars {
   cursor: pointer;
 }
@@ -305,11 +474,26 @@ th:first-child {
   text-decoration: underline dotted;
 }
 
+/* Market % footer row — overround per price column, computed from the
+   race's full field (not just whatever's currently displayed after
+   Max results/Max liability filtering). */
+#odds-foot tr {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+#odds-foot td {
+  border-bottom: none;
+  border-top: 1px solid var(--border);
+}
+
 #hedge-control {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 14px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   font-size: 12px;
 }
@@ -353,7 +537,7 @@ th:first-child {
 }
 
 footer {
-  padding: 8px 14px 12px;
+  padding: 8px 16px 14px;
   color: var(--muted);
   font-size: 10px;
 }

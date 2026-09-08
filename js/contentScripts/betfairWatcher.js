@@ -6,21 +6,18 @@
 // needed for near-real-time updates; this reacts to Betfair's own page
 // instead of polling their API on a timer.
 (() => {
-  function scrapeRunners() {
-    // Each runner's best (nearest-to-market) Lay price cell carries the
-    // exact same selection id our REST API uses, so matching is exact —
-    // no fuzzy name comparison needed like on the Sportsbet side.
-    const cells = document.querySelectorAll(".first-lay-cell[bet-selection-id]");
+  // Reads one side of the ladder (Lay or Back) — both cells share the same
+  // structure: a bet-selection-id attribute and a button with two <label>s
+  // (price, then size prefixed with "$").
+  function scrapeSide(selector) {
+    const cells = document.querySelectorAll(selector);
+    const bySelectionId = new Map();
 
-    const runners = [];
     for (const cell of cells) {
       const selectionId = cell.getAttribute("bet-selection-id");
       const button = cell.querySelector("button");
       if (!selectionId || !button) continue;
 
-      // The price button renders two <label>s: price, then size (prefixed
-      // with "$"). Labels' own classes are build-hashed and unstable, but
-      // this structural order isn't.
       const labels = button.querySelectorAll("label");
       if (labels.length === 0) continue;
 
@@ -32,12 +29,43 @@
         labels.length > 1 ? parseFloat(labels[1].textContent.replace(/[^0-9.]/g, "")) : NaN;
 
       if (!Number.isNaN(price)) {
-        runners.push({
-          selectionId,
+        bySelectionId.set(selectionId, {
           price,
           ...(!Number.isNaN(liquidity) && { liquidity }),
         });
       }
+    }
+
+    return bySelectionId;
+  }
+
+  function scrapeRunners() {
+    // Each runner's best (nearest-to-market) Lay price cell carries the
+    // exact same selection id our REST API uses, so matching is exact —
+    // no fuzzy name comparison needed like on the Sportsbet side. Verified
+    // against a live market page.
+    const lay = scrapeSide(".first-lay-cell[bet-selection-id]");
+
+    // Back side — inferred from the Lay selector's own naming convention
+    // (Betfair's ladder always renders Back/Lay as a mirrored pair), NOT
+    // independently confirmed against the live DOM: the exchange page
+    // needs a logged-in session to view, which this pass didn't have.
+    // Purely additive — if this selector is actually wrong and never
+    // matches, `back` just stays empty and every runner's Back price/
+    // liquidity falls back to the REST value in background.js, same as
+    // before this existed.
+    const back = scrapeSide(".first-back-cell[bet-selection-id]");
+
+    const runners = [];
+    for (const [selectionId, layEntry] of lay) {
+      const backEntry = back.get(selectionId);
+      runners.push({
+        selectionId,
+        price: layEntry.price,
+        ...(layEntry.liquidity !== undefined && { liquidity: layEntry.liquidity }),
+        ...(backEntry && { backPrice: backEntry.price }),
+        ...(backEntry?.liquidity !== undefined && { backLiquidity: backEntry.liquidity }),
+      });
     }
 
     return runners;

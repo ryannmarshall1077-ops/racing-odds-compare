@@ -293,10 +293,11 @@ async function refreshRaceInner(marketId) {
   // ACTIVE again) and the REST call stops returning fresh prices for any
   // of them — filtering to ACTIVE-only would empty the whole table out
   // right when we want to keep showing it with the result. REMOVED
-  // (scratched) is the only status actually worth dropping.
+  // (scratched) runners are kept too, purely so the UI can render them as
+  // placeholder rows (a full-field view) — nothing below computes a real
+  // price for one, and the final filter explicitly keeps them anyway.
   const bookmakerMatched = Object.fromEntries(Object.keys(BOOKIES).map((id) => [id, 0]));
   const runners = book.runners
-    .filter((r) => r.status !== "REMOVED")
     .map((r) => {
       const name = runnerNames.get(r.selectionId) || `Runner ${r.selectionId}`;
       const selectionId = String(r.selectionId);
@@ -324,6 +325,29 @@ async function refreshRaceInner(marketId) {
       const betfairLiquidity = domIsFresh
         ? existingRunner.betfairLiquidity ?? null
         : restBetfairLiquidity ?? (restBetfairPrice === null ? existingRunner?.betfairLiquidity ?? null : null);
+
+      // Back price — display only (Edge%/Lay $/Liability all deliberately
+      // keep using the Lay price above, since that's still the actual
+      // matched-betting comparison). Tracked with its own freshness flag,
+      // independent of the Lay one: betfairWatcher.js's Back-cell selector
+      // is inferred from its Lay-cell selector's naming convention rather
+      // than confirmed against the live DOM (Betfair's exchange needs a
+      // logged-in session to view), so if it ever stops matching, this
+      // just silently keeps falling back to the REST value below instead
+      // of going stale.
+      const backDomIsFresh =
+        existingRunner?.betfairBackPricedAt &&
+        Date.now() - existingRunner.betfairBackPricedAt < 90 * 1000;
+      const restBetfairBackPrice = r.ex?.availableToBack?.[0]?.price ?? null;
+      const restBetfairBackLiquidity = r.ex?.availableToBack?.[0]?.size ?? null;
+      const betfairBack = backDomIsFresh
+        ? existingRunner.betfairBack
+        : restBetfairBackPrice ?? existingRunner?.betfairBack ?? null;
+      const betfairBackLiquidity = backDomIsFresh
+        ? existingRunner.betfairBackLiquidity ?? null
+        : restBetfairBackLiquidity ??
+          (restBetfairBackPrice === null ? existingRunner?.betfairBackLiquidity ?? null : null);
+
       // One price per bookie, keyed by id — Sportsbet keeps its historical
       // placeholder fallback (betfair×1.08) so its column was never empty
       // before the first real scan; a newer bookie just shows nothing
@@ -348,15 +372,18 @@ async function refreshRaceInner(marketId) {
         selectionId,
         betfair: betfairPrice,
         betfairLiquidity,
+        betfairBack,
+        betfairBackLiquidity,
         // ACTIVE pre-race, WINNER/LOSER once settled — lets the UI show
         // the result and highlight the winning row without needing a
         // separate settlement check of its own.
         result: r.status,
         ...(domIsFresh && { betfairPricedAt: existingRunner.betfairPricedAt }),
+        ...(backDomIsFresh && { betfairBackPricedAt: existingRunner.betfairBackPricedAt }),
         bookmakers,
       };
     })
-    .filter((r) => r.betfair !== null);
+    .filter((r) => r.betfair !== null || r.result === "REMOVED");
 
   const winner = runners.find((r) => r.result === "WINNER")?.name ?? null;
 
@@ -380,6 +407,8 @@ async function refreshRaceInner(marketId) {
   const race = {
     race: `${track} — ${market.marketName}`,
     track,
+    marketId: market.marketId,
+    startTime: market.marketStartTime,
     sport: sport.id,
     sportLabel: sport.label,
     runners,
@@ -643,6 +672,16 @@ async function applyBetfairOdds(odds) {
         betfair: fresh.price,
         betfairLiquidity: fresh.liquidity ?? null,
         betfairPricedAt: Date.now(),
+        // Back side is optional — only present when betfairWatcher.js's
+        // (inferred, unverified) Back-cell selector actually matched.
+        // Absent, this runner's Back price/liquidity is simply left as
+        // whatever it already was, so refreshRace()'s REST call is free
+        // to keep supplying it instead.
+        ...(fresh.backPrice !== undefined && {
+          betfairBack: fresh.backPrice,
+          betfairBackLiquidity: fresh.backLiquidity ?? null,
+          betfairBackPricedAt: Date.now(),
+        }),
       };
     }
     return runner;
