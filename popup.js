@@ -549,6 +549,7 @@ function renderRace(race) {
 
   const countdownMainEl = document.getElementById("race-countdown-main");
   countdownMainEl.dataset.start = race.startTime || "";
+  countdownMainEl.dataset.marketStatus = race.marketStatus || "";
 
   document.getElementById("data-source-note").textContent = noteFor(race);
 }
@@ -665,7 +666,6 @@ chrome.storage.local.get(["liveRace"], (stored) => {
 });
 
 const racesListEl = document.getElementById("races-list");
-const racesRefreshBtn = document.getElementById("races-refresh-btn");
 
 // Navigates the given tab to a new URL in place if it still exists, or
 // opens a fresh tab if it doesn't. Either way returns the tab id to
@@ -765,7 +765,9 @@ function raceCardHtml(race, { isPast }) {
   const timeHtml = isPast
     ? `<span class="race-elapsed" data-settled-at="${race.settledAt}"></span>`
     : currentSettings.showCountdowns
-    ? `<span class="race-countdown" data-start="${race.startTime}"></span>`
+    ? `<span class="race-countdown" data-start="${race.startTime}" data-market-status="${
+        race.marketStatus || ""
+      }"></span>`
     : "";
 
   return `
@@ -779,6 +781,10 @@ function raceCardHtml(race, { isPast }) {
         <span class="race-card-sub">${time}${
     !isPast && race.sportsbetUrl === null
       ? '<span class="race-warn" title="No matching Sportsbet race found">!</span>'
+      : ""
+  }${
+    isPast && race.winner
+      ? ` &middot; <span class="race-winner">&#127942; ${race.winner}</span>`
       : ""
   }</span>
       </span>
@@ -892,9 +898,16 @@ function renderTrackRacesRow(race) {
   }
 }
 
-function formatCountdown(startTimeIso) {
+// marketStatus is a real Betfair check (OPEN/SUSPENDED/CLOSED — see
+// checkPendingResults/refreshRaceInner in background.js), not just the
+// clock — races commonly go off a few minutes late while still
+// genuinely OPEN, so the scheduled time alone passing doesn't mean it's
+// actually jumped. Unconfirmed (null/undefined — not checked yet this
+// tick) or still OPEN reads as "Delayed" instead of overclaiming
+// "Jumped".
+function formatCountdown(startTimeIso, marketStatus) {
   const diffMs = new Date(startTimeIso).getTime() - Date.now();
-  if (diffMs <= 0) return "Jumped";
+  if (diffMs <= 0) return marketStatus && marketStatus !== "OPEN" ? "Jumped" : "Delayed";
 
   const totalSeconds = Math.floor(diffMs / 1000);
   const hours = Math.floor(totalSeconds / 3600);
@@ -925,7 +938,7 @@ function formatElapsed(settledAtMs) {
 // across re-renders without needing its own cleanup/restart logic.
 function tickCountdowns() {
   for (const el of document.querySelectorAll(".race-countdown")) {
-    el.textContent = formatCountdown(el.dataset.start);
+    el.textContent = formatCountdown(el.dataset.start, el.dataset.marketStatus);
   }
 
   for (const el of document.querySelectorAll(".race-elapsed")) {
@@ -934,23 +947,30 @@ function tickCountdowns() {
 
   const countdownMainEl = document.getElementById("race-countdown-main");
   countdownMainEl.textContent = countdownMainEl.dataset.start
-    ? formatCountdown(countdownMainEl.dataset.start)
+    ? formatCountdown(countdownMainEl.dataset.start, countdownMainEl.dataset.marketStatus)
     : "";
 }
 tickCountdowns();
 setInterval(tickCountdowns, 1000);
 
+// No manual refresh button — this and loadRecentResults are the only
+// entry points now (initial load + the periodic poll further down), so
+// this needs to behave well called repeatedly on its own: only shows the
+// "Loading..."/error placeholder on the very first call (latestRaces
+// still empty), rather than blanking out an already-populated list (and
+// flashing it back in a moment later) on every routine background poll.
 function loadUpcomingRaces() {
-  racesListEl.innerHTML = '<li class="races-status">Loading...</li>';
-  racesRefreshBtn.disabled = true;
+  if (latestRaces.length === 0) {
+    racesListEl.innerHTML = '<li class="races-status">Loading...</li>';
+  }
 
   chrome.runtime.sendMessage({ type: "LIST_UPCOMING_RACES" }, (response) => {
-    racesRefreshBtn.disabled = false;
-
     if (!response || !response.ok) {
-      racesListEl.innerHTML = `<li class="races-status">${
-        response ? response.error : "No response from background worker."
-      }</li>`;
+      if (latestRaces.length === 0) {
+        racesListEl.innerHTML = `<li class="races-status">${
+          response ? response.error : "No response from background worker."
+        }</li>`;
+      }
       return;
     }
 
@@ -993,10 +1013,6 @@ trackSearchInput.addEventListener("input", () => {
   renderFilteredRacesList();
 });
 
-racesRefreshBtn.addEventListener("click", () => {
-  loadUpcomingRaces();
-  loadRecentResults();
-});
 loadUpcomingRaces();
 loadRecentResults();
 

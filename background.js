@@ -449,6 +449,11 @@ async function refreshRaceInner(marketId) {
     sportLabel: sport.label,
     runners,
     winner,
+    // OPEN/SUSPENDED/CLOSED — lets the UI tell "past its scheduled start
+    // time but genuinely still OPEN (a late jump, common and not an
+    // error)" apart from "actually gone in-running/closed", instead of
+    // assuming the schedule itself is accurate.
+    marketStatus: book.status,
     source: "live-betfair",
     bookmakerSources: Object.fromEntries(
       Object.keys(BOOKIES).map((id) => [id, bookmakerMatched[id] > 0 ? "live" : "placeholder"])
@@ -500,14 +505,27 @@ async function listUpcomingRacesInner() {
     sessionToken,
     RACING_SPORTS.map((s) => s.betfairEventType)
   );
-  const [markets, sportsbetEvents, { tabVenueCodes = {} }] = await Promise.all([
-    // 20, not 15 — now split across every supported sport instead of just
-    // horse racing, so the same-ish count needs a bit more headroom to
-    // still show a reasonable spread of both.
-    listWinMarkets(appKey, sessionToken, [...eventTypeIds.values()], 20),
-    fetchSportsbetNextEvents(),
-    chrome.storage.local.get(["tabVenueCodes"]),
-  ]);
+  const [markets, sportsbetEvents, { tabVenueCodes = {} }, { pendingResultChecks = [] }] =
+    await Promise.all([
+      // 20, not 15 — now split across every supported sport instead of just
+      // horse racing, so the same-ish count needs a bit more headroom to
+      // still show a reasonable spread of both.
+      listWinMarkets(appKey, sessionToken, [...eventTypeIds.values()], 20),
+      fetchSportsbetNextEvents(),
+      chrome.storage.local.get(["tabVenueCodes"]),
+      chrome.storage.local.get(["pendingResultChecks"]),
+    ]);
+
+  // checkPendingResults stamps a real OPEN/SUSPENDED/CLOSED market status
+  // onto a pending race once its scheduled start time has passed and it's
+  // been checked — carried over here so the sidebar can tell "past its
+  // scheduled time but genuinely still OPEN, a late jump" apart from
+  // "actually gone", instead of assuming the schedule itself is accurate.
+  // A race not yet in this map (too new to have been checked yet) simply
+  // has no marketStatus, same as before this existed.
+  const marketStatusByMarketId = new Map(
+    pendingResultChecks.filter((r) => r.marketStatus).map((r) => [r.marketId, r.marketStatus])
+  );
 
   const races = markets
     .map((market) => {
@@ -545,6 +563,7 @@ async function listUpcomingRacesInner() {
         raceType,
         startTime: market.marketStartTime,
         marketId: market.marketId,
+        marketStatus: marketStatusByMarketId.get(market.marketId) ?? null,
         betfairUrl: `https://www.betfair.com.au/exchange/plus/${sport.betfairUrlSegment}/market/${market.marketId}`,
         sportsbetUrl: sbMatch ? buildSportsbetRaceUrl(sbMatch) : null,
         // null until tabMeetings.js has learned this venue/sport's TAB
@@ -589,13 +608,14 @@ async function seedPendingResultChecks(races) {
 }
 
 // Checks every pending race whose start time has already passed for a
-// real result (a runner marked WINNER) — Betfair's own listMarketBook
-// keeps returning a market for a while after it closes (the same
-// mechanism the winner banner already relies on for whichever race is
-// currently selected), so this works the same way for any other race
-// too. Gives up on a pending race (drops it, unresolved) once its start
-// time is more than RESULT_CHECK_MAX_AGE_MS in the past, covering an
-// abandoned/void market that never actually settles.
+// real result (a runner marked WINNER, plus that runner's actual name)
+// — Betfair's own listMarketBook keeps returning a market for a while
+// after it closes (the same mechanism the winner banner already relies
+// on for whichever race is currently selected), so this works the same
+// way for any other race too. Gives up on a pending race (drops it,
+// unresolved) once its start time is more than RESULT_CHECK_MAX_AGE_MS
+// in the past, covering an abandoned/void market that never actually
+// settles.
 async function checkPendingResultsInner() {
   const { betfairAppKey: appKey, betfairSessionToken: sessionToken } = await chrome.storage.sync.get([
     "betfairAppKey",
@@ -618,15 +638,42 @@ async function checkPendingResultsInner() {
   const bookByMarketId = new Map(books.map((b) => [b.marketId, b]));
 
   const stillPending = [];
-  const newlySettled = [];
+  const settledCandidates = []; // {race, winnerSelectionId} — name resolved below, once, for all of them together
   for (const race of due) {
     const book = bookByMarketId.get(race.marketId);
-    const settled = book?.runners?.some((r) => r.status === "WINNER");
-    if (settled) {
-      newlySettled.push({ ...race, settledAt: now });
+    const winnerSelectionId = book?.runners?.find((r) => r.status === "WINNER")?.selectionId;
+    if (winnerSelectionId != null) {
+      settledCandidates.push({ race, winnerSelectionId });
     } else if (now - new Date(race.startTime).getTime() < RESULT_CHECK_MAX_AGE_MS) {
-      stillPending.push(race); // not settled yet (in-running, delayed jump) — retry next tick
+      // Not settled yet — retry next tick. Carries the market's actual
+      // OPEN/SUSPENDED/CLOSED status along (see listUpcomingRacesInner,
+      // which merges this onto the matching upcoming race), so the
+      // sidebar can tell "past its scheduled time but genuinely still
+      // OPEN — a late jump" apart from "actually gone".
+      stillPending.push({ ...race, marketStatus: book?.status });
     } // else: given up on — dropped silently rather than checked forever
+  }
+
+  // The winner's actual name — listMarketBook only ever gives selection
+  // ids, never runner names, so resolving "who won" needs the catalogue
+  // too (same two-call split refreshRaceInner already uses for the
+  // currently-selected race). One batched call for every newly-settled
+  // market this tick, not one per race.
+  let newlySettled = [];
+  if (settledCandidates.length > 0) {
+    const catalogues = await listMarketsByIds(
+      appKey,
+      sessionToken,
+      settledCandidates.map((c) => c.race.marketId)
+    );
+    const catalogueByMarketId = new Map(catalogues.map((m) => [m.marketId, m]));
+
+    newlySettled = settledCandidates.map(({ race, winnerSelectionId }) => {
+      const winnerRunner = catalogueByMarketId
+        .get(race.marketId)
+        ?.runners?.find((r) => r.selectionId === winnerSelectionId);
+      return { ...race, winner: winnerRunner?.runnerName ?? null, settledAt: now };
+    });
   }
 
   const prunedResults = [...recentResults, ...newlySettled].filter(

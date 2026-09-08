@@ -9,6 +9,7 @@ const MOCK_RACE = {
   sportLabel: "Horse Racing",
   marketId: "1.mock",
   startTime: new Date(Date.now() + 12 * 60 * 1000).toISOString(),
+  marketStatus: "OPEN",
   source: "mock",
   bookmakerSources: { sportsbet: "placeholder", tab: "placeholder" },
   runners: [
