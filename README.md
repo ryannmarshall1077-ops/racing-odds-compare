@@ -865,3 +865,14 @@ https://developer.betfair.com/.
       "Jumped", unchecked (null) + past start -> "Delayed" (never
       presumes it jumped without confirmation), OPEN + future start ->
       normal forward countdown, unaffected.
+      - **Follow-up, same session**: replaced the static "Delayed" label
+        with a live negative countdown instead — user asked for it to
+        keep visibly ticking rather than switching to a fixed word.
+        Refactored the shared hours/minutes/seconds formatting out of
+        `formatCountdown`/`formatElapsed` into one `formatDuration`
+        helper (no sign of its own) so both just prefix "-" where they
+        already did; "Jumped" is still the terminal state once
+        `marketStatus` actually confirms non-OPEN. Verified live via a
+        local static preview: an OPEN, past-start race counted down
+        "-1m 35s" -> "-1m 42s" over several real seconds, while a
+        SUSPENDED one alongside it still correctly showed "Jumped".
