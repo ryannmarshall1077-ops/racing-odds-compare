@@ -212,15 +212,25 @@ h1 {
   flex-direction: column;
 }
 
-/* A compact two-line info bar, matching a reference screenshot: a live-
-   connection dot + race title + Comms badge on top, "Jumps at HH:MM · in
-   Xm Ys" underneath. */
+/* A compact two-line info bar (live-connection dot + race title + Comms
+   badge on top, "Jumps at HH:MM · in Xm Ys" underneath — matching a
+   reference screenshot), with the Mode/Stake/Hedge controls
+   (#hedge-control, moved here from below the odds table per a later
+   request) sitting to its right instead of as their own full-width bar
+   further down the page. */
 #race-info-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.race-info-left {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
 }
 
 .race-info-top {
@@ -566,13 +576,16 @@ th:first-child {
   border-top: 1px solid var(--border);
 }
 
+/* Now lives inside #race-info-bar's right side — no longer its own
+   full-width bar between the table and footer, so no border/padding of
+   its own; flex-wrap lets it drop to a second line rather than
+   squeezing #race-info-left if the window gets narrow. */
 #hedge-control {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  padding: 10px 16px;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+  flex: 0 1 auto;
   font-size: 12px;
 }
 
@@ -611,7 +624,7 @@ th:first-child {
 .hedge-hint {
   color: var(--muted);
   font-size: 10px;
-  margin-left: auto;
+  white-space: nowrap;
 }
 
 footer {

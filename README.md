@@ -724,3 +724,24 @@ https://developer.betfair.com/.
         every tier) and -5 (negative) both now resolve to the same
         configured colour; editing the hex field live and closing the
         modal changed that colour immediately.
+- [x] Moved the Mode/Stake/Hedge controls (`#hedge-control`) from their
+      own full-width bar below the odds table into the right side of
+      `#race-info-bar`, next to the track name/timer, per a reference
+      screenshot:
+      - `#race-info-bar` is now a row (track info left, controls right)
+        instead of a column; the two existing lines (title+badge, jump+
+        countdown) got wrapped in a new `.race-info-left` so they still
+        stack the same way relative to each other.
+      - `#hedge-control` dropped the border-top/border-bottom and
+        padding it needed as its own section divider, and gained
+        `flex-wrap` so it drops to a second line under real width
+        pressure instead of overlapping `.race-info-left` — caught via
+        an automated preview at a genuinely narrow window width (900px)
+        before shipping; a first attempt (`.race-info-left { min-width:
+        0 }`, meant to let a long title truncate) instead let it
+        collapse to 0 and get overlapped by `#hedge-control`'s own
+        content at that width, so that was removed again.
+      - `.hedge-hint`'s old `margin-left: auto` (meant to push it to the
+        far right of a full-width bar) was dropped too — it just flows
+        normally after the Hedge % input now that the bar lives in a
+        much narrower right-hand slot.
