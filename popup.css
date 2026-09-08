@@ -291,6 +291,43 @@ h1 {
   white-space: nowrap;
 }
 
+/* Quick race-number pills for jumping between other races at the same
+   track, underneath the jump-time line — per a reference screenshot.
+   Empty (no pills, no gap) when latestRaces has nothing else at this
+   track yet, e.g. right after startup before the upcoming-races fetch
+   resolves. */
+.track-races-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.race-pill {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.race-pill:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* The currently-loaded race's own pill — same "selected" language as
+   the sidebar's own race-row.selected and the active race-type filter
+   buttons, rather than introducing a one-off colour just for this. */
+.race-pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0f1720;
+}
+
 #winner-banner {
   margin: 10px 16px 0;
   padding: 8px 12px;
