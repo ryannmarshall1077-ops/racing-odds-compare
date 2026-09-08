@@ -498,8 +498,7 @@ function endOfTodayIso() {
 // Lists upcoming AU races with a direct link to that exact race on both
 // Betfair (built from our own marketId — always exact) and Sportsbet (built
 // by matching venue name + race number + start time against Sportsbet's own
-// full-day racing schedule — falls back to no link if nothing matches
-// closely enough).
+// NextEvents feed — falls back to no link if nothing matches closely enough).
 async function listUpcomingRacesInner() {
   const stored = await chrome.storage.sync.get([
     "betfairAppKey",
@@ -524,7 +523,7 @@ async function listUpcomingRacesInner() {
       // how many horse+greyhound WIN markets AU actually runs in a single
       // day; endOfTodayIso() is the real cap that matters here.
       listWinMarkets(appKey, sessionToken, [...eventTypeIds.values()], 1000, endOfTodayIso()),
-      fetchSportsbetRaceSchedule(),
+      fetchSportsbetNextEvents(),
       chrome.storage.local.get(["tabVenueCodes"]),
       chrome.storage.local.get(["pendingResultChecks"]),
     ]);
