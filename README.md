@@ -834,3 +834,34 @@ https://developer.betfair.com/.
         cadence as background.js's own alarm, gated by the same Settings
         > Automatically refresh toggle every other auto-refresh in this
         extension already respects) that calls both.
+- [x] Removed the manual "Upcoming Races" refresh button — the periodic
+      poll above already covers what it did. `loadUpcomingRaces()` now
+      only shows its "Loading..."/error placeholder on the very first
+      call (`latestRaces` still empty), rather than blanking an
+      already-populated list every routine background poll.
+- [x] Past races now show the winner's actual name (not just that it
+      resulted): `checkPendingResults` resolves the winning selection id
+      (already had this from `getMarketBook`) against
+      `listMarketsByIds`' runner catalogue — the same two-call split
+      `refreshRaceInner` already uses for the currently-selected race —
+      one batched catalogue call per tick for every newly-settled market,
+      not one per race. Shown inline in the Past card's subtitle line
+      (`🏆 {name}`), omitted entirely for the (should be rare) case a
+      winner's name can't be resolved.
+- [x] Fixed: the "Today" countdown claimed a race had "Jumped" the
+      instant its scheduled start time passed, even though races commonly
+      go off a few minutes late while the market is still genuinely OPEN
+      — user-reported after noticing this exact case. `marketStatus`
+      (OPEN/SUSPENDED/CLOSED, a real Betfair check) is now carried
+      alongside `startTime` everywhere a race is: `refreshRaceInner`
+      already fetches it for the currently-selected race;
+      `checkPendingResults` already fetches it for any other race once
+      due, and `listUpcomingRacesInner` now merges that onto the matching
+      upcoming race so the sidebar has it too. Past its scheduled time,
+      `formatCountdown` now shows "Delayed" unless `marketStatus` is a
+      real, checked, non-OPEN value — "Jumped" needs actual confirmation,
+      not just the clock. Verified against 4 cases via a local static
+      preview: OPEN + past start -> "Delayed", SUSPENDED + past start ->
+      "Jumped", unchecked (null) + past start -> "Delayed" (never
+      presumes it jumped without confirmation), OPEN + future start ->
+      normal forward countdown, unaffected.

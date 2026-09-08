@@ -88,20 +88,6 @@ h1 {
   font-weight: 500;
 }
 
-#races-refresh-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 13px;
-  line-height: 1;
-  padding: 2px 4px;
-}
-
-#races-refresh-btn:hover {
-  color: var(--text);
-}
-
 #race-type-filter {
   display: flex;
   align-items: center;
@@ -278,6 +264,14 @@ h1 {
 .race-card-sub {
   font-size: 10px;
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.race-winner {
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .race-card-time {
