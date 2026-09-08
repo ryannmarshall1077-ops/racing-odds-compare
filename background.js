@@ -539,8 +539,14 @@ async function refreshRaceInner(marketId) {
         betfairBackLiquidity,
         // ACTIVE pre-race, WINNER/LOSER once settled — lets the UI show
         // the result and highlight the winning row without needing a
-        // separate settlement check of its own.
-        result: r.status,
+        // separate settlement check of its own. Sticky once WINNER,
+        // same reasoning as marketStatus's own alreadyConfirmedNonOpen —
+        // confirmed live that REST can keep reporting a stale pre-result
+        // status for a long while after betfairWatcher.js's own DOM
+        // scrape (applyBetfairOdds's winnerName handling) has already
+        // marked this runner WINNER; a plain REST-wins-always assignment
+        // here would silently erase that the next time this runs.
+        result: existingRunner?.result === "WINNER" ? "WINNER" : r.status,
         ...(domIsFresh && { betfairPricedAt: existingRunner.betfairPricedAt }),
         ...(backDomIsFresh && { betfairBackPricedAt: existingRunner.betfairBackPricedAt }),
         bookmakers,
@@ -1156,12 +1162,32 @@ async function applyBetfairOdds(odds) {
   // ladder itself typically has no runner cells at all once suspended,
   // so `matched` alone would be 0 exactly when this matters most.
   const hasStatusLabel = typeof odds.statusLabel === "string";
-  if (matched === 0 && !hasTotalMatched && !hasStatusLabel) return; // this update doesn't concern the loaded race
+
+  // winnerName (scrapeWinnerName()) — matched by normalizeName against
+  // this race's own runner names, since the DOM's plain name ("Paua Of
+  // Queens") lacks the box-number prefix Betfair's catalogue runnerName
+  // (and so this race's own stored name) carries ("1. Paua Of Queens").
+  // Confirmed live: REST kept reporting book.status=OPEN/winner=null
+  // minutes after Betfair's own page already showed "Closed" with this
+  // exact name — same class of Delayed-key lag as marketStatus/
+  // totalMatched, just longer-lasting than either. No fuzzy namesMatch
+  // needed (unlike bookmaker-name matching) — both sides are Betfair's
+  // own name for the same runner, just with/without the prefix.
+  const winnerRunner =
+    typeof odds.winnerName === "string"
+      ? runners.find((r) => normalizeName(r.name) === normalizeName(odds.winnerName))
+      : undefined;
+  const runnersWithWinner = winnerRunner
+    ? runners.map((r) => (r === winnerRunner ? { ...r, result: "WINNER" } : r))
+    : runners;
+
+  if (matched === 0 && !hasTotalMatched && !hasStatusLabel && !winnerRunner) return; // this update doesn't concern the loaded race
 
   await chrome.storage.local.set({
     liveRace: {
       ...liveRace,
-      runners,
+      runners: runnersWithWinner,
+      ...(winnerRunner && { winner: winnerRunner.name }),
       // Stamped so refreshRaceInner() knows this is fresher than whatever
       // REST's own totalMatched says on its next ~60s poll, same idea as
       // betfairPricedAt for prices.

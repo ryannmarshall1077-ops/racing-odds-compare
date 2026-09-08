@@ -105,15 +105,45 @@
     return text ? text : undefined;
   }
 
+  // The winning runner's name once the race has actually settled — same
+  // information REST's own listMarketBook.runners[].status="WINNER"
+  // carries, but read live off the page instead of waiting on REST,
+  // which turned out not to catch up at all for a long while after
+  // settlement on a Delayed key (confirmed live: REST still read
+  // book.status=OPEN/winner=null minutes after Betfair's own page
+  // already showed "Closed" with a named winner — same underlying
+  // problem as marketStatus/totalMatched above, just a longer-lasting
+  // lag than either of those). Confirmed via a live market's own DOM:
+  // <tr class="runner-line winner-runner"> only exists at all once the
+  // race is actually resulted (absent entirely on a genuinely still-
+  // open market, confirmed against one directly) — its own
+  // ".runner-name" is the winning runner's plain name, no box-number
+  // prefix (Betfair's own catalogue runnerName does carry one, e.g.
+  // "1. Paua Of Queens" — matched against that in background.js via
+  // normalizeName, which already strips exactly this prefix for
+  // fuzzy bookmaker-name matching elsewhere).
+  function scrapeWinnerName() {
+    const nameEl = document.querySelector(".runner-line.winner-runner .runner-name");
+    const text = nameEl?.textContent.trim();
+    return text ? text : undefined;
+  }
+
   let lastSentSignature = null;
 
   function sendUpdateIfChanged() {
     const runners = scrapeRunners();
     const totalMatched = scrapeTotalMatched();
     const statusLabel = scrapeMarketStatusLabel();
-    if (runners.length === 0 && totalMatched === undefined && statusLabel === undefined) return;
+    const winnerName = scrapeWinnerName();
+    if (
+      runners.length === 0 &&
+      totalMatched === undefined &&
+      statusLabel === undefined &&
+      winnerName === undefined
+    )
+      return;
 
-    const signature = JSON.stringify({ runners, totalMatched, statusLabel });
+    const signature = JSON.stringify({ runners, totalMatched, statusLabel, winnerName });
     if (signature === lastSentSignature) return;
     lastSentSignature = signature;
 
@@ -124,6 +154,7 @@
           runners,
           ...(totalMatched !== undefined && { totalMatched }),
           ...(statusLabel !== undefined && { statusLabel }),
+          ...(winnerName !== undefined && { winnerName }),
           scrapedAt: Date.now(),
           url: location.href,
         },
