@@ -206,15 +206,27 @@ function formatLiquidity(liquidity) {
     : `$${Math.round(liquidity)}`;
 }
 
-// Renders a Back/Lay price cell's contents: the price on top, its own
-// liquidity figure stacked beneath it (hidden via the hide-liquidity body
-// class when Settings > Show liquidity is off) — instead of liquidity
-// living in its own separate column.
-function priceCellHtml(price, liquidity) {
-  if (price == null) return "—";
-  return `<span class="price-cell"><span class="cell-price">${price.toFixed(
+// One half of a Back/Lay box: the price on top, its own liquidity figure
+// stacked beneath it (hidden via the hide-liquidity body class when
+// Settings > Show liquidity is off) — instead of liquidity living in its
+// own separate column.
+function priceCellInner(price, liquidity) {
+  if (price == null) return `<span class="cell-price">—</span>`;
+  return `<span class="cell-price">${price.toFixed(
     2
-  )}</span><span class="cell-liquidity">${formatLiquidity(liquidity)}</span></span>`;
+  )}</span><span class="cell-liquidity">${formatLiquidity(liquidity)}</span>`;
+}
+
+// Betfair Back and Lay grouped into a single box, side by side — matching
+// how Betfair's own market view presents them, rather than as two
+// disconnected table columns. Lay (right, pink/magenta) is still what
+// Edge%/Lay $/Liability are actually computed from; Back (left, blue) is
+// display only.
+function backLayCellHtml(backPrice, backLiquidity, layPrice, layLiquidity) {
+  return `<span class="backlay-box">
+    <span class="bl-cell bl-back">${priceCellInner(backPrice, backLiquidity)}</span>
+    <span class="bl-cell bl-lay">${priceCellInner(layPrice, layLiquidity)}</span>
+  </span>`;
 }
 
 // What you'd owe if the lay bet loses (the backed selection wins) — the
@@ -322,8 +334,12 @@ function renderRace(race) {
           ? `<span class="best-price-value">${bestPrice.toFixed(2)}</span>${bestPriceBadges}`
           : "—"
       }</td>
-      <td class="col-back">${priceCellHtml(runner.betfairBack, runner.betfairBackLiquidity)}</td>
-      <td class="col-lay">${priceCellHtml(runner.betfair, runner.betfairLiquidity)}</td>
+      <td class="col-backlay">${backLayCellHtml(
+        runner.betfairBack,
+        runner.betfairBackLiquidity,
+        runner.betfair,
+        runner.betfairLiquidity
+      )}</td>
       ${bookieCells}
       <td class="lay-dollars" title="Click to copy">${layDollars.toFixed(2)}</td>
       <td class="col-liability">${liability.toFixed(2)}</td>
@@ -348,8 +364,7 @@ function renderRace(race) {
     row.innerHTML = `
       <td>${runner.name}</td>
       <td class="col-best-price">—</td>
-      <td class="col-back">—</td>
-      <td class="col-lay">—</td>
+      <td class="col-backlay">${backLayCellHtml(null, null, null, null)}</td>
       ${BOOKIE_LIST.map(() => "<td>—</td>").join("")}
       <td>—</td>
       <td class="col-liability">—</td>
@@ -363,10 +378,11 @@ function renderRace(race) {
   const marketCells = [
     "<td>Market %</td>",
     `<td class="col-best-price"></td>`,
-    `<td class="col-back">${formatMarketPct(
+    `<td class="col-backlay"><span class="backlay-box"><span class="bl-cell bl-back">${formatMarketPct(
       marketPercentFor(race.runners, (r) => r.betfairBack)
-    )}</td>`,
-    `<td class="col-lay">${formatMarketPct(marketPercentFor(race.runners, (r) => r.betfair))}</td>`,
+    )}</span><span class="bl-cell bl-lay">${formatMarketPct(
+      marketPercentFor(race.runners, (r) => r.betfair)
+    )}</span></span></td>`,
     ...BOOKIE_LIST.map(
       (b) =>
         `<td>${formatMarketPct(marketPercentFor(race.runners, (r) => r.bookmakers?.[b.id]))}</td>`

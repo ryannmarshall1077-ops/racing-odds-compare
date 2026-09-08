@@ -326,37 +326,55 @@ body.compact-rows td {
   padding: 4px 10px;
 }
 
-/* Betfair Back/Lay — distinct colours so the two are readable at a glance
-   (blue for Back, pink/magenta for Lay), each price cell showing its own
-   liquidity figure stacked underneath rather than in a separate column. */
-th.col-back {
-  color: var(--back-color);
+/* Betfair Back and Lay, grouped into one visual box per runner — two
+   adjacent colour-coded halves (blue Back, pink/magenta Lay) touching
+   each other, matching how Betfair's own market view presents them,
+   rather than reading as two disconnected table columns. Each half shows
+   its own liquidity figure stacked underneath its price. */
+th.col-backlay,
+td.col-backlay {
+  padding: 6px 8px;
 }
 
-th.col-lay {
-  color: var(--lay-color);
+.backlay-box {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
 }
 
-.price-cell {
+.bl-cell {
+  flex: 1;
+  min-width: 48px;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
+  padding: 4px 8px;
   line-height: 1.3;
 }
 
-.price-cell .cell-price {
-  font-weight: 700;
+.header-box .bl-cell {
+  padding: 3px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 600;
 }
 
-td.col-back .cell-price {
+.bl-back {
+  background: rgba(79, 168, 245, 0.12);
   color: var(--back-color);
 }
 
-td.col-lay .cell-price {
+.bl-lay {
+  background: rgba(239, 111, 176, 0.12);
   color: var(--lay-color);
 }
 
-.price-cell .cell-liquidity {
+.bl-cell .cell-price {
+  font-weight: 700;
+}
+
+.bl-cell .cell-liquidity {
   font-size: 10px;
   font-weight: 400;
   color: var(--muted);

@@ -527,3 +527,16 @@ https://developer.betfair.com/.
       - Back (blue, `--back-color`) and Lay (pink/magenta, `--lay-color`)
         get their own distinct text colour so the two are readable at a
         glance in both the header and every price cell.
+      - **Follow-up, same session**: user feedback after trying this —
+        Back and Lay read as two disconnected table columns, not the
+        single grouped unit Betfair's own market view shows them as.
+        Restructured into one merged `col-backlay` column: a single
+        bordered `.backlay-box` per row containing two adjacent colour-
+        coded halves (`.bl-back`/`.bl-lay`) touching each other with no
+        gap, each still showing its own price + liquidity
+        (`backLayCellHtml`/`priceCellInner`). Header, scratched-row
+        placeholders, and the Market % footer row all use the same grouped
+        box, so the layout stays consistent whether real data, a
+        placeholder, or an aggregate is being shown. Verified the new
+        merged-box rendering against mock data (including the null/
+        scratched case) via a local static preview before committing.
