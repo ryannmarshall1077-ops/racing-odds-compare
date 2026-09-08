@@ -954,3 +954,11 @@ https://developer.betfair.com/.
         DOM-scraped value over REST's whenever it's under 90s old (same
         freshness pattern as `betfairPricedAt`). Removed the now-resolved
         diagnostic.
+- [x] Settings > Display: "Show scratched runners" toggle. Scratched
+      (Betfair status REMOVED) runners already rendered as grayed-out
+      placeholder rows for a full-field view — this makes that
+      optional (`showScratchedRunners`, default `true` — no change to
+      existing behaviour until someone turns it off). Verified via the
+      local popup preview harness with mock data's scratched runner
+      ("6. Lucky Number"): unchecking hides the row immediately,
+      re-checking brings it straight back.

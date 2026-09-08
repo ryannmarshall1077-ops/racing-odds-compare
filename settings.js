@@ -37,6 +37,10 @@ const DEFAULT_SETTINGS = {
   defaultRetention: 80,
   showLiquidityColumn: true,
   showLiabilityColumn: false,
+  // Scratched (Betfair status REMOVED) runners default to showing as
+  // grayed-out placeholder rows — a full-field view. Off hides them
+  // entirely instead, for anyone who'd rather just not see them.
+  showScratchedRunners: true,
   // Dollars — null = unlimited. Rows whose liability (Lay $ × (Betfair
   // odds - 1) — what you'd owe if the lay bet loses) exceeds this are
   // filtered out of the displayed table entirely, not just flagged.

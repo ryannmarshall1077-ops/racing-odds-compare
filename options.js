@@ -77,6 +77,7 @@ const settingFields = {
   defaultRetention: document.getElementById("setting-default-retention"),
   showLiquidityColumn: document.getElementById("setting-show-liquidity-column"),
   showLiabilityColumn: document.getElementById("setting-show-liability-column"),
+  showScratchedRunners: document.getElementById("setting-show-scratched-runners"),
   maxLiability: document.getElementById("setting-max-liability"),
   pinRaceTabs: document.getElementById("setting-pin-race-tabs"),
   focusRaceTabsOnOpen: document.getElementById("setting-focus-race-tabs"),
@@ -110,6 +111,7 @@ function applySettingsToForm(settings) {
   settingFields.defaultRetention.value = settings.defaultRetention;
   settingFields.showLiquidityColumn.checked = settings.showLiquidityColumn;
   settingFields.showLiabilityColumn.checked = settings.showLiabilityColumn;
+  settingFields.showScratchedRunners.checked = settings.showScratchedRunners;
   settingFields.maxLiability.value = settings.maxLiability ?? "";
   settingFields.pinRaceTabs.checked = settings.pinRaceTabs;
   settingFields.focusRaceTabsOnOpen.checked = settings.focusRaceTabsOnOpen;
