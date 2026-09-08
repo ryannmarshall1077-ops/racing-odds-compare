@@ -522,12 +522,24 @@ async function refreshRaceInner(marketId) {
   // in-play, leaving the popup's countdown looking stuck instead of
   // switching to "Jumped" (user-reported: confirmed live against a
   // real market Betfair's own page already showed "Suspended" on).
-  // The DOM only ever asserts "non-OPEN" (its absence means "no fresh
-  // info", never "confirmed OPEN"), so preferring it when fresh and
-  // falling back to REST otherwise is safe either way.
-  const domMarketStatusIsFresh =
-    stored.liveRace?.marketStatusUpdatedAt &&
-    Date.now() - stored.liveRace.marketStatusUpdatedAt < 90 * 1000;
+  //
+  // Deliberately NOT a freshness/expiry window like totalMatchedIsFresh
+  // above — that pattern is wrong here. A market only ever moves
+  // OPEN -> SUSPENDED -> CLOSED, never back (and even a genuine brief
+  // in-running OPEN flicker shouldn't make the countdown un-"Jump"), so
+  // once EITHER source has confirmed this exact market is non-OPEN,
+  // that's permanent for as long as it stays selected — expiring it
+  // after 90s of DOM silence (nothing left to scrape once the label
+  // text stops changing) meant it fell straight back to REST's own
+  // stale "OPEN", undoing the fix and reproducing the exact bug this
+  // was meant to close (user-reported: "Jumped" showed briefly, then
+  // reverted to counting down again). Matched by marketId only, so
+  // switching to a different race doesn't inherit the old one's
+  // confirmed status.
+  const alreadyConfirmedNonOpen =
+    stored.liveRace?.marketId === market.marketId &&
+    stored.liveRace?.marketStatus &&
+    stored.liveRace.marketStatus !== "OPEN";
 
   const race = {
     race: `${track} — ${market.marketName}`,
@@ -543,8 +555,7 @@ async function refreshRaceInner(marketId) {
     // time but genuinely still OPEN (a late jump, common and not an
     // error)" apart from "actually gone in-running/closed", instead of
     // assuming the schedule itself is accurate.
-    marketStatus: domMarketStatusIsFresh ? stored.liveRace.marketStatus : book.status,
-    ...(domMarketStatusIsFresh && { marketStatusUpdatedAt: stored.liveRace.marketStatusUpdatedAt }),
+    marketStatus: alreadyConfirmedNonOpen ? stored.liveRace.marketStatus : book.status,
     // Total AUD matched on this market so far — same figure Betfair's
     // own market page shows as "Matched: AUD X" (confirmed directly
     // against a live market page before shipping). Display only.
@@ -601,7 +612,7 @@ async function listUpcomingRacesInner() {
     sessionToken,
     RACING_SPORTS.map((s) => s.betfairEventType)
   );
-  const [markets, sportsbetEvents, { tabVenueCodes = {} }, { pendingResultChecks = [] }] =
+  const [markets, sportsbetEvents, { tabVenueCodes = {} }, { pendingResultChecks = [] }, { liveRace }] =
     await Promise.all([
       // 20, not 15 — now split across every supported sport instead of just
       // horse racing, so the same-ish count needs a bit more headroom to
@@ -610,6 +621,7 @@ async function listUpcomingRacesInner() {
       fetchSportsbetNextEvents(),
       chrome.storage.local.get(["tabVenueCodes"]),
       chrome.storage.local.get(["pendingResultChecks"]),
+      chrome.storage.local.get(["liveRace"]),
     ]);
 
   // checkPendingResults stamps a real OPEN/SUSPENDED/CLOSED market status
@@ -622,6 +634,18 @@ async function listUpcomingRacesInner() {
   const marketStatusByMarketId = new Map(
     pendingResultChecks.filter((r) => r.marketStatus).map((r) => [r.marketId, r.marketStatus])
   );
+
+  // pendingResultChecks is REST-only, checked in batch (checkPendingResultsInner)
+  // — the exact same lag totalMatched/marketStatus had for the main panel
+  // before betfairWatcher.js started scraping the page live. liveRace
+  // (refreshRaceInner) already carries that fresher, DOM-confirmed status
+  // for whichever one race is currently selected — layering it in here too
+  // means the sidebar row for that same race stops disagreeing with its
+  // own top-bar countdown (user-reported: the top bar correctly said
+  // "Jumped", the sidebar row for the identical race still counted down).
+  if (liveRace?.marketId && liveRace.marketStatus) {
+    marketStatusByMarketId.set(liveRace.marketId, liveRace.marketStatus);
+  }
 
   const races = markets
     .map((market) => {
@@ -754,8 +778,16 @@ async function checkPendingResultsInner() {
       // OPEN/SUSPENDED/CLOSED status along (see listUpcomingRacesInner,
       // which merges this onto the matching upcoming race), so the
       // sidebar can tell "past its scheduled time but genuinely still
-      // OPEN — a late jump" apart from "actually gone".
-      stillPending.push({ ...race, marketStatus: book?.status });
+      // OPEN — a late jump" apart from "actually gone". Sticky once
+      // non-OPEN, same reasoning as refreshRaceInner's
+      // alreadyConfirmedNonOpen — status only ever moves forward, so a
+      // later tick reporting OPEN again (a brief in-running flicker, or
+      // REST lag going the other way this time) shouldn't undo an
+      // already-confirmed "Jumped".
+      stillPending.push({
+        ...race,
+        marketStatus: race.marketStatus && race.marketStatus !== "OPEN" ? race.marketStatus : book?.status,
+      });
     } // else: given up on — dropped silently rather than checked forever
   }
 
@@ -1003,10 +1035,12 @@ async function applyBetfairOdds(odds) {
       // Uppercased only to match REST's own OPEN/SUSPENDED/CLOSED
       // casing for anything else that reads marketStatus — the exact
       // wording doesn't matter to formatCountdown's own check, just
-      // that it isn't "OPEN".
+      // that it isn't "OPEN". No updatedAt/expiry here — see
+      // refreshRaceInner's alreadyConfirmedNonOpen: this must stick,
+      // not fall back to a stale REST "OPEN" once the DOM stops
+      // sending updates (nothing left to send once the label settles).
       ...(hasStatusLabel && {
         marketStatus: odds.statusLabel.toUpperCase(),
-        marketStatusUpdatedAt: Date.now(),
       }),
       fetchedAt: Date.now(),
     },
