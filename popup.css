@@ -534,24 +534,6 @@ h1 {
   color: #0f1720;
 }
 
-#winner-banner {
-  margin: 10px 16px 0;
-  padding: 8px 12px;
-  background: rgba(61, 220, 151, 0.12);
-  border: 1px solid var(--accent);
-  border-radius: 4px;
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-/* An id selector beats the UA stylesheet's own [hidden] rule, so this has
-   to be spelled out explicitly or the banner above would stay visible
-   even while hidden. */
-#winner-banner[hidden] {
-  display: none;
-}
-
 /* One column per bookie (bookies.js) plus Best Price can make the table
    wider than the window — scrolling the table itself, rather than trying
    to keep shrinking it to fit, means adding a bookie doesn't force a
@@ -923,8 +905,9 @@ footer {
   z-index: 100;
 }
 
-/* An id selector beats the UA stylesheet's own [hidden] rule (matches the
-   same fix already needed for #winner-banner). */
+/* An id selector beats the UA stylesheet's own [hidden] rule, so this has
+   to be spelled out explicitly or the modal would stay visible even
+   while hidden. */
 #settings-modal[hidden] {
   display: none;
 }
@@ -1005,9 +988,10 @@ footer {
   gap: 12px;
 }
 
-/* Same gotcha #winner-banner already needed fixing for: the class rule
-   above beats the UA stylesheet's own [hidden] rule on specificity, so a
-   hidden tab panel would otherwise still render as a flex container. */
+/* Same gotcha #settings-modal[hidden] above needed fixing too: the
+   class rule above beats the UA stylesheet's own [hidden] rule on
+   specificity, so a hidden tab panel would otherwise still render as a
+   flex container. */
 #settings-modal .modal-tab-panel[hidden] {
   display: none;
 }
@@ -1182,8 +1166,8 @@ footer {
    selector: that page's own #settings-modal label/input[type="color"]
    rules (higher specificity than a plain .ev-band-* class, since they
    carry an id) would otherwise win inside the modal and override these —
-   same fix #winner-banner/.modal-tab-panel already needed for a [hidden]
-   specificity clash, just for id-vs-class here instead. */
+   same fix #settings-modal[hidden]/.modal-tab-panel already needed for
+   a specificity clash, just for id-vs-class here instead. */
 .ev-band-swatch-row input[type="color"],
 #settings-modal .ev-band-swatch-row input[type="color"] {
   width: 44px;

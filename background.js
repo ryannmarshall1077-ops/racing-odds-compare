@@ -765,6 +765,17 @@ async function listUpcomingRacesInner() {
   const bookieMarketClosedMarketId =
     liveRace?.marketId && liveRace.bookieMarketClosed === true ? liveRace.marketId : null;
 
+  // Same idea again for the winner itself (see applyBetfairOdds's own
+  // winnerName handling) — lets the sidebar's own countdown switch
+  // straight to "RESULTED" for the selected race the instant the top
+  // bar does, instead of only via checkPendingResultsInner's separate,
+  // REST-only Past-results check (which has its own real lag on a
+  // Delayed key — see the winner-detection fix this was built
+  // alongside). Same inherent limitation as bookieMarketClosed above:
+  // only the currently-selected race can ever carry this here.
+  const winnerByMarketId =
+    liveRace?.marketId && liveRace.winner ? new Map([[liveRace.marketId, liveRace.winner]]) : new Map();
+
   const races = markets
     .map((market) => {
       const raceNumberMatch = market.marketName.match(/^R(\d+)/);
@@ -803,6 +814,7 @@ async function listUpcomingRacesInner() {
         marketId: market.marketId,
         marketStatus: marketStatusByMarketId.get(market.marketId) ?? null,
         bookieMarketClosed: market.marketId === bookieMarketClosedMarketId,
+        winner: winnerByMarketId.get(market.marketId) ?? null,
         betfairUrl: `https://www.betfair.com.au/exchange/plus/${sport.betfairUrlSegment}/market/${market.marketId}`,
         sportsbetUrl: sbMatch ? buildSportsbetRaceUrl(sbMatch) : null,
         // null until tabMeetings.js has learned this venue/sport's TAB
