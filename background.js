@@ -516,6 +516,19 @@ async function refreshRaceInner(marketId) {
     stored.liveRace?.totalMatchedUpdatedAt &&
     Date.now() - stored.liveRace.totalMatchedUpdatedAt < 90 * 1000;
 
+  // Same idea for marketStatus, via betfairWatcher.js's own
+  // scrapeMarketStatusLabel() — REST's book.status can sit on a stale
+  // "OPEN" for most of the ~60s poll interval right when a market goes
+  // in-play, leaving the popup's countdown looking stuck instead of
+  // switching to "Jumped" (user-reported: confirmed live against a
+  // real market Betfair's own page already showed "Suspended" on).
+  // The DOM only ever asserts "non-OPEN" (its absence means "no fresh
+  // info", never "confirmed OPEN"), so preferring it when fresh and
+  // falling back to REST otherwise is safe either way.
+  const domMarketStatusIsFresh =
+    stored.liveRace?.marketStatusUpdatedAt &&
+    Date.now() - stored.liveRace.marketStatusUpdatedAt < 90 * 1000;
+
   const race = {
     race: `${track} — ${market.marketName}`,
     track,
@@ -530,7 +543,8 @@ async function refreshRaceInner(marketId) {
     // time but genuinely still OPEN (a late jump, common and not an
     // error)" apart from "actually gone in-running/closed", instead of
     // assuming the schedule itself is accurate.
-    marketStatus: book.status,
+    marketStatus: domMarketStatusIsFresh ? stored.liveRace.marketStatus : book.status,
+    ...(domMarketStatusIsFresh && { marketStatusUpdatedAt: stored.liveRace.marketStatusUpdatedAt }),
     // Total AUD matched on this market so far — same figure Betfair's
     // own market page shows as "Matched: AUD X" (confirmed directly
     // against a live market page before shipping). Display only.
@@ -965,7 +979,11 @@ async function applyBetfairOdds(odds) {
   // separately from `matched` so that update isn't dropped by the bail-out
   // below.
   const hasTotalMatched = typeof odds.totalMatched === "number";
-  if (matched === 0 && !hasTotalMatched) return; // this update doesn't concern the loaded race
+  // statusLabel (scrapeMarketStatusLabel()) is the same story — the
+  // ladder itself typically has no runner cells at all once suspended,
+  // so `matched` alone would be 0 exactly when this matters most.
+  const hasStatusLabel = typeof odds.statusLabel === "string";
+  if (matched === 0 && !hasTotalMatched && !hasStatusLabel) return; // this update doesn't concern the loaded race
 
   await chrome.storage.local.set({
     liveRace: {
@@ -977,6 +995,18 @@ async function applyBetfairOdds(odds) {
       ...(hasTotalMatched && {
         totalMatched: odds.totalMatched,
         totalMatchedUpdatedAt: Date.now(),
+      }),
+      // Same idea again for marketStatus — a market can go OPEN ->
+      // Suspended right at the jump, and REST's own status can sit
+      // stale for most of the ~60s poll interval, leaving the popup's
+      // countdown looking stuck instead of switching to "Jumped".
+      // Uppercased only to match REST's own OPEN/SUSPENDED/CLOSED
+      // casing for anything else that reads marketStatus — the exact
+      // wording doesn't matter to formatCountdown's own check, just
+      // that it isn't "OPEN".
+      ...(hasStatusLabel && {
+        marketStatus: odds.statusLabel.toUpperCase(),
+        marketStatusUpdatedAt: Date.now(),
       }),
       fetchedAt: Date.now(),
     },
