@@ -49,7 +49,7 @@
             <select id="setting-default-mode">
               <option value="mug">Mug</option>
               <option value="bonus">Bonus</option>
-              <option value="run2nd3rd" disabled>Run 2nd 3rd (coming soon)</option>
+              <option value="run2nd3rd">Run 2nd 3rd</option>
               <option value="run2nd" disabled>Run 2nd (coming soon)</option>
             </select>
           </label>
@@ -101,9 +101,9 @@
           <label>
             <span class="field-name">Default retention (%)</span>
             <span class="field-hint">Fallback bonus-bet retention assumption for calculations
-              that need one but can't derive it from a runner's own odds (e.g. the Run 2nd 3rd
-              EV column, once built). Bonus Mode's own Ret% column always uses each runner's
-              real odds instead &mdash; this doesn't change that.</span>
+              that need one but can't derive it from a runner's own odds (used by the Run 2nd 3rd
+              EV column's own bonus bet value). Bonus Mode's own Ret% column always uses each
+              runner's real odds instead &mdash; this doesn't change that.</span>
             <input type="number" id="setting-default-retention" min="0" max="100" step="1" />
           </label>
           <label class="checkbox-label">
@@ -168,9 +168,9 @@
           <p class="subtitle">
             Edge%/Ret% is coloured with the highest tier below whose threshold it meets or
             exceeds &mdash; Mug and Bonus run on very different scales, so each tier has its own
-            threshold per mode. Promo covers Run 2nd 3rd/Run 2nd (still disabled &mdash;
-            placeholder until either has a real EV formula). Below every tier's threshold, the
-            plain red "bad" styling is used instead.
+            threshold per mode. Promo is shared by Run 2nd 3rd and Run 2nd (still disabled
+            &mdash; placeholder until it has its own EV formula) rather than each having its
+            own set. Below every tier's threshold, the plain red "bad" styling is used instead.
           </p>
 
           <div class="ev-band" data-band="0">
