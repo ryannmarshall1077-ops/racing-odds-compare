@@ -1015,3 +1015,20 @@ https://developer.betfair.com/.
       even against a trivial one-line test page, and invisible to every
       DOM-level check), so a final look in a real browser is still
       worth doing.
+- [x] Race countdown now recognises Betfair suspending/closing a market
+      live, instead of counting into negative indefinitely until the
+      tab is manually refreshed. Root cause: the countdown already
+      switches to "Jumped" on any non-OPEN `marketStatus`
+      (`formatCountdown`, popup.js), but that value only ever came from
+      REST's `listMarketBook.status` on the ~60s `chrome.alarms` poll —
+      too slow right at the jump, same class of problem as the earlier
+      totalMatched fix. Confirmed live (user's own screenshot): Betfair
+      showed a race "Suspended" while the countdown kept ticking
+      negative. Fixed the same way — `betfairWatcher.js` now also
+      scrapes `.market-status-label` (only present in the DOM at all
+      once Betfair has a non-open status to show — confirmed absent on
+      a genuinely OPEN market, confirmed present with text "Suspended"
+      then "Closed" on a real race as it actually happened), and
+      `refreshRaceInner`/`applyBetfairOdds` prefer that DOM-scraped
+      status over REST's whenever it's under 90s old, same freshness
+      pattern as totalMatched/betfairPricedAt.

@@ -86,14 +86,34 @@
     return Number.isNaN(value) ? undefined : value;
   }
 
+  // Market status (Suspended/Closed) — same value REST's own
+  // listMarketBook.status carries, but read live off the page instead
+  // of waiting on the ~60s chrome.alarms poll, for the same reason as
+  // totalMatched above: a market can go from OPEN to Suspended right
+  // at the jump, and a REST poll that only checks once a minute can sit
+  // on a stale "OPEN" for most of that minute, making the popup's
+  // countdown look stuck instead of switching to "Jumped". Confirmed
+  // via a live market's own DOM: <span class="market-status-label"
+  // ng-if="ctrl.data.marketStatus.label"> only exists at all once
+  // Betfair actually has a non-open status to show (absent entirely on
+  // a genuinely still-OPEN market, confirmed against one directly) —
+  // its mere presence is exactly the signal needed, regardless of the
+  // exact wording ("Suspended"/"Closed") it happens to contain.
+  function scrapeMarketStatusLabel() {
+    const el = document.querySelector(".market-status-label");
+    const text = el?.textContent.trim();
+    return text ? text : undefined;
+  }
+
   let lastSentSignature = null;
 
   function sendUpdateIfChanged() {
     const runners = scrapeRunners();
     const totalMatched = scrapeTotalMatched();
-    if (runners.length === 0 && totalMatched === undefined) return;
+    const statusLabel = scrapeMarketStatusLabel();
+    if (runners.length === 0 && totalMatched === undefined && statusLabel === undefined) return;
 
-    const signature = JSON.stringify({ runners, totalMatched });
+    const signature = JSON.stringify({ runners, totalMatched, statusLabel });
     if (signature === lastSentSignature) return;
     lastSentSignature = signature;
 
@@ -103,6 +123,7 @@
         odds: {
           runners,
           ...(totalMatched !== undefined && { totalMatched }),
+          ...(statusLabel !== undefined && { statusLabel }),
           scrapedAt: Date.now(),
           url: location.href,
         },
