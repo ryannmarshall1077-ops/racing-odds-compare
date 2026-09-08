@@ -552,18 +552,19 @@ async function refreshRaceInner(marketId) {
 
   // Diagnostic: user-reported Betfair's own page already showed
   // "Closed"/a named winner while this extension still showed "IN
-  // PLAY" with no winner tag. This refresh only runs on the ~60s
-  // chrome.alarms tick, so up to a minute's lag here is expected and
-  // not itself a bug — but if it's STILL missing well past that,
-  // logging the raw per-runner statuses whenever the market itself
-  // looks closed shows whether REST genuinely hasn't caught up yet, or
-  // whether it has and something else is dropping it.
-  if (winner == null && book.status && book.status !== "OPEN") {
-    console.warn(
-      `No WINNER found for market ${market.marketId} despite book.status=${book.status}. Runner statuses:`,
-      book.runners.map((r) => ({ selectionId: r.selectionId, status: r.status }))
-    );
-  }
+  // PLAY" with no winner tag — but the previous, conditional version
+  // of this (only logging when book.status wasn't "OPEN") never fired
+  // even once on a reproduction that otherwise proved this exact
+  // function DID run for this exact race (a different, unrelated
+  // diagnostic a few lines below fired using this same race's own
+  // runners). That means the condition itself was hiding the one case
+  // actually worth seeing — logging unconditionally instead, every
+  // single refresh of the selected race, so nothing is filtered out
+  // this time regardless of what book.status/winner turn out to be.
+  console.warn(
+    `refreshRaceInner winner check for market ${market.marketId}: book.status=${book.status}, winner=${winner}. Runner statuses:`,
+    book.runners.map((r) => ({ selectionId: r.selectionId, status: r.status }))
+  );
 
   // Diagnostic: when we have a recent scan for a bookie but it matched none
   // of this race's runners, log both name lists side by side so a mismatch
