@@ -540,3 +540,14 @@ https://developer.betfair.com/.
         placeholder, or an aggregate is being shown. Verified the new
         merged-box rendering against mock data (including the null/
         scratched case) via a local static preview before committing.
+- [x] Removed the dedicated Edge/Ret% column — each bookmaker's own price
+      cell (Sportsbet, TAB) now shows that bookie's own Edge%/Ret%
+      (`bookieMetricPercent`, the existing formula against that specific
+      price instead of always the best one) stacked underneath its price,
+      same treatment as Back/Lay's liquidity (`bookieCellHtml`,
+      `.stacked-cell`/`.cell-sub`). The best-price highlight and Best
+      Price column are unaffected — Edge/Ret% for the *best* bookie is
+      just whichever bookie column's own figure happens to be highlighted.
+      Scratched placeholder rows now carry their "Scratched" label in the
+      runner-name cell instead of the (now-removed) last column. Verified
+      against mock data via a local static preview before committing.

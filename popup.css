@@ -277,6 +277,11 @@ table {
   font-style: italic;
 }
 
+.scratched-tag {
+  margin-left: 6px;
+  font-size: 11px;
+}
+
 /* The headline summary column — the highest price across every bookmaker
    compared, plus a badge naming which one(s) it came from. */
 .col-best-price {
@@ -439,6 +444,25 @@ th:first-child {
 
 .edge-negative {
   color: var(--accent-neg);
+}
+
+/* A bookmaker's own price cell — that bookie's own Edge%/Ret% (against
+   its own price, not just the best one) stacked beneath its price,
+   same treatment as the liquidity figure under Back/Lay, replacing the
+   old dedicated Edge column. */
+.stacked-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.3;
+}
+
+.stacked-cell .cell-price {
+  font-weight: 600;
+}
+
+.stacked-cell .cell-sub {
+  font-size: 10px;
 }
 
 .lay-dollars {

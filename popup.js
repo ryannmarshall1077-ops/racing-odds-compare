@@ -167,6 +167,20 @@ function metricPercent(runner, commission, hedge) {
     : edgePercent(runner.betfair, price, commission, hedge);
 }
 
+// Same Edge%/Ret% formula as metricPercent, but against one specific
+// bookmaker's own price rather than always the best across all of them —
+// this is what's now shown underneath each bookie's own price cell
+// (see bookieCellHtml), instead of a single dedicated Edge column that
+// only ever reflected the best bookmaker. null when that bookie has no
+// price for this runner yet, so the cell can render "—" instead of a
+// misleading 0%/-100%.
+function bookieMetricPercent(runner, price, commission, hedge) {
+  if (price == null) return null;
+  return currentMode === "bonus"
+    ? bonusRetentionPercent(runner.betfair, price, commission, hedge)
+    : edgePercent(runner.betfair, price, commission, hedge);
+}
+
 function rowLayDollars(runner, commission, hedge) {
   const price = bestBookmakerPrices(runner).price ?? 0;
   return currentMode === "bonus"
@@ -229,6 +243,19 @@ function backLayCellHtml(backPrice, backLiquidity, layPrice, layLiquidity) {
   </span>`;
 }
 
+// A bookmaker's own price cell: the price on top, that bookie's own Edge%/
+// Ret% (bookieMetricPercent, against this specific price rather than
+// always the best one) stacked beneath it — replaces the old dedicated
+// Edge column, same stacked-cell treatment as Back/Lay's liquidity.
+function bookieCellHtml(price, metric) {
+  if (price == null) return "—";
+  const metricClass = metric == null ? "" : metric >= 0 ? "edge-positive" : "edge-negative";
+  const metricText = metric == null ? "—" : `${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%`;
+  return `<span class="stacked-cell"><span class="cell-price">${price.toFixed(
+    2
+  )}</span><span class="cell-sub ${metricClass}">${metricText}</span></span>`;
+}
+
 // What you'd owe if the lay bet loses (the backed selection wins) — the
 // standard exchange lay-liability formula, stake × (odds - 1). Unlike
 // Liquidity this is always computable from data already on the row (no
@@ -268,9 +295,6 @@ function renderRace(race) {
   document.getElementById("race-subtitle").textContent =
     `${race.sportLabel || "Horse Racing"} — ${race.race}`;
 
-  document.getElementById("metric-header").textContent =
-    currentMode === "bonus" ? "Ret%" : "Edge";
-
   // Shown once Betfair settles the market and this race is still the one
   // loaded — refreshRace() (manual click, or the ~60s auto-refresh alarm)
   // is what actually detects this (race.winner, set from Betfair's own
@@ -295,10 +319,9 @@ function renderRace(race) {
   const hedge = hedgePercent / 100;
 
   let rows = sortedRunners(race, commission, hedge).map((runner) => {
-    const metric = metricPercent(runner, commission, hedge);
     const layDollars = rowLayDollars(runner, commission, hedge);
     const liability = liabilityFor(layDollars, runner.betfair);
-    return { runner, metric, layDollars, liability };
+    return { runner, layDollars, liability };
   });
 
   // Max liability filters displayed rows entirely (not just a visual
@@ -310,7 +333,7 @@ function renderRace(race) {
     rows = rows.slice(0, currentSettings.maxResults);
   }
 
-  for (const { runner, metric, layDollars, liability } of rows) {
+  for (const { runner, layDollars, liability } of rows) {
     const row = document.createElement("tr");
     if (runner.result === "WINNER") row.className = "winner-row";
 
@@ -324,7 +347,8 @@ function renderRace(race) {
     const bookieCells = BOOKIE_LIST.map((b) => {
       const price = runner.bookmakers?.[b.id];
       const bestClass = bestBookieIds.includes(b.id) ? " best-price" : "";
-      return `<td class="col-bookie${bestClass}">${price != null ? price.toFixed(2) : "—"}</td>`;
+      const bookieMetric = bookieMetricPercent(runner, price, commission, hedge);
+      return `<td class="col-bookie${bestClass}">${bookieCellHtml(price, bookieMetric)}</td>`;
     }).join("");
 
     row.innerHTML = `
@@ -343,9 +367,6 @@ function renderRace(race) {
       ${bookieCells}
       <td class="lay-dollars" title="Click to copy">${layDollars.toFixed(2)}</td>
       <td class="col-liability">${liability.toFixed(2)}</td>
-      <td class="${metric >= 0 ? "edge-positive" : "edge-negative"}">
-        ${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%
-      </td>
     `;
 
     tbody.appendChild(row);
@@ -362,13 +383,12 @@ function renderRace(race) {
     const row = document.createElement("tr");
     row.className = "scratched-row";
     row.innerHTML = `
-      <td>${runner.name}</td>
+      <td>${runner.name} <em class="scratched-tag">Scratched</em></td>
       <td class="col-best-price">—</td>
       <td class="col-backlay">${backLayCellHtml(null, null, null, null)}</td>
       ${BOOKIE_LIST.map(() => "<td>—</td>").join("")}
       <td>—</td>
       <td class="col-liability">—</td>
-      <td><em>Scratched</em></td>
     `;
     tbody.appendChild(row);
   }
@@ -389,7 +409,6 @@ function renderRace(race) {
     ),
     "<td></td>",
     `<td class="col-liability"></td>`,
-    "<td></td>",
   ];
   document.getElementById("odds-foot").innerHTML = `<tr>${marketCells.join("")}</tr>`;
 
