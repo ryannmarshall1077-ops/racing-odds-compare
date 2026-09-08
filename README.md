@@ -697,3 +697,17 @@ https://developer.betfair.com/.
         re-coloured with that exact custom colour immediately on closing
         the modal — and separately confirmed the same `.ev-band` markup
         renders correctly on the standalone options.html page too.
+      - **Follow-up, same session**: user-reported "sort order looks
+        wrong" in Bonus mode — the sort itself was correct
+        (monotonically descending), but rows below the lowest tier's
+        threshold still fell back to the *old* plain green-for-positive
+        colour, which visually outranked the properly-tiered orange rows
+        sitting right above them. Bonus's default lowest threshold (50%)
+        makes this common, not a rare edge case — a legitimately-worse
+        42% Ret% rendered the same green as a genuinely excellent 90%
+        Ret%. Fixed `edgeMetricHtml`: a positive value below every tier
+        now gets no colour at all (plain default text) instead of green;
+        a negative one still falls back to the original red. Verified via
+        `edgeMetricHtml` directly against the exact values from the
+        user's screenshot (42.5/39.3/35.7/20.0/9.4 -> plain,
+        53.1/50.0 -> tier 1 orange, -5 -> red) before shipping.
