@@ -962,3 +962,15 @@ https://developer.betfair.com/.
       local popup preview harness with mock data's scratched runner
       ("6. Lucky Number"): unchecking hides the row immediately,
       re-checking brings it straight back.
+- [x] Restyled the Upcoming Races sport-filter pills (Thoroughbred/
+      Harness/Greyhound) to match a reference screenshot: a coloured
+      circular letter badge (T/H/G) + label inside a tinted, coloured-
+      border pill, using the same per-sport colours the sidebar's own
+      race-sport-badge already uses (`--back-color`/`--amber`/
+      `--accent`) rather than new one-off colours. Toggled-off stays
+      the plain neutral outline it already was. Renamed the Horse
+      filter's label/letter from "Horse"/R to "Thoroughbred"/T — purely
+      a display change for this one row; `RACE_TYPE_CODE` (bookies.js,
+      used for TAB URLs elsewhere) is untouched. Verified via the local
+      popup preview harness: matches the reference styling, and
+      toggling a pill off/on still filters the list correctly.

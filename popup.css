@@ -97,12 +97,16 @@ h1 {
 }
 
 .race-type-btn {
-  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 8px;
   color: var(--muted);
   font-size: 11px;
-  padding: 3px 9px;
+  font-weight: 600;
+  padding: 4px 10px 4px 5px;
   cursor: pointer;
 }
 
@@ -110,11 +114,53 @@ h1 {
   border-color: var(--accent);
 }
 
-.race-type-btn.active {
-  background: var(--accent);
+/* Toggled off (selectedRaceTypes no longer has this type) — falls back
+   to the plain neutral look above instead of a per-sport tint. */
+.race-type-letter {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  background: var(--border);
+  color: var(--muted);
+}
+
+/* Active tint per sport — same colours the sidebar's own
+   race-sport-badge (R/H/G, further down) already uses, not new
+   one-off colours just for this row. rgba tints are the hex value
+   above spelled out as r,g,b (CSS can't rgba() a var() directly). */
+.race-type-btn.active[data-race-type="horse"] {
+  border-color: var(--back-color);
+  background: rgba(79, 168, 245, 0.12);
+  color: var(--back-color);
+}
+.race-type-btn.active[data-race-type="harness"] {
+  border-color: var(--amber);
+  background: rgba(255, 180, 84, 0.12);
+  color: var(--amber);
+}
+.race-type-btn.active[data-race-type="greyhound"] {
   border-color: var(--accent);
+  background: rgba(61, 220, 151, 0.12);
+  color: var(--accent);
+}
+
+.race-type-btn.active[data-race-type="horse"] .race-type-letter {
+  background: var(--back-color);
   color: #0f1720;
-  font-weight: 600;
+}
+.race-type-btn.active[data-race-type="harness"] .race-type-letter {
+  background: var(--amber);
+  color: #0f1720;
+}
+.race-type-btn.active[data-race-type="greyhound"] .race-type-letter {
+  background: var(--accent);
+  color: #0f1720;
 }
 
 #track-search {
