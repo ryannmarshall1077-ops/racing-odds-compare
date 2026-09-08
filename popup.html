@@ -26,9 +26,28 @@
 
         <input type="search" id="track-search" placeholder="🔍 Search track..." />
 
-        <ul id="races-list">
-          <li class="races-status">Loading...</li>
-        </ul>
+        <!-- Races that resulted in the last 10 minutes (background.js
+             confirms this by checking each once its start time has
+             passed — see checkPendingResults) — hidden entirely rather
+             than shown empty until there's at least one. Collapsed by
+             default, same as the reference this is modelled on. -->
+        <div id="past-races-section" class="races-group" hidden>
+          <button id="past-races-toggle" class="races-group-header">
+            <span class="races-group-chevron">&#9662;</span>
+            <span class="races-group-label">Past</span>
+            <span id="past-races-count" class="races-count-badge"></span>
+          </button>
+          <ul id="past-races-list" class="races-list"></ul>
+        </div>
+
+        <div class="races-group">
+          <p class="races-group-header races-group-header-static">
+            <span class="races-group-label">Today</span>
+          </p>
+          <ul id="races-list" class="races-list">
+            <li class="races-status">Loading...</li>
+          </ul>
+        </div>
       </aside>
 
       <main id="main-panel">
