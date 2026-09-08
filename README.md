@@ -1246,3 +1246,27 @@ https://developer.betfair.com/.
         status on *every* refresh of the selected race, so nothing
         gets filtered out regardless of what those values turn out to
         be this time.
+      - **Follow-up, same session**: the unconditional diagnostic gave
+        a definitive answer — `book.status=OPEN, winner=null` for a
+        race Betfair's own page already showed "Closed" with a named
+        winner on. REST genuinely doesn't catch up to a settled
+        result for a long while on a Delayed key — the same class of
+        problem marketStatus/totalMatched already hit this session,
+        just longer-lasting than either. Fixed the same way, again:
+        `betfairWatcher.js` now also scrapes the winning runner's name
+        directly off the page (`.runner-line.winner-runner
+        .runner-name` — confirmed absent on a genuinely still-open
+        market, confirmed present with the real winner's name on a
+        resulted one, checked live on both). Matched against this
+        race's own runner names via `normalizeName` (strips the
+        box-number prefix Betfair's plain DOM name lacks but its own
+        catalogue name has) — no fuzzy matching needed, both sides are
+        Betfair's own name for the same runner. `applyBetfairOdds`
+        marks that runner `WINNER` and sets `race.winner`; made that
+        sticky in `refreshRaceInner`'s own per-runner REST mapping too
+        (same reasoning as `alreadyConfirmedNonOpen`), since without
+        that the very next ~60s REST poll — still reading a stale
+        pre-result status — would silently erase it again. The
+        existing winner-banner and in-table "Winner" tag (already
+        keyed off `runner.result === "WINNER"`, regardless of source)
+        needed no changes at all to pick this up.
