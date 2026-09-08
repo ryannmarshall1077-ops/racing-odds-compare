@@ -769,3 +769,56 @@ https://developer.betfair.com/.
         correctly showed only the 3 same-track races in ascending order,
         and clicking one updated `selectedMarketId` and the sidebar's own
         "selected" highlight immediately.
+- [x] "Past" section in Upcoming Races — races that resulted in the last
+      10 minutes, per a reference screenshot, clickable the same as any
+      upcoming race (loading them into the main table shows the winner
+      via the existing winner-banner feature — nothing new needed there):
+      - **New background.js polling**: every race `listUpcomingRacesInner`
+        sees becomes a `pendingResultChecks` candidate
+        (`seedPendingResultChecks`); each 1-minute alarm tick,
+        `checkPendingResults` batch-checks every candidate whose start
+        time has passed via `getMarketBook` (same runner-status field
+        `r.status === "WINNER"` the winner banner already uses — this
+        works for any race, not just whichever one happens to be
+        selected, since it's the exact same Betfair mechanism), moving a
+        confirmed-settled one into `recentResults` and giving up on
+        (dropping) a pending one whose start time is more than 20 minutes
+        past, covering an abandoned/void market that never actually
+        settles. The alarm tick also now calls `listUpcomingRaces()`
+        itself (not just on a manual refresh), so the candidate list
+        keeps getting fed even if the user never touches the sidebar.
+      - New `LIST_RECENT_RESULTS` message returns `recentResults` within
+        the actual 10-minute display window (storage itself keeps a
+        30-minute window, so a slightly-late check doesn't lose a result
+        right at the edge).
+      - **Sidebar restructure**: the flat race list became two named
+        groups ("Past", collapsible + a count badge; "Today") — a shared
+        `raceCardHtml(race, {isPast})` renders both, replacing the old
+        single-line `.race-row`/emoji-prefix rows with a card style
+        matching the reference (a coloured sport-letter badge —
+        `RACE_TYPE_CODE`, bookies.js, reusing the same scheme and colour
+        variables already used elsewhere rather than introducing new
+        ones — a live dot or "Closed" pill, and a right-aligned time that
+        counts a different direction per group: forward to an upcoming
+        jump, backward from a past one's settlement). `selectRace(race)`,
+        extracted from the sidebar list's own click handler in #61, is
+        what both groups' rows call.
+      - Click handling is delegated once per `<ul>` (bound at setup, not
+        re-bound inside the render functions — those rebuild `innerHTML`
+        on every refresh, so re-adding a delegated listener each time
+        would have fired it that many times over per click) and looks the
+        clicked race up fresh from `latestRaces`/`recentResults` rather
+        than closing over a snapshot, so a stale reference was never a
+        risk to begin with.
+      - Deliberately left out the reference's "AU AUS" country/state
+        subtitle — we don't have a clean equivalent for past results (the
+        commission table's `TRACK_STATE_MAP` isn't exposed to popup.js,
+        and adding it felt like scope creep on top of an already large
+        change) — just the formatted start time instead.
+      - Verified against an injected mock `LIST_RECENT_RESULTS` response
+        (2 settled races at different tracks/times) via a local static
+        preview: the section rendered both cards correctly (badge, pill,
+        title, elapsed time counting up live), the collapse toggle
+        correctly hid/showed the list, and clicking a past race's card
+        correctly updated `selectedMarketId` the same way clicking an
+        upcoming one already did.

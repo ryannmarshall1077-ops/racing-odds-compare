@@ -150,7 +150,56 @@ h1 {
   filter: invert(0.6);
 }
 
-#races-list {
+/* Two groups stacked in the sidebar — "Past" (races settled in the last
+   10 minutes, collapsible, hidden entirely when there's nothing to show
+   — see renderPastRacesList) above "Today" (the existing upcoming-races
+   list) — matching a reference screenshot. */
+.races-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.races-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 14px 4px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.races-group-header-static {
+  cursor: default;
+  margin: 0;
+}
+
+.races-group-chevron {
+  display: inline-block;
+  font-size: 9px;
+  transition: transform 0.15s;
+}
+
+.races-group.collapsed .races-group-chevron {
+  transform: rotate(-90deg);
+}
+
+.races-count-badge {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10px;
+  color: var(--text);
+}
+
+.races-list {
   list-style: none;
   margin: 0;
   padding: 0 0 10px;
@@ -158,43 +207,120 @@ h1 {
   flex: 1;
 }
 
-.race-row {
+/* --- One race card, shared by "Today" and "Past" (raceCardHtml) --- */
+
+.race-card {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
   padding: 7px 14px;
   cursor: pointer;
 }
 
-.race-row:hover {
+.race-card:hover {
   background: var(--panel);
 }
 
-.race-row.selected {
+.race-card.selected {
   background: rgba(61, 220, 151, 0.1);
   border-left: 2px solid var(--accent);
 }
 
-.race-track {
-  font-size: 12px;
+/* Coloured sport-letter badge (R/H/G, RACE_TYPE_CODE — bookies.js) —
+   same colours as the race-info bar's Back/amber/accent already use
+   elsewhere, not new one-off colours just for this. */
+.race-sport-badge {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 700;
+  color: #0f1720;
 }
 
-.race-time {
-  font-size: 11px;
+.race-card.sport-horse .race-sport-badge {
+  background: var(--back-color);
+}
+
+.race-card.sport-harness .race-sport-badge {
+  background: var(--amber);
+}
+
+.race-card.sport-greyhound .race-sport-badge {
+  background: var(--accent);
+}
+
+.race-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.race-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.race-card-title {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.race-card-sub {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.race-card-time {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  padding-top: 1px;
+}
+
+.race-live-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px rgba(61, 220, 151, 0.2);
+}
+
+.race-closed-badge {
+  flex: 0 0 auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
   color: var(--muted);
 }
 
 .race-countdown {
-  font-size: 10px;
-  color: var(--accent);
-  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.race-elapsed {
   font-variant-numeric: tabular-nums;
 }
 
 .race-warn {
   color: var(--accent-neg);
   font-size: 11px;
-  margin-left: 6px;
+  margin-left: 4px;
 }
 
 .races-status {
