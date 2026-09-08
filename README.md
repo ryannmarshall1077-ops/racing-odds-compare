@@ -1060,3 +1060,21 @@ https://developer.betfair.com/.
         *other* row still relies on `pendingResultChecks`' REST-only
         status (no live DOM signal exists for a race that isn't the
         one currently open), now at least sticky per the fix above.
+- [x] Renamed the "Jumped" countdown label to "IN PLAY" per explicit
+      request, with the exact trigger rule spelled out and confirmed
+      already correct: counts normally to 0:00, keeps counting into
+      negative from there, and only switches to "IN PLAY" once the
+      market itself is confirmed non-OPEN — never on the clock alone
+      hitting zero. That's exactly what the prior fixes already do;
+      this was the label text itself (`formatCountdown`, popup.js).
+      Factored the switch condition out into its own `isRaceInPlay()`
+      so a second copy of the same rule doesn't drift out of sync —
+      needed anyway to fix a side effect the rename surfaced: "Jumps at
+      HH:MM &middot; in IN PLAY" read badly with the leftover "in"
+      prefix (harmless with the old "in Jumped" too, but more
+      noticeable now). The prefix is now its own span, hidden the
+      moment `isRaceInPlay()` is true. Verified via the local popup
+      preview harness: a race with a past start time and OPEN status
+      keeps counting down negative ("in -0m 55s"); switching
+      `marketStatus` to SUSPENDED immediately shows "IN PLAY" with the
+      "in" prefix gone.
