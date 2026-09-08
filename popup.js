@@ -312,13 +312,25 @@ function edgeTierColor(metric, mode) {
 
 // Renders one Edge%/Ret% value's class + inline colour — a matched tier
 // always wins (inline style, so a user's configured hex isn't limited to
-// whatever's expressible as a CSS class); otherwise falls back to the
-// original plain green/red-by-sign styling.
+// whatever's expressible as a CSS class).
+//
+// Below every tier's threshold: a genuinely negative value still falls
+// back to the original plain red "bad" styling, but a positive one gets
+// NO colour at all (plain default text) rather than the old green
+// fallback. Bonus's tiers commonly start well above 0 (default lowest
+// threshold: 50%) — with the old "positive -> green" fallback, a real
+// 42% Ret% (below every tier) rendered in the SAME green as a
+// legitimately excellent 90% Ret%, and visually outranked a 50% Ret%
+// that correctly earned tier 1's orange, making a table that was
+// actually sorted correctly look wrong at a glance. Confirmed against a
+// real screenshot: 42.5%/39.3%/35.7%/20.0%/9.4% (all below the 50%
+// floor) were rendering green while 53.1%/52.6%/50.0% sat right above
+// them in orange.
 function edgeMetricHtml(metric) {
   if (metric == null) return { className: "", styleAttr: "" };
   const tierColor = edgeTierColor(metric, currentMode);
   if (tierColor) return { className: "edge-tier", styleAttr: ` style="color:${tierColor}"` };
-  return { className: metric >= 0 ? "edge-positive" : "edge-negative", styleAttr: "" };
+  return { className: metric < 0 ? "edge-negative" : "", styleAttr: "" };
 }
 
 // A bookmaker's own price cell: the price on top, that bookie's own Edge%/
