@@ -1000,6 +1000,23 @@ racesRefreshBtn.addEventListener("click", () => {
 loadUpcomingRaces();
 loadRecentResults();
 
+// Keeps the sidebar's Today/Past lists from going stale while the popup
+// stays open. Without this, a race that's already jumped just sits in
+// Today showing "Jumped" forever — its own countdown correctly detects
+// that client-side, but nothing was actually re-fetching the list to
+// drop it once Betfair's own upcoming-races feed does — and a race
+// background.js has since confirmed settled never shows up in Past
+// until something asks for it again. Same ~1-minute cadence as
+// background.js's own alarm-driven refresh (no point polling faster
+// than the underlying data actually changes), and gated by the same
+// Settings > Automatically refresh toggle every other auto-refresh in
+// this extension already respects.
+setInterval(() => {
+  if (!currentSettings.autoRefresh) return;
+  loadUpcomingRaces();
+  loadRecentResults();
+}, 60 * 1000);
+
 // "Past" section collapses/expands — starts expanded each time it
 // appears (matches the reference this is modelled on, and the section
 // only shows at all once renderPastRacesList has something to put in
