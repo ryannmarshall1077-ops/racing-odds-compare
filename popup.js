@@ -400,6 +400,15 @@ function formatPercentWhole(fraction) {
   return `${Number.isInteger(pct) ? pct : pct.toFixed(1)}%`;
 }
 
+// The race-info bar's "Matched: $X" badge — total AUD matched on this
+// market so far, same figure Betfair's own market page shows as
+// "Matched: AUD X" (confirmed directly against a live market page).
+// Whole dollars with a thousands separator once it's large enough to
+// need one — Betfair's own display doesn't bother with cents either.
+function formatMatched(amount) {
+  return amount == null ? "—" : `$${Math.round(amount).toLocaleString()}`;
+}
+
 // The race-info bar's "Jumps at HH:MM" — local time, 24-hour, no seconds.
 // Deliberately not toLocaleTimeString() (which can insert AM/PM depending
 // on the user's locale) — the reference bar this matches always shows
@@ -435,6 +444,8 @@ function renderRace(race) {
     .classList.toggle("live", race.source === "live-betfair");
 
   document.getElementById("race-comms-value").textContent = formatPercentWhole(commission);
+
+  document.getElementById("race-matched-value").textContent = formatMatched(race.totalMatched);
 
   document.getElementById("race-jump-time").textContent = formatJumpTime(race.startTime);
 

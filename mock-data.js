@@ -10,6 +10,7 @@ const MOCK_RACE = {
   marketId: "1.mock",
   startTime: new Date(Date.now() + 12 * 60 * 1000).toISOString(),
   marketStatus: "OPEN",
+  totalMatched: 18452,
   source: "mock",
   bookmakerSources: { sportsbet: "placeholder", tab: "placeholder" },
   runners: [
