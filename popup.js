@@ -898,38 +898,36 @@ function renderTrackRacesRow(race) {
   }
 }
 
+// Shared by formatCountdown and formatElapsed below — "Xh Ym" once past
+// an hour, else "Xm Ys" (always 2-digit seconds), no sign of its own.
+function formatDuration(totalSeconds) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
+
 // marketStatus is a real Betfair check (OPEN/SUSPENDED/CLOSED — see
 // checkPendingResults/refreshRaceInner in background.js), not just the
 // clock — races commonly go off a few minutes late while still
 // genuinely OPEN, so the scheduled time alone passing doesn't mean it's
-// actually jumped. Unconfirmed (null/undefined — not checked yet this
-// tick) or still OPEN reads as "Delayed" instead of overclaiming
-// "Jumped".
+// actually jumped. Confirmed non-OPEN reads as "Jumped"; otherwise this
+// just keeps counting past zero into negative (same shape as
+// formatElapsed) rather than switching to a static "Delayed" label, so
+// it's still obviously live and ticking rather than looking stuck.
 function formatCountdown(startTimeIso, marketStatus) {
   const diffMs = new Date(startTimeIso).getTime() - Date.now();
-  if (diffMs <= 0) return marketStatus && marketStatus !== "OPEN" ? "Jumped" : "Delayed";
-
-  const totalSeconds = Math.floor(diffMs / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+  if (diffMs > 0) return formatDuration(Math.floor(diffMs / 1000));
+  if (marketStatus && marketStatus !== "OPEN") return "Jumped";
+  return `-${formatDuration(Math.floor(-diffMs / 1000))}`;
 }
 
 // The "Past" section's own time — how long ago a race settled, counting
-// backward instead of forward. Same hours/minutes/seconds shape as
-// formatCountdown, just negated, to read as "this happened X ago"
-// alongside the "Today" section's "this happens in X" countdowns.
+// backward instead of forward, same shape as formatCountdown's own
+// negative case once a race is past its scheduled time.
 function formatElapsed(settledAtMs) {
   const totalSeconds = Math.max(0, Math.floor((Date.now() - Number(settledAtMs)) / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (hours > 0) return `-${hours}h ${minutes}m`;
-  return `-${minutes}m ${String(seconds).padStart(2, "0")}s`;
+  return `-${formatDuration(totalSeconds)}`;
 }
 
 // Ticks every second, independent of whenever the races list was last
