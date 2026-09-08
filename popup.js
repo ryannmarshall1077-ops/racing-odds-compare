@@ -148,9 +148,51 @@ let selectedMarketId = null;
 // consistently for the whole session, not just at startup.
 let currentSettings = DEFAULT_SETTINGS;
 
+// Settings opens as an in-page modal (popup.html) rather than navigating
+// to a separate options.html tab — options.js manages every field inside
+// it exactly as it already did on the standalone options page (same ids,
+// unmodified), so this is purely about where that UI is shown, not how it
+// works. Right-click "Options" on the toolbar icon still opens the
+// standalone page too.
+const settingsModal = document.getElementById("settings-modal");
+
 document.getElementById("settings-btn").addEventListener("click", () => {
-  chrome.runtime.openOptionsPage();
+  settingsModal.hidden = false;
 });
+
+// Settings changed via the modal go straight to chrome.storage.sync
+// (options.js's own auto-save) — this re-reads them into the live session
+// the moment the modal closes, so e.g. toggling "Show liquidity" is
+// visible immediately without needing a manual reload. Deliberately only
+// the *display* settings (see applyDisplaySettings) — Default Mode/Sort/
+// Stake/Hedge/Race Types stay session-only once already loaded, same as
+// changing them live in the popup never overwrites the Settings page's
+// own Default* fields either.
+function closeSettingsModal() {
+  settingsModal.hidden = true;
+  loadSettings().then(applyDisplaySettings);
+}
+
+document.getElementById("settings-close-btn").addEventListener("click", closeSettingsModal);
+document.getElementById("settings-done-btn").addEventListener("click", closeSettingsModal);
+
+// Clicking the dimmed backdrop closes it too, standard modal UX — but not
+// clicks that started inside the panel and merely bubbled up to it (e.g. a
+// drag-select that ends outside).
+settingsModal.addEventListener("mousedown", (event) => {
+  if (event.target === settingsModal) closeSettingsModal();
+});
+
+for (const tabBtn of document.querySelectorAll(".modal-tab-btn")) {
+  tabBtn.addEventListener("click", () => {
+    for (const btn of document.querySelectorAll(".modal-tab-btn")) {
+      btn.classList.toggle("active", btn === tabBtn);
+    }
+    for (const panel of document.querySelectorAll(".modal-tab-panel")) {
+      panel.hidden = panel.dataset.tab !== tabBtn.dataset.tab;
+    }
+  });
+}
 
 function parseRunnerNumber(name) {
   const match = name.match(/^(\d+)\./);
@@ -785,6 +827,26 @@ for (const btn of document.querySelectorAll(".race-type-btn")) {
   });
 }
 
+// The settings that apply live, for the whole session, every time they
+// change — as opposed to Default Mode/Sort/Stake/Hedge/Race Types below,
+// which only ever SEED the session once at startup (changing them later
+// via the Settings modal deliberately doesn't retroactively overwrite
+// whatever the user's already set live in this session, same reasoning as
+// live changes never overwriting the Settings page's own Default* fields
+// either). Called once at startup and again every time the Settings modal
+// closes, so e.g. toggling "Show liquidity" takes effect immediately.
+function applyDisplaySettings(settings) {
+  currentSettings = settings;
+
+  document.documentElement.style.setProperty("--accent", settings.accentColor);
+  document.body.classList.toggle("compact-rows", settings.compactRows);
+  document.body.classList.toggle("hide-liquidity", !settings.showLiquidityColumn);
+  document.body.classList.toggle("show-liability", settings.showLiabilityColumn);
+
+  if (currentRace) renderRace(currentRace);
+  if (latestRaces.length > 0) renderFilteredRacesList();
+}
+
 // Applies the user's saved Settings-page defaults over the hardcoded
 // fallbacks above. Runs concurrently with (not before) the liveRace/
 // upcomingRaces loads already kicked off above — whichever finishes last
@@ -795,7 +857,7 @@ for (const btn of document.querySelectorAll(".race-type-btn")) {
 // re-renders whatever's already on screen rather than leaving it stuck on
 // the hardcoded defaults.
 loadSettings().then((settings) => {
-  currentSettings = settings;
+  applyDisplaySettings(settings);
 
   currentMode = settings.defaultMode;
   sortMode = settings.defaultSort;
@@ -810,12 +872,4 @@ loadSettings().then((settings) => {
   for (const btn of document.querySelectorAll(".race-type-btn")) {
     btn.classList.toggle("active", selectedRaceTypes.has(btn.dataset.raceType));
   }
-
-  document.documentElement.style.setProperty("--accent", settings.accentColor);
-  document.body.classList.toggle("compact-rows", settings.compactRows);
-  document.body.classList.toggle("hide-liquidity", !settings.showLiquidityColumn);
-  document.body.classList.toggle("show-liability", settings.showLiabilityColumn);
-
-  if (currentRace) renderRace(currentRace);
-  if (latestRaces.length > 0) renderFilteredRacesList();
 });
