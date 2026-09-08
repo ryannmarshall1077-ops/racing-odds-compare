@@ -86,3 +86,18 @@ async function getMarketBook(appKey, sessionToken, marketIds) {
     priceProjection: { priceData: ["EX_BEST_OFFERS"] },
   });
 }
+
+// The "Top 2/3 Finish" market for the same event a WIN market belongs
+// to — same runners/selectionIds, entirely separate market (and price).
+// Needed for Run 2nd 3rd mode's own EV, which needs Pr(place) derived
+// from this market's own price, not the WIN market's. maxResults: 1
+// since an event only ever has one PLACE market.
+async function listPlaceMarket(appKey, sessionToken, eventId) {
+  return betfairApiCall(appKey, sessionToken, "listMarketCatalogue", {
+    filter: {
+      eventIds: [eventId],
+      marketTypeCodes: ["PLACE"],
+    },
+    maxResults: 1,
+  });
+}

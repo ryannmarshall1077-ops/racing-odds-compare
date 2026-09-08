@@ -1295,3 +1295,37 @@ https://developer.betfair.com/.
       race with `bookieMarketClosed: true` and a `WINNER` runner shows
       "RESULTED" (not "IN PLAY"), "in" prefix hidden, banner gone,
       winner tag still showing on the runner's own row.
+- [x] Run 2nd 3rd mode — enabled and implemented, per user-provided
+      formula:
+      ```
+      EV = Pr(win) × QL
+         + Pr(2nd or 3rd) × (bonus bet × retention% − QL)
+         + Pr(worse than 3rd) × QL
+      ```
+      QL ("qualifying loss") is the same dollar figure Mug Mode's own
+      Edge% already represents on this stake — user-confirmed: "QL is
+      just the edge in mug mode". Bonus bet value is the same as
+      Stake, not a separate amount — user-confirmed, matching how
+      Bonus Mode already reuses Stake as its own bonus-bet size.
+      Pr(win)/Pr(place) are each runner's own implied probability
+      (1/Lay price) on the WIN market and a *new* Betfair PLACE
+      market fetch respectively (`js/betfair/api.js`'s
+      `listPlaceMarket`, `background.js`'s `refreshRaceInner`) — only
+      trusted when the place market actually pays exactly 3 places
+      (`listMarketBook`'s own `numberOfWinners` field, confirmed via
+      Betfair's own docs/dev-forum before relying on it): a smaller
+      field's Top 2 Finish market would make Pr(place)−Pr(win) mean
+      Pr(2nd only), not Pr(2nd or 3rd) — silently wrong for exactly
+      the races this promo cares about most, so left `null` there
+      (renders "—", same convention as a missing bookmaker price)
+      rather than approximated. Expressed as a %-of-stake so it slots
+      into the exact same column/threshold/sorting infrastructure
+      Edge%/Ret% already use, including a real gap the mode's own
+      possible-`null` metric exposed in `sortedRunners`'s comparator
+      (never nullable before this) — fixed to sort those to the
+      bottom. Lay $/Liability are unchanged from Mug Mode (the
+      underlying qualifying bet is the same mechanic either way).
+      Verified by hand against the formula for two different runners'
+      real numbers in the local popup preview harness — both matched
+      the displayed EV% exactly — plus the graceful "—" `null` path
+      for runners without place-market data.

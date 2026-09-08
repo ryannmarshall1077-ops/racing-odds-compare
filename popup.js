@@ -49,6 +49,48 @@ function bonusRetentionPercent(betfair, bookmaker, commission, hedge) {
   return (100 * (bookmaker - 1) * (1 - c)) / (betfair - c);
 }
 
+// Run 2nd 3rd mode: EV of the qualifying bet plus a bonus bet awarded
+// only if the runner finishes 2nd or 3rd (not 1st, not worse than
+// 3rd). User-provided formula:
+//   EV = Pr(win) × QL
+//      + Pr(2nd or 3rd) × (bonusValue × retention% − QL)
+//      + Pr(worse than 3rd) × QL
+// QL ("qualifying loss") is the same dollar figure Mug Mode's own
+// Edge% already represents on this stake — user-confirmed: "QL is
+// just the edge in mug mode". bonusValue is the bonus bet's face
+// value — user-confirmed: the same as this stake, not a separate
+// fixed amount, matching how Bonus Mode already reuses the Stake
+// field as its own bonus-bet size.
+// Pr(win)/Pr(place) are both this runner's own implied probability
+// (1/Lay price) on the WIN and PLACE markets respectively; Pr(place)
+// only exists at all when the place market genuinely pays exactly 3
+// places (see background.js's own numberOfWinners check — a smaller
+// field's Top 2 Finish market would make Pr(place)-Pr(win) mean
+// Pr(2nd only), not Pr(2nd or 3rd), silently wrong for exactly the
+// races this promo cares about most). null placeBetfair (that check
+// failed, or this runner isn't in the place market at all) returns
+// null right back — same "no reliable number to show" convention
+// bookieMetricPercent already uses for a missing bookmaker price.
+// Expressed as a % of stake (like Edge%/Ret%), not a raw dollar
+// figure, so it slots into the exact same column/threshold/sorting
+// infrastructure those two already use.
+function run2nd3rdEVPercent(betfair, placeBetfair, bookmaker, commission, hedge, stake, retention) {
+  if (placeBetfair == null) return null;
+
+  const qualifyingLoss = stake * (edgePercent(betfair, bookmaker, commission, hedge) / 100);
+  const bonusValue = stake * (retention / 100);
+
+  const prWin = 1 / betfair;
+  const prPlace = 1 / placeBetfair;
+  const pr2ndOr3rd = prPlace - prWin;
+  const prWorse = 1 - prPlace;
+
+  const ev =
+    prWin * qualifyingLoss + pr2ndOr3rd * (bonusValue - qualifyingLoss) + prWorse * qualifyingLoss;
+
+  return (ev / stake) * 100;
+}
+
 function noteFor(race) {
   const systemNotePart = race.systemNote ? `${race.systemNote} ` : "";
 
@@ -110,11 +152,12 @@ let hedgePercent = 100;
 // Back stake used to compute the Lay $ column. Persists the same way.
 let stakeAmount = 50;
 
-// "mug" (standard Win back+lay) or "bonus" (SNR free/bonus bet retention).
-// Determines both which formula the Lay $ and metric columns use, and
-// what the metric column is even called (Edge vs Ret%). Persists the same
-// way as the other controls. "run2nd3rd"/"run2nd" aren't wired up yet —
-// their formulas haven't been verified.
+// "mug" (standard Win back+lay), "bonus" (SNR free/bonus bet retention),
+// or "run2nd3rd" (qualifying bet + a bonus bet only if 2nd/3rd — see
+// run2nd3rdEVPercent). Determines both which formula the Lay $ and
+// metric columns use, and what the metric column is even called (Edge/
+// Ret%/EV%). Persists the same way as the other controls. "run2nd" isn't
+// wired up yet — its own formula hasn't been provided/verified.
 let currentMode = "mug";
 
 // Which race types show up in the Upcoming Races list — "horse", "harness",
@@ -204,6 +247,17 @@ function parseRunnerNumber(name) {
 // go through these.
 function metricPercent(runner, commission, hedge) {
   const price = bestBookmakerPrices(runner).price ?? 0;
+  if (currentMode === "run2nd3rd") {
+    return run2nd3rdEVPercent(
+      runner.betfair,
+      runner.placeBetfair,
+      price,
+      commission,
+      hedge,
+      stakeAmount,
+      currentSettings.defaultRetention
+    );
+  }
   return currentMode === "bonus"
     ? bonusRetentionPercent(runner.betfair, price, commission, hedge)
     : edgePercent(runner.betfair, price, commission, hedge);
@@ -218,6 +272,17 @@ function metricPercent(runner, commission, hedge) {
 // misleading 0%/-100%.
 function bookieMetricPercent(runner, price, commission, hedge) {
   if (price == null) return null;
+  if (currentMode === "run2nd3rd") {
+    return run2nd3rdEVPercent(
+      runner.betfair,
+      runner.placeBetfair,
+      price,
+      commission,
+      hedge,
+      stakeAmount,
+      currentSettings.defaultRetention
+    );
+  }
   return currentMode === "bonus"
     ? bonusRetentionPercent(runner.betfair, price, commission, hedge)
     : edgePercent(runner.betfair, price, commission, hedge);
@@ -238,9 +303,20 @@ function sortedRunners(race, commission, hedge) {
   const runners = race.runners.filter((r) => r.result !== "REMOVED");
 
   if (sortMode === "edge") {
-    runners.sort(
-      (a, b) => metricPercent(b, commission, hedge) - metricPercent(a, commission, hedge)
-    );
+    // metricPercent can be null now (Run 2nd 3rd mode, no reliable
+    // place-market data for this runner — see run2nd3rdEVPercent) —
+    // previously always a real number for every runner, so this sort
+    // never needed a null case before. Sorts to the bottom, same "no
+    // reliable number to show" treatment as everywhere else this can
+    // happen.
+    runners.sort((a, b) => {
+      const bMetric = metricPercent(b, commission, hedge);
+      const aMetric = metricPercent(a, commission, hedge);
+      if (bMetric == null && aMetric == null) return 0;
+      if (bMetric == null) return -1;
+      if (aMetric == null) return 1;
+      return bMetric - aMetric;
+    });
   } else {
     runners.sort((a, b) => parseRunnerNumber(a.name) - parseRunnerNumber(b.name));
   }
