@@ -328,35 +328,34 @@ async function refreshRaceInner(marketId) {
 
       // Back price — display only (Edge%/Lay $/Liability all deliberately
       // keep using the Lay price above, since that's still the actual
-      // matched-betting comparison). Always REST-sourced, unlike Lay —
-      // betfairWatcher.js's Back-cell selector was never confirmed against
-      // a real logged-in Betfair session, and trusting it over REST for up
-      // to 90s (the way Lay's *verified* selector is trusted) turned out
-      // to actively serve a stale/wrong price+liquidity for a volatile
-      // runner instead of REST's current one. Falls back to the last known
-      // REST price only when this fetch got nothing (e.g. a settled
-      // market), same reasoning as the Lay side's own fallback.
+      // matched-betting comparison). Same DOM-first-then-REST pattern as
+      // Lay above, now that betfairWatcher.js's Back-cell selector is
+      // actually verified (see betfairWatcher.js) rather than guessed.
+      //
+      // A previous attempt guessed ".first-back-cell" (inferred from the
+      // Lay selector's own naming) and shipped a stale/wrong Back price
+      // for a volatile runner. Dropping DOM trust entirely "fixed" the
+      // symptom but not the real problem: real Betfair REST data (this
+      // extension uses a free Delayed application key) can itself lag up
+      // to ~180s behind the live market — confirmed here by a diagnostic
+      // showing REST kept returning a genuinely different, non-null price
+      // every refresh, not nothing. The live DOM watcher is what actually
+      // keeps Lay accurate in practice despite that same REST lag; Back
+      // needs that same near-real-time source, not less of it — just the
+      // *correct* selector this time (.last-back-cell, confirmed directly
+      // against a live, logged-in market page).
+      const backDomIsFresh =
+        existingRunner?.betfairBackPricedAt &&
+        Date.now() - existingRunner.betfairBackPricedAt < 90 * 1000;
       const restBetfairBackPrice = r.ex?.availableToBack?.[0]?.price ?? null;
       const restBetfairBackLiquidity = r.ex?.availableToBack?.[0]?.size ?? null;
-      const betfairBack = restBetfairBackPrice ?? existingRunner?.betfairBack ?? null;
-      const betfairBackLiquidity =
-        restBetfairBackLiquidity ??
-        (restBetfairBackPrice === null ? existingRunner?.betfairBackLiquidity ?? null : null);
-
-      // Diagnostic: a real comparison against Betfair's own page found one
-      // runner's Back price frozen on an old, wrong value across multiple
-      // refreshes — consistent with REST genuinely returning nothing for
-      // that runner's availableToBack (the fallback above then just keeps
-      // re-serving the stale cache, since nothing ever overwrites it). This
-      // logs the raw array whenever that happens, so the actual REST
-      // response is visible instead of guessed at again.
-      if (restBetfairBackPrice === null && existingRunner?.betfairBack != null) {
-        console.warn(
-          `No REST availableToBack for ${name} (selectionId ${selectionId}) — ` +
-            `falling back to last known ${existingRunner.betfairBack}. Raw r.ex:`,
-          r.ex
-        );
-      }
+      const betfairBack = backDomIsFresh
+        ? existingRunner.betfairBack
+        : restBetfairBackPrice ?? existingRunner?.betfairBack ?? null;
+      const betfairBackLiquidity = backDomIsFresh
+        ? existingRunner.betfairBackLiquidity ?? null
+        : restBetfairBackLiquidity ??
+          (restBetfairBackPrice === null ? existingRunner?.betfairBackLiquidity ?? null : null);
 
       // One price per bookie, keyed by id — Sportsbet keeps its historical
       // placeholder fallback (betfair×1.08) so its column was never empty
@@ -389,6 +388,7 @@ async function refreshRaceInner(marketId) {
         // separate settlement check of its own.
         result: r.status,
         ...(domIsFresh && { betfairPricedAt: existingRunner.betfairPricedAt }),
+        ...(backDomIsFresh && { betfairBackPricedAt: existingRunner.betfairBackPricedAt }),
         bookmakers,
       };
     })
@@ -683,18 +683,21 @@ async function applyBetfairOdds(odds) {
     const fresh = bySelectionId.get(runner.selectionId);
     if (fresh?.price !== undefined) {
       matched++;
-      // betfairWatcher.js may also report a Back price/liquidity here
-      // (fresh.backPrice) — deliberately ignored. That selector was never
-      // confirmed against a real logged-in Betfair session, and applying
-      // it live (bypassing refreshRace()'s own REST call entirely) is
-      // exactly what let a stale/wrong Back reading override a correct
-      // one for up to 90s. Back always comes from REST now (see
-      // refreshRaceInner) — this handler only ever touches Lay.
+      // Back side is optional — only present when betfairWatcher.js's
+      // (now verified — see betfairWatcher.js) Back-cell selector actually
+      // matched. Absent, this runner's Back price/liquidity is simply left
+      // as whatever it already was, so refreshRace()'s REST call is free
+      // to keep supplying it instead.
       return {
         ...runner,
         betfair: fresh.price,
         betfairLiquidity: fresh.liquidity ?? null,
         betfairPricedAt: Date.now(),
+        ...(fresh.backPrice !== undefined && {
+          betfairBack: fresh.backPrice,
+          betfairBackLiquidity: fresh.backLiquidity ?? null,
+          betfairBackPricedAt: Date.now(),
+        }),
       };
     }
     return runner;

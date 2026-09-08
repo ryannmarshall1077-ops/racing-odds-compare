@@ -609,3 +609,23 @@ https://developer.betfair.com/.
       rather than leave unverified, unused code in place. Only affects
       Back's *display* value — Edge%/Lay $/Liability always used Lay and
       were never affected.
+      - **Follow-up, same session**: dropping DOM trust "fixed" the
+        symptom but not the actual problem — added a diagnostic log to
+        check whether REST was returning nothing for the affected runner
+        (the assumed cause), and it never fired: REST kept returning a
+        genuinely different, non-null price every refresh. This extension
+        uses a free Delayed Betfair application key, which can itself lag
+        up to ~180s behind the live market — REST alone was never going
+        to be enough, the same way it wouldn't be for Lay either; the live
+        DOM watcher is what actually keeps Lay accurate in practice.
+        Back needed that same near-real-time source back, just the
+        *correct* selector this time. With the user's own logged-in
+        Betfair session open (via Claude in Chrome, with permission),
+        inspected a live market's real DOM directly: Back's best
+        (nearest-to-market) cell is marked `.last-back-cell`, not
+        `.first-back-cell` — the naming isn't symmetric with Lay's
+        `.first-lay-cell` the way the original guess assumed. Verified
+        `.last-back-cell`'s price+size against the page's own highlighted
+        "Back all" column for every runner in that market (including the
+        one that had been wrong) before restoring the DOM-first-then-REST
+        pattern in both `refreshRaceInner` and `applyBetfairOdds`.
