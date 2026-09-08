@@ -629,3 +629,34 @@ https://developer.betfair.com/.
         "Back all" column for every runner in that market (including the
         one that had been wrong) before restoring the DOM-first-then-REST
         pattern in both `refreshRaceInner` and `applyBetfairOdds`.
+- [x] Settings now opens as an in-page modal (dark overlay, tab strip,
+      Done button) instead of navigating to a separate options.html tab,
+      per a reference screenshot:
+      - The modal's fields share the exact same ids as options.html's own
+        copies — `options.js` manages both independently, completely
+        unmodified. Right-click "Options" on the toolbar icon still opens
+        the standalone options.html page too (Chrome requires that for the
+        context-menu entry to exist at all); the modal is an additional
+        entry point, not a replacement.
+      - The 5 accordion sections became 4 tabs (Betfair / Display /
+        Behaviour / Colours) — Tab and Window management merged into
+        Behaviour alongside Other Behaviour and Functionality, since 3
+        checkboxes didn't need their own tab.
+      - **Settings now apply live the moment the modal closes** — a real
+        gap the old separate-tab flow never had to deal with (closing that
+        tab and coming back to an already-open popup tab never
+        re-applied anything either, but it was far less noticeable there).
+        Split the old one-shot settings-application block into
+        `applyDisplaySettings` (accent colour, compact rows, liquidity/
+        liability visibility, re-rendering the current race — re-run
+        every time the modal closes) and the Default Mode/Sort/Stake/
+        Hedge/Race Types seeding (deliberately still session-start-only,
+        same reasoning as those fields already not being overwritten by
+        live in-popup changes either).
+      - Hit the same `[hidden]`-vs-class-specificity gotcha `#winner-banner`
+        already needed a fix for: `.modal-tab-panel { display: flex }`
+        outranked the browser's own `[hidden]` rule, so a "hidden" tab
+        panel still rendered until `.modal-tab-panel[hidden] { display:
+        none }` was added. Caught via an automated preview before
+        shipping — the tab buttons visually switched, but the wrong
+        panel's content kept showing underneath.

@@ -103,10 +103,186 @@
       </main>
     </div>
 
+    <!-- Settings, as an in-page modal instead of navigating to a separate
+         options.html tab (matching a reference screenshot) — right-click
+         "Options" on the toolbar icon still opens the standalone
+         options.html page too (Chrome requires that for the context-menu
+         entry to exist at all), so this is an additional entry point, not
+         a replacement. Every field below shares its id with options.html's
+         own copy — options.js manages both independently, unmodified. -->
+    <div id="settings-modal" class="modal-overlay" hidden>
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2>Settings</h2>
+          <button id="settings-close-btn" class="modal-close" title="Close">&times;</button>
+        </div>
+
+        <div class="modal-tabs">
+          <button class="modal-tab-btn active" data-tab="betfair">Betfair</button>
+          <button class="modal-tab-btn" data-tab="display">Display</button>
+          <button class="modal-tab-btn" data-tab="behaviour">Behaviour</button>
+          <button class="modal-tab-btn" data-tab="colours">Colours</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="modal-tab-panel" data-tab="betfair">
+            <p class="field-hint">
+              Sent only to Betfair's own login endpoint. Saved via Chrome Sync (your Google
+              account) so login survives a full extension reinstall &mdash; not purely local to
+              this device.
+            </p>
+            <form id="betfair-form">
+              <label>
+                Application Key
+                <input type="text" id="app-key" autocomplete="off" />
+              </label>
+              <label>
+                Betfair Username
+                <input type="text" id="username" autocomplete="off" />
+              </label>
+              <label>
+                Betfair Password
+                <input type="password" id="password" autocomplete="off" />
+              </label>
+              <button type="submit">Save &amp; Test Login</button>
+            </form>
+            <p id="betfair-status" class="status"></p>
+          </div>
+
+          <div class="modal-tab-panel" data-tab="display" hidden>
+            <label>
+              Default Mode
+              <select id="setting-default-mode">
+                <option value="mug">Mug</option>
+                <option value="bonus">Bonus</option>
+                <option value="run2nd3rd" disabled>Run 2nd 3rd (coming soon)</option>
+                <option value="run2nd" disabled>Run 2nd (coming soon)</option>
+              </select>
+            </label>
+            <label>
+              Default Sort
+              <select id="setting-default-sort">
+                <option value="edge">Edge (best first)</option>
+                <option value="number">Runner Number</option>
+              </select>
+            </label>
+            <label>
+              Default Stake ($)
+              <input type="number" id="setting-default-stake" min="0" step="1" />
+            </label>
+            <label>
+              Default Hedge (%)
+              <input type="number" id="setting-default-hedge" min="0" max="100" step="1" />
+            </label>
+            <fieldset class="checkbox-group">
+              <legend>Default Race Types</legend>
+              <label class="checkbox-label">
+                <input type="checkbox" id="setting-race-type-horse" value="horse" /> Horse
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="setting-race-type-harness" value="harness" /> Harness
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="setting-race-type-greyhound" value="greyhound" />
+                Greyhound
+              </label>
+            </fieldset>
+            <label class="checkbox-label">
+              <input type="checkbox" id="setting-show-countdowns" /> Show countdown timers on
+              Upcoming Races
+            </label>
+            <label>
+              <span class="field-name">Maximum results</span>
+              <span class="field-hint"
+                >The maximum number of runner rows to display. Leave blank for no limit.</span
+              >
+              <input type="number" id="setting-max-results" min="1" step="1" placeholder="unlimited" />
+            </label>
+            <label>
+              <span class="field-name">Betfair commission discount (%)</span>
+              <span class="field-hint"
+                >Percentage points knocked off the commission rate used everywhere &mdash; for a
+                Betfair account with a loyalty/volume discount off the standard Market Base
+                Rate.</span
+              >
+              <input
+                type="number"
+                id="setting-commission-discount"
+                min="0"
+                max="10"
+                step="0.5"
+              />
+            </label>
+            <label>
+              <span class="field-name">Default retention (%)</span>
+              <span class="field-hint"
+                >Fallback bonus-bet retention assumption for calculations that need one but can't
+                derive it from a runner's own odds (e.g. the Run 2nd 3rd EV column, once built).
+                Bonus Mode's own Ret% column always uses each runner's real odds instead &mdash;
+                this doesn't change that.</span
+              >
+              <input type="number" id="setting-default-retention" min="0" max="100" step="1" />
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="setting-show-liquidity-column" /> Show liquidity ($
+              under each Back/Lay price)
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="setting-show-liability-column" /> Show Liability column
+            </label>
+            <label>
+              <span class="field-name">Max liability ($)</span>
+              <span class="field-hint"
+                >Rows whose liability (Lay $ &times; (Betfair odds &minus; 1) &mdash; what you'd
+                owe if the lay loses) exceeds this are hidden entirely. Leave blank for no
+                limit.</span
+              >
+              <input type="number" id="setting-max-liability" min="0" step="1" placeholder="unlimited" />
+            </label>
+          </div>
+
+          <div class="modal-tab-panel" data-tab="behaviour" hidden>
+            <label class="checkbox-label">
+              <input type="checkbox" id="setting-pin-race-tabs" /> Pin Betfair/Sportsbet tabs when
+              opened
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="setting-focus-race-tabs" /> Switch focus to the race
+              tabs after opening them (default: stay on this tab)
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="setting-auto-refresh" /> Automatically refresh odds
+              every minute
+            </label>
+          </div>
+
+          <div class="modal-tab-panel" data-tab="colours" hidden>
+            <label>
+              Accent Colour
+              <input type="color" id="setting-accent-color" />
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="setting-compact-rows" /> Compact table rows
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <span id="settings-status" class="status"></span>
+          <div class="modal-footer-actions">
+            <button id="restore-defaults-btn" class="link-btn">Restore defaults</button>
+            <button id="settings-done-btn" class="modal-done-btn">Done</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="mock-data.js"></script>
     <script src="commission.js"></script>
     <script src="settings.js"></script>
     <script src="bookies.js"></script>
+    <script src="js/betfair/auth.js"></script>
+    <script src="options.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>
