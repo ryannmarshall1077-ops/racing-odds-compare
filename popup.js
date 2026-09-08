@@ -256,18 +256,18 @@ function bookieCellHtml(price, metric) {
   )}</span><span class="cell-sub ${metricClass}">${metricText}</span></span>`;
 }
 
-// The Best Price cell: that price plus its bookie badge(s) on top, and the
-// overall Edge%/Ret% it feeds (metricPercent — the same formula, against
-// this same best price) stacked beneath it — same treatment as every
-// bookie's own cell, since the Best Price column is really just "whichever
-// bookie column is currently highlighted", read together in one place.
+// The Best Price cell: price + Edge%/Ret% (metricPercent — the same
+// formula, against this same best price) stacked on the left, colour-coded
+// by sign, with the winning bookie's badge(s) vertically centered on the
+// right — a wider "card row" layout rather than the plain stacked-cell
+// treatment every other column uses, since this is the headline column.
 function bestPriceCellHtml(price, badgesHtml, metric) {
   if (price == null) return "—";
   const metricClass = metric == null ? "" : metric >= 0 ? "edge-positive" : "edge-negative";
   const metricText = metric == null ? "—" : `${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%`;
-  return `<span class="stacked-cell"><span class="cell-price"><span class="best-price-value">${price.toFixed(
+  return `<span class="best-price-cell"><span class="best-price-text"><span class="best-price-value ${metricClass}">${price.toFixed(
     2
-  )}</span>${badgesHtml}</span><span class="cell-sub ${metricClass}">${metricText}</span></span>`;
+  )}</span><span class="best-price-edge ${metricClass}">${metricText}</span></span><span class="best-price-badges">${badgesHtml}</span></span>`;
 }
 
 // What you'd owe if the lay bet loses (the backed selection wins) — the
