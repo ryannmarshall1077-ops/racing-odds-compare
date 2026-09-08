@@ -822,3 +822,15 @@ https://developer.betfair.com/.
         correctly hid/showed the list, and clicking a past race's card
         correctly updated `selectedMarketId` the same way clicking an
         upcoming one already did.
+      - **Follow-up, same session**: user-reported a race that had
+        jumped and resulted never actually showed up in Past — it just
+        sat in Today showing "Jumped" (its own countdown correctly
+        detects that client-side once its start time passes) forever.
+        Root cause: `loadUpcomingRaces()`/`loadRecentResults()` were only
+        ever called once at popup startup and once per manual refresh
+        click — background.js's own alarm was staying current
+        internally the whole time, but nothing was asking the popup to
+        re-fetch and pick that up. Added a `setInterval` (same ~1-minute
+        cadence as background.js's own alarm, gated by the same Settings
+        > Automatically refresh toggle every other auto-refresh in this
+        extension already respects) that calls both.
