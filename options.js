@@ -71,7 +71,6 @@ const settingFields = {
   defaultSort: document.getElementById("setting-default-sort"),
   defaultStake: document.getElementById("setting-default-stake"),
   defaultHedge: document.getElementById("setting-default-hedge"),
-  metricDisplay: document.getElementById("setting-metric-display"),
   showCountdowns: document.getElementById("setting-show-countdowns"),
   maxResults: document.getElementById("setting-max-results"),
   commissionDiscount: document.getElementById("setting-commission-discount"),
@@ -114,13 +113,33 @@ function applyThemeToPage(settings) {
   document.documentElement.style.setProperty("--accent", accentColor);
 }
 
+// Settings > Display > "Metric display" — a 3-way pill toggle
+// (Edge %/EV $/Off) rather than a native <select>, same custom-control
+// treatment as the EV Colours swatches below: no single form control to
+// read a .value off, so this saves itself directly on click instead of
+// going through the generic settingFields loop further down.
+const metricDisplayBtns = [...document.querySelectorAll(".metric-display-btn")];
+
+function applyMetricDisplayToForm(value) {
+  for (const btn of metricDisplayBtns) {
+    btn.classList.toggle("active", btn.dataset.value === value);
+  }
+}
+
+metricDisplayBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    applyMetricDisplayToForm(btn.dataset.value);
+    saveSettings({ metricDisplay: btn.dataset.value }).then(() => flashSettingsStatus("Saved"));
+  });
+});
+
 function applySettingsToForm(settings) {
   applyThemeToPage(settings);
   settingFields.defaultMode.value = settings.defaultMode;
   settingFields.defaultSort.value = settings.defaultSort;
   settingFields.defaultStake.value = settings.defaultStake;
   settingFields.defaultHedge.value = settings.defaultHedge;
-  settingFields.metricDisplay.value = settings.metricDisplay;
+  applyMetricDisplayToForm(settings.metricDisplay);
   settingFields.showCountdowns.checked = settings.showCountdowns;
   settingFields.maxResults.value = settings.maxResults ?? "";
   settingFields.commissionDiscount.value = settings.commissionDiscount;

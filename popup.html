@@ -199,15 +199,17 @@
               <input type="number" id="setting-default-hedge" min="0" max="100" step="1" />
             </label>
             <label>
-              <span class="field-name">Metric display</span>
+              <span class="field-name">Display</span>
               <span class="field-hint"
-                >Edge%/Ret%/EV% (whichever Mode is active) or the same figure as a dollar amount
-                &mdash; stake &times; that %, not a different calculation.</span
+                >Per-cell suffix format. Edge shows the % overlay vs fair; EV shows the dollar
+                value at the bet size above; Off hides the suffix entirely (cells show just the
+                price).</span
               >
-              <select id="setting-metric-display">
-                <option value="percent">Percent (Edge%/Ret%/EV%)</option>
-                <option value="dollar">Dollar ($, based on Stake)</option>
-              </select>
+              <span class="metric-display-toggle" id="setting-metric-display">
+                <button type="button" class="metric-display-btn" data-value="percent">Edge %</button>
+                <button type="button" class="metric-display-btn" data-value="dollar">EV $</button>
+                <button type="button" class="metric-display-btn" data-value="off">Off</button>
+              </span>
             </label>
             <fieldset class="checkbox-group">
               <legend>Default Race Types</legend>

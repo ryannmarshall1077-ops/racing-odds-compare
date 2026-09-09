@@ -35,12 +35,13 @@ const DEFAULT_SETTINGS = {
   // (see README's "EV deliberately NOT implemented" note), which does
   // need a retention *assumption* rather than a per-runner calculation.
   defaultRetention: 80,
-  // "percent" (Edge%/Ret%/EV% — whichever Mode is active) or "dollar" —
-  // same underlying figure either way (metricPercent/bookieMetricPercent,
-  // popup.js), "dollar" just shows stake × (that %/100) instead of the
-  // raw percentage. Purely a display choice — doesn't touch the
-  // formula, sorting, or the EV Colours threshold bands below (those
-  // stay percent-based regardless of this setting).
+  // "percent" (Edge %/Ret%/EV% — whichever Mode is active), "dollar"
+  // (EV $ — same underlying figure, stake × (that %/100) instead of the
+  // raw percentage), or "off" (no suffix at all — cells show just the
+  // price). Purely a display choice — doesn't touch the formula,
+  // sorting, or the EV Colours threshold bands below (those stay
+  // percent-based regardless of this setting). See formatMetric()
+  // (popup.js).
   metricDisplay: "percent",
   showLiquidityColumn: true,
   showLiabilityColumn: false,
