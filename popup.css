@@ -222,10 +222,8 @@ h1 {
   filter: invert(0.6);
 }
 
-/* Two groups stacked in the sidebar — "Past" (races settled in the last
-   10 minutes, collapsible, hidden entirely when there's nothing to show
-   — see renderPastRacesList) above "Today" (the existing upcoming-races
-   list) — matching a reference screenshot. */
+/* The sidebar's races group — "Today" (the upcoming-races list) —
+   matching a reference screenshot. */
 .races-group {
   display: flex;
   flex-direction: column;
@@ -252,25 +250,6 @@ h1 {
   margin: 0;
 }
 
-.races-group-chevron {
-  display: inline-block;
-  font-size: 9px;
-  transition: transform 0.15s;
-}
-
-.races-group.collapsed .races-group-chevron {
-  transform: rotate(-90deg);
-}
-
-.races-count-badge {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 1px 7px;
-  font-size: 10px;
-  color: var(--text);
-}
-
 .races-list {
   list-style: none;
   margin: 0;
@@ -279,7 +258,7 @@ h1 {
   flex: 1;
 }
 
-/* --- One race card, shared by "Today" and "Past" (raceCardHtml) --- */
+/* --- One race card (raceCardHtml) --- */
 
 .race-card {
   display: flex;
@@ -355,11 +334,6 @@ h1 {
   white-space: nowrap;
 }
 
-.race-winner {
-  color: var(--accent);
-  font-weight: 600;
-}
-
 .race-card-time {
   flex: 0 0 auto;
   font-size: 10px;
@@ -377,23 +351,7 @@ h1 {
   box-shadow: 0 0 0 2px rgba(61, 220, 151, 0.2);
 }
 
-.race-closed-badge {
-  flex: 0 0 auto;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 1px 5px;
-  font-size: 9px;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
 .race-countdown {
-  font-variant-numeric: tabular-nums;
-}
-
-.race-elapsed {
   font-variant-numeric: tabular-nums;
 }
 
