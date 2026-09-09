@@ -15,9 +15,26 @@
   }
 
   function scrapeRunners() {
-    const nameEls = document.querySelectorAll('[data-automation-id="racecard-outcome-name"]');
+    // Scoped to the real race card ([data-automation-id="racecard-frame"])
+    // rather than the whole document — a "Watchdog Tips" sidebar widget
+    // elsewhere on the page (data-automation-id="tips-container") reuses
+    // this exact same "racecard-outcome-name" attribute for its own
+    // tipped-selection mini-cards, so an unscoped query silently picked up
+    // extra duplicate name elements alongside the real 8 runners. Verified
+    // live: a real race showed 12 name elements (8 real + 4 duplicated
+    // tips) but only 8 real win-price elements — Math.min(names, prices)
+    // below happened to still land on 8 and pair correctly by coincidence
+    // in that exact DOM snapshot, but the tips widget can render its own
+    // elements at any point in the DOM (before this scoping fix, nothing
+    // stopped a mutation mid-render from interleaving them differently),
+    // so trusting index-pairing against an unscoped, inflated count was
+    // never actually safe — user-reported wrong odds for one specific
+    // runner traced back to exactly this.
+    const nameEls = document.querySelectorAll(
+      '[data-automation-id="racecard-frame"] [data-automation-id="racecard-outcome-name"]'
+    );
     const priceEls = document.querySelectorAll(
-      '[data-automation-id^="outcome-"][data-automation-id$="-odds-button-text"]'
+      '[data-automation-id="racecard-frame"] [data-automation-id^="outcome-"][data-automation-id$="-odds-button-text"]'
     );
 
     // The race card shows both Win and Place price columns, and both kinds
