@@ -1329,3 +1329,30 @@ https://developer.betfair.com/.
       real numbers in the local popup preview harness — both matched
       the displayed EV% exactly — plus the graceful "—" `null` path
       for runners without place-market data.
+- [x] Fixed a real runner (Sale R1's Dr Tanya) showing a wrong
+      Sportsbet price and no TAB price at all — two separate, genuine
+      bugs found by inspecting both bookies' actual live pages
+      directly for this exact race:
+      1. **Sportsbet name matching failed entirely for this one
+         runner**: Betfair's own catalogue calls it "Dr Tanya", but
+         Sportsbet *and* TAB both list it as "Dr. Tanya" — the period
+         alone broke every existing match check. `normalizeName`
+         (background.js, shared by both bookies) now strips periods
+         too, same treatment already given to apostrophes for the
+         identical reason (a genuine presence/absence difference
+         between sites, not a style difference normalizing to one
+         form would fix).
+      2. **Sportsbet's own scraper was reading duplicate DOM
+         elements**: a "Watchdog Tips" sidebar widget elsewhere on the
+         page reuses the exact same `data-automation-id=
+         "racecard-outcome-name"` attribute for its own tipped-
+         selection mini-cards. An unscoped query silently picked up
+         these too (12 name elements for an 8-runner race) — the
+         index-based name/price pairing happened to still land right
+         in the one live snapshot checked, but nothing guaranteed
+         that, since the tips widget can render at any point in the
+         DOM relative to the real race card. `sportsbetWatcher.js`'s
+         `scrapeRunners()` now scopes both its name and price queries
+         to `[data-automation-id="racecard-frame"]` (the real race
+         card only), verified live to give back exactly 8 correctly-
+         paired runners for the same race.

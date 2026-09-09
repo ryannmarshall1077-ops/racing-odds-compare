@@ -254,9 +254,17 @@ function normalizeName(name) {
   // has to go entirely. A silent match failure here doesn't error, it just
   // falls back to the synthetic betfair×1.08 placeholder price, which is
   // what actually happened and is what surfaced this.
+  //
+  // Periods get the exact same treatment, for the same reason — confirmed
+  // live: Sportsbet/TAB both list "Dr. Tanya" (with a period) for a
+  // runner Betfair's own catalogue calls plain "Dr Tanya". Stripped after
+  // the box-number-prefix replace above (which still needs its own
+  // literal period to match "1. ") rather than before, so the two don't
+  // interfere with each other.
   return name
     .replace(/^\d+\.\s*/, "")
     .replace(/['’‘`]/g, "")
+    .replace(/\./g, "")
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
