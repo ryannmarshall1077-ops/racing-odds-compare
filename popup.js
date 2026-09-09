@@ -80,13 +80,14 @@ function qualifyingLoss(stake, bestPrice, layOdds, commission, hedge) {
 // repeat for the next placing. O(n²) for 2nd, O(n³) for 3rd — trivial
 // for a racing field (n ≤ ~24).
 //
-// Replaces an earlier version of Run 2nd 3rd (PR #92) that instead read
-// Pr(place) off Betfair's own PLACE market and subtracted Pr(win) —
-// abandoned because that only ever gives Pr(2nd or 3rd) combined, never
-// Pr(2nd) alone, which Run 2nd mode genuinely needs; Harville gives
-// both from data already on hand (the WIN market alone), no separate
-// place-market API call at all (see background.js/js/betfair/api.js —
-// listPlaceMarket and friends removed alongside this).
+// Only Run 2nd mode actually uses this (see promoPlaceProb) — Run 2nd
+// 3rd uses the real Betfair PLACE market instead (background.js's own
+// placeBetfair), because the place market alone can never isolate
+// Pr(2nd) from Pr(2nd or 3rd), the one thing Run 2nd genuinely needs
+// that real market data can't give it. Real market data was user-
+// verified to disagree with this theoretical estimate by roughly 2x
+// for an actual runner in a small field, so it's preferred everywhere
+// it's actually available (i.e. everywhere except Run 2nd).
 function harvillePlaceProbs(winProbs) {
   const n = winProbs.length;
   const p2 = new Array(n).fill(0);
@@ -113,17 +114,17 @@ function harvillePlaceProbs(winProbs) {
 // regardless of finishing position — see qualifyingLoss above) plus a
 // bonus bet awarded only on the promo's own trigger placing(s). Total
 // EV is simply QL + Pr(trigger) × refund — placeProb is Pr(2nd) for Run
-// 2nd, Pr(2nd)+Pr(3rd) for Run 2nd 3rd; callers (metricPercent/
-// bookieMetricPercent) pass in whichever already applies. Refund's
-// bonus cap defaults to the stake itself ("commonly C = S" per the
-// formula doc) — same convention Bonus Mode already uses for its own
-// bonus-bet size. null placeProb (this runner was scratched or missing
-// from the Harville field — see computeHarvillePlaceProbs) returns
-// null right back, same "no reliable number to show" convention
-// bookieMetricPercent already uses for a missing bookmaker price.
-// Expressed as a % of stake (like Edge%/Ret%), not a raw dollar
-// figure, so it slots into the exact same column/threshold/sorting
-// infrastructure those two already use.
+// 2nd, Pr(2nd or 3rd) for Run 2nd 3rd; callers (metricPercent/
+// bookieMetricPercent, via promoPlaceProb) pass in whichever already
+// applies, each from its own source (see promoPlaceProb's own
+// comment). Refund's bonus cap defaults to the stake itself ("commonly
+// C = S" per the formula doc) — same convention Bonus Mode already
+// uses for its own bonus-bet size. null placeProb (no reliable source
+// for this runner — see promoPlaceProb) returns null right back, same
+// "no reliable number to show" convention bookieMetricPercent already
+// uses for a missing bookmaker price. Expressed as a % of stake (like
+// Edge%/Ret%), not a raw dollar figure, so it slots into the exact
+// same column/threshold/sorting infrastructure those two already use.
 function promoEVPercent(betfair, bookmaker, commission, hedge, stake, retention, placeProb) {
   if (placeProb == null) return null;
 
@@ -302,14 +303,16 @@ function parseRunnerNumber(name) {
 }
 
 // Harville place probabilities for the race currently loaded in the
-// table, keyed by selectionId — recomputed once per renderRace() call
-// (see its own call to computeHarvillePlaceProbs below) rather than
-// once per runner/bookie cell, since metricPercent/bookieMetricPercent
-// below get called up to 4x per runner (main + each bookie column) and
-// Harville's own O(n²)/O(n³) work has no reason to redo itself that
-// often for the exact same field. Module-level, same pattern
-// currentSettings/stakeAmount/etc. already use for "whatever's true of
-// the render currently in progress."
+// table, keyed by selectionId — used only by Run 2nd mode (see
+// promoPlaceProb; Run 2nd 3rd uses the real PLACE market instead).
+// Recomputed once per renderRace() call (see its own call to
+// computeHarvillePlaceProbs below) rather than once per runner/bookie
+// cell, since metricPercent/bookieMetricPercent below get called up to
+// 4x per runner (main + each bookie column) and Harville's own
+// O(n²)/O(n³) work has no reason to redo itself that often for the
+// exact same field. Module-level, same pattern currentSettings/
+// stakeAmount/etc. already use for "whatever's true of the render
+// currently in progress."
 let placeProbsBySelectionId = new Map();
 
 // Scratched runners and anything with no current Betfair price at all
@@ -330,15 +333,33 @@ function computeHarvillePlaceProbs(runners) {
   return bySelectionId;
 }
 
+// Pr(trigger placing) for whichever promo mode is active — the two
+// modes deliberately use different sources, not just different
+// combinations of the same one. Run 2nd 3rd uses the REAL Betfair
+// PLACE market (background.js's own placeBetfair — Pr(place) minus
+// Pr(win); null whenever that market wasn't found/didn't pay exactly
+// 3 places, same "no reliable number to show" convention as a missing
+// bookmaker price). Run 2nd uses the Harville estimate instead
+// (placeProbsBySelectionId) since the place market alone can never
+// isolate Pr(2nd) from Pr(2nd or 3rd) — user-verified live against a
+// real matched-betting tool that for Run 2nd 3rd specifically, real
+// market data and Harville's theoretical estimate can disagree by
+// roughly 2x for an actual runner in a small field, so real data wins
+// wherever it's actually available.
+function promoPlaceProb(runner) {
+  if (currentMode === "run2nd3rd") {
+    return runner.placeBetfair == null ? null : 1 / runner.placeBetfair - 1 / runner.betfair;
+  }
+  const placeProbs = placeProbsBySelectionId.get(runner.selectionId);
+  return placeProbs == null ? null : placeProbs.p2;
+}
+
 // Mode-dispatching wrappers so the rest of the file doesn't need to know
 // which formula is active — sorting, rendering, and the column header all
 // go through these.
 function metricPercent(runner, commission, hedge) {
   const price = bestBookmakerPrices(runner).price ?? 0;
   if (currentMode === "run2nd" || currentMode === "run2nd3rd") {
-    const placeProbs = placeProbsBySelectionId.get(runner.selectionId);
-    const placeProb =
-      placeProbs == null ? null : currentMode === "run2nd" ? placeProbs.p2 : placeProbs.p2 + placeProbs.p3;
     return promoEVPercent(
       runner.betfair,
       price,
@@ -346,7 +367,7 @@ function metricPercent(runner, commission, hedge) {
       hedge,
       stakeAmount,
       currentSettings.defaultRetention,
-      placeProb
+      promoPlaceProb(runner)
     );
   }
   return currentMode === "bonus"
@@ -364,9 +385,6 @@ function metricPercent(runner, commission, hedge) {
 function bookieMetricPercent(runner, price, commission, hedge) {
   if (price == null) return null;
   if (currentMode === "run2nd" || currentMode === "run2nd3rd") {
-    const placeProbs = placeProbsBySelectionId.get(runner.selectionId);
-    const placeProb =
-      placeProbs == null ? null : currentMode === "run2nd" ? placeProbs.p2 : placeProbs.p2 + placeProbs.p3;
     return promoEVPercent(
       runner.betfair,
       price,
@@ -374,7 +392,7 @@ function bookieMetricPercent(runner, price, commission, hedge) {
       hedge,
       stakeAmount,
       currentSettings.defaultRetention,
-      placeProb
+      promoPlaceProb(runner)
     );
   }
   return currentMode === "bonus"
@@ -398,12 +416,12 @@ function sortedRunners(race, commission, hedge) {
 
   if (sortMode === "edge") {
     // metricPercent can be null now (Run 2nd/Run 2nd 3rd mode, no
-    // Harville place probability for this runner — see
-    // computeHarvillePlaceProbs; only happens for a runner with no
-    // current Betfair price at all) — previously always a real number
-    // for every runner, so this sort never needed a null case before.
-    // Sorts to the bottom, same "no reliable number to show" treatment
-    // as everywhere else this can happen.
+    // reliable placeProb for this runner — see promoPlaceProb; either
+    // no current Betfair price at all, or, for Run 2nd 3rd, no place
+    // market found/it didn't pay exactly 3 places) — previously always
+    // a real number for every runner, so this sort never needed a null
+    // case before. Sorts to the bottom, same "no reliable number to
+    // show" treatment as everywhere else this can happen.
     runners.sort((a, b) => {
       const bMetric = metricPercent(b, commission, hedge);
       const aMetric = metricPercent(a, commission, hedge);
@@ -614,9 +632,9 @@ function renderRace(race) {
   currentRace = race;
   if (race.marketId) selectedMarketId = race.marketId;
 
-  // Recomputed for every render, not just Run 2nd/Run 2nd 3rd modes —
-  // cheap for a normal field size, and means switching Mode mid-session
-  // never shows a stale field's worth of Harville numbers for even one
+  // Recomputed for every render, not just Run 2nd mode — cheap for a
+  // normal field size, and means switching Mode mid-session never
+  // shows a stale field's worth of Harville numbers for even one
   // render before catching up.
   placeProbsBySelectionId = computeHarvillePlaceProbs(race.runners);
 

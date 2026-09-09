@@ -1617,3 +1617,33 @@ https://developer.betfair.com/.
         select); EV Colours' "Promo" hint text and the "Default
         retention" hint text (both files) updated to no longer call
         Run 2nd "still disabled".
+      - **Follow-up, same session**: user compared Run 2nd 3rd's own
+        output against a real matched-betting tool (BR Terminal) for
+        an actual race (Ballarat R11 greyhounds) with identical
+        underlying prices — ours read +24.8% for a runner (Ritza Old
+        Mate), BR Terminal read +9.5%. BR Terminal's own Settings
+        panel disclosed its exact formula
+        (`EV = p_win × price + p_refund × bonus_conv − 1`), which
+        turned out to be algebraically identical to ours at 0% hedge
+        (same retention/stake/fair-price-source too) — so the formula
+        itself wasn't the problem. Back-solving their own equation for
+        their implied Pr(2nd or 3rd) gave ~21.0%, against Harville's
+        own 40.1% for that exact runner — roughly 2x apart, the entire
+        gap. Concluded (user-confirmed) that BR Terminal reads Pr(2nd
+        or 3rd) straight off Betfair's real PLACE market rather than
+        estimating it — real market consensus outperforming a
+        theoretical model here. Reverted Run 2nd 3rd specifically back
+        to reading the real PLACE market (bringing back
+        `listPlaceMarket`/the place-market fetch in
+        `refreshRaceInner`/`placeBetfair`, all three removed earlier
+        this same session) — `promoPlaceProb` (popup.js) is the new
+        dispatcher: Run 2nd 3rd uses `placeBetfair` (real market, Pr(place)
+        − Pr(win), null if that market's missing or doesn't pay
+        exactly 3 places), Run 2nd still uses Harville (the place
+        market can never isolate Pr(2nd) alone). Verified in the local
+        static-preview harness with a `placeBetfair` chosen to
+        reproduce BR Terminal's own +9.5% exactly: Run 2nd 3rd now
+        matches it to the decimal, a runner with no `placeBetfair` at
+        all correctly shows "—", and Run 2nd mode is unaffected
+        (still gets a real Harville-derived number for every runner
+        regardless of `placeBetfair`).
