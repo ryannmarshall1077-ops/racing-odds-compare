@@ -416,7 +416,7 @@ async function refreshRaceInner(marketId) {
     // call — no need to query each sport separately and merge by hand.
     markets = await listWinMarkets(appKey, sessionToken, [...eventTypeIds.values()], 1);
     if (markets.length === 0) {
-      throw new Error("No upcoming AU racing WIN markets found right now.");
+      throw new Error("No upcoming AU/NZ racing WIN markets found right now.");
     }
   }
 
@@ -740,7 +740,7 @@ function normalizeVenue(name) {
   return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-// Lists upcoming AU races with a direct link to that exact race on both
+// Lists upcoming AU/NZ races with a direct link to that exact race on both
 // Betfair (built from our own marketId — always exact) and Sportsbet (built
 // by matching venue name + race number + start time against Sportsbet's own
 // NextEvents feed — falls back to no link if nothing matches closely enough).
