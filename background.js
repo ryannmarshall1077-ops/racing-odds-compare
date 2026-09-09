@@ -829,10 +829,18 @@ async function listUpcomingRacesInner() {
       // Filtered by sportsbetTypes first — without it, a horse (or
       // harness) meeting and a greyhound meeting that happen to share a
       // track name and start time could cross-match.
+      //
+      // namesMatch (not ===) for the venue itself — same whole-word-prefix
+      // treatment already used for runner names, needed here for the same
+      // reason: Sportsbet calls a track by a longer name than Betfair's
+      // plain one for the exact same venue. Confirmed live with NZ's own
+      // Cambridge: Betfair lists it as plain "Cambridge", Sportsbet as
+      // "Cambridge Synthetic" (its all-weather track) — an exact match
+      // never had a chance, this venue simply never matched at all.
       const sbMatch = sportsbetEvents.find(
         (e) =>
           sport.sportsbetTypes.includes(e.type) &&
-          normalizeVenue(e.competitionName) === normalizeVenue(track) &&
+          namesMatch(normalizeVenue(e.competitionName), normalizeVenue(track)) &&
           e.raceNumber === raceNumber &&
           Math.abs(e.startTime * 1000 - startTimeMs) < 5 * 60 * 1000
       );
