@@ -1377,3 +1377,15 @@ https://developer.betfair.com/.
       `marketCountries: ["AU"]`, filtering NZ out at the very first
       step before any of the above ever got a chance to run. Added
       `"NZ"` alongside it — the single change this needed.
+      - **Follow-up, same session**: user-reported Sportsbet not
+        loading for a real NZ race. Confirmed live: Betfair lists
+        Cambridge's track as plain "Cambridge", but Sportsbet calls
+        the exact same venue "Cambridge Synthetic" (its all-weather
+        track) — the venue-matching's exact-string check
+        (`listUpcomingRacesInner`) never had a chance, this venue
+        simply never matched Sportsbet at all. Fixed by reusing
+        `namesMatch` (the same whole-word-prefix check already used
+        for runner names, e.g. Betfair "itz trixton time" vs
+        Sportsbet "itz trixton time nz (10m)") for the venue name too,
+        instead of a second copy of the same idea — the exact same
+        style of mismatch, just one level up from runners to venues.
