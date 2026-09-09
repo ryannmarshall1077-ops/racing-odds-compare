@@ -50,6 +50,11 @@
       "matches": ["https://www.tab.com.au/racing/*"],
       "js": ["js/contentScripts/tabWatcher.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.ladbrokes.com.au/racing/*"],
+      "js": ["js/contentScripts/ladbrokesWatcher.js"],
+      "run_at": "document_idle"
     }
   ],
   "permissions": ["storage", "scripting", "tabs", "alarms"],
@@ -57,6 +62,7 @@
     "https://identitysso.betfair.com/*",
     "https://api.betfair.com/*",
     "https://*.sportsbet.com.au/*",
-    "https://www.tab.com.au/*"
+    "https://www.tab.com.au/*",
+    "https://www.ladbrokes.com.au/*"
   ]
 }
