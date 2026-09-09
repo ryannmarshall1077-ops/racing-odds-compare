@@ -35,6 +35,13 @@ const DEFAULT_SETTINGS = {
   // (see README's "EV deliberately NOT implemented" note), which does
   // need a retention *assumption* rather than a per-runner calculation.
   defaultRetention: 80,
+  // "percent" (Edge%/Ret%/EV% — whichever Mode is active) or "dollar" —
+  // same underlying figure either way (metricPercent/bookieMetricPercent,
+  // popup.js), "dollar" just shows stake × (that %/100) instead of the
+  // raw percentage. Purely a display choice — doesn't touch the
+  // formula, sorting, or the EV Colours threshold bands below (those
+  // stay percent-based regardless of this setting).
+  metricDisplay: "percent",
   showLiquidityColumn: true,
   showLiabilityColumn: false,
   // Scratched (Betfair status REMOVED) runners default to showing as

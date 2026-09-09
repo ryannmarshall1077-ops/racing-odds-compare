@@ -407,6 +407,20 @@ function edgeMetricHtml(metric) {
   return { className: "edge-tier", styleAttr: ` style="color:${color}"` };
 }
 
+// Settings > Metric display: the same Edge%/Ret%/EV% figure (whichever
+// Mode is active) either as-is, or converted to a dollar amount — stake
+// × (that %/100), not a different calculation, per the setting's own
+// hint text. Shared by every cell that shows this figure so the two
+// never drift apart on formatting.
+function formatMetric(metric) {
+  if (metric == null) return "—";
+  if (currentSettings.metricDisplay === "dollar") {
+    const dollars = stakeAmount * (metric / 100);
+    return `${dollars >= 0 ? "+" : "-"}$${Math.abs(dollars).toFixed(2)}`;
+  }
+  return `${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%`;
+}
+
 // A bookmaker's own price cell: the price on top, that bookie's own Edge%/
 // Ret% (bookieMetricPercent, against this specific price rather than
 // always the best one) stacked beneath it — replaces the old dedicated
@@ -414,7 +428,7 @@ function edgeMetricHtml(metric) {
 function bookieCellHtml(price, metric) {
   if (price == null) return "—";
   const { className, styleAttr } = edgeMetricHtml(metric);
-  const metricText = metric == null ? "—" : `${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%`;
+  const metricText = formatMetric(metric);
   return `<span class="stacked-cell"><span class="cell-price">${price.toFixed(
     2
   )}</span><span class="cell-sub ${className}"${styleAttr}>${metricText}</span></span>`;
@@ -429,7 +443,7 @@ function bookieCellHtml(price, metric) {
 function bestPriceCellHtml(price, badgesHtml, metric) {
   if (price == null) return "—";
   const { className, styleAttr } = edgeMetricHtml(metric);
-  const metricText = metric == null ? "—" : `${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%`;
+  const metricText = formatMetric(metric);
   return `<span class="best-price-cell"><span class="best-price-text"><span class="best-price-value ${className}"${styleAttr}>${price.toFixed(
     2
   )}</span><span class="best-price-edge ${className}"${styleAttr}>${metricText}</span></span><span class="best-price-badges">${badgesHtml}</span></span>`;

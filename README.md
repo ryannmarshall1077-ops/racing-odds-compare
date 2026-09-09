@@ -1455,3 +1455,33 @@ https://developer.betfair.com/.
         auto-matching existed: this works today for any race the user
         already has open in a Ladbrokes tab (matched by runner name,
         same as every other bookie), just not auto-opened.
+      - **Follow-up, same session**: user asked for auto-open on all
+        bookies. Investigated further — `ladbrokes.com.au/sitemap.xml`
+        does list real `/racing/<slug>/<guid>` URLs, but confirmed live
+        it's stale (a matching slug resolved to a meeting from 6 days
+        ago, not today's), so it can't be trusted as a live-schedule
+        source. A synthetic `.click()` on the overview page's race grid
+        also confirmed live *not* to trigger Vue's own navigation (no
+        URL change) — its handler appears to require a genuinely
+        trusted input event, which a content script can't produce.
+        User-decided: stay manual rather than ship either an unreliable
+        sitemap-based guess or `chrome.debugger`-based trusted clicks
+        (the one option that would technically work, but shows a
+        visible "this extension is debugging this browser" banner on
+        any tab it touches).
+- [x] Settings > Display > "Metric display": Edge%/Ret%/EV% (whichever
+      Mode is active) or the same figure as a dollar amount — stake ×
+      that %, not a different calculation, per the user's own framing.
+      `formatMetric()` (popup.js) is the one place both `bookieCellHtml`
+      and `bestPriceCellHtml` now go through for this, so the two can't
+      drift out of sync on formatting. Deliberately doesn't touch
+      `edgeMetricHtml`'s own colour-tier lookup — EV Colours' threshold
+      bands stay percent-based regardless of this setting, same
+      reasoning `defaultRetention`'s own comment already gives for
+      keeping a display preference separate from the underlying
+      calculation. The Market % footer row (overround, unrelated to
+      Edge/Ret%/EV% despite sharing a "%" sign) is untouched. Verified
+      in the local static-preview harness: switching the setting
+      re-renders every cell from "+8.1%"-style to "+$4.04"-style (stake
+      $50 × 8.1%), a null price still shows "—" either way, and the
+      Market % row stays a plain percentage throughout.
