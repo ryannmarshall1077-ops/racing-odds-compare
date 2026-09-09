@@ -1485,3 +1485,19 @@ https://developer.betfair.com/.
       re-renders every cell from "+8.1%"-style to "+$4.04"-style (stake
       $50 × 8.1%), a null price still shows "—" either way, and the
       Market % row stays a plain percentage throughout.
+      - **Follow-up, same session**: user wanted this to read as a
+        3-way pill toggle (Edge %/EV $/Off) rather than a `<select>`,
+        with a third "Off" option (no suffix at all — cells show just
+        the price) added alongside it. Replaced the `<select>` with
+        `.metric-display-btn` buttons (popup.html/options.html) and
+        custom click-to-save wiring in options.js (same pattern the EV
+        Colours swatches already use, since there's no single form
+        control to read a `.value` off). `formatMetric()` short-circuits
+        to `""` for "off", and `bookieCellHtml`/`bestPriceCellHtml` both
+        skip rendering the sub-line's `<span>` at all when it's empty —
+        not just an empty one — so "Off" genuinely shows just the price,
+        no stray gap. The new button styling (popup.css) is deliberately
+        *not* scoped to `#settings-modal` like its neighbours — no
+        per-page difference is needed here, so one shared rule styles
+        both the popup's modal and the standalone options.html page,
+        rather than duplicating it into options.css too.

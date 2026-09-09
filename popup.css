@@ -1013,6 +1013,42 @@ footer {
   font-weight: normal;
 }
 
+/* Settings > Display > "Metric display" (Edge %/EV $/Off) — deliberately
+   NOT scoped to #settings-modal like its neighbours above: there's no
+   per-page difference needed here (unlike input/select, which need their
+   own copy since options.css's own generic `button` rule would otherwise
+   win on options.html), so one shared rule styles both the popup's modal
+   and the standalone options.html page. Every property options.css's
+   own generic `button` rule sets is explicitly overridden here so
+   nothing leaks through on options.html. */
+.metric-display-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.metric-display-btn {
+  margin: 0;
+  padding: 6px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.metric-display-btn:hover {
+  border-color: var(--accent);
+  opacity: 1;
+}
+
+.metric-display-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0f1720;
+}
+
 #settings-modal input,
 #settings-modal select {
   background: var(--panel);

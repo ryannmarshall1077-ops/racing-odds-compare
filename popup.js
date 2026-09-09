@@ -407,12 +407,13 @@ function edgeMetricHtml(metric) {
   return { className: "edge-tier", styleAttr: ` style="color:${color}"` };
 }
 
-// Settings > Metric display: the same Edge%/Ret%/EV% figure (whichever
-// Mode is active) either as-is, or converted to a dollar amount — stake
-// × (that %/100), not a different calculation, per the setting's own
-// hint text. Shared by every cell that shows this figure so the two
-// never drift apart on formatting.
+// Settings > Display: the same Edge%/Ret%/EV% figure (whichever Mode is
+// active) as-is ("percent"), converted to a dollar amount — stake ×
+// (that %/100), not a different calculation ("dollar") — or hidden
+// entirely ("off", cells show just the price above it). Shared by every
+// cell that shows this figure so they never drift apart on formatting.
 function formatMetric(metric) {
+  if (currentSettings.metricDisplay === "off") return "";
   if (metric == null) return "—";
   if (currentSettings.metricDisplay === "dollar") {
     const dollars = stakeAmount * (metric / 100);
@@ -424,14 +425,15 @@ function formatMetric(metric) {
 // A bookmaker's own price cell: the price on top, that bookie's own Edge%/
 // Ret% (bookieMetricPercent, against this specific price rather than
 // always the best one) stacked beneath it — replaces the old dedicated
-// Edge column, same stacked-cell treatment as Back/Lay's liquidity.
+// Edge column, same stacked-cell treatment as Back/Lay's liquidity. No
+// sub-line at all (not even an empty one) once Settings > Display is
+// set to "Off".
 function bookieCellHtml(price, metric) {
   if (price == null) return "—";
   const { className, styleAttr } = edgeMetricHtml(metric);
   const metricText = formatMetric(metric);
-  return `<span class="stacked-cell"><span class="cell-price">${price.toFixed(
-    2
-  )}</span><span class="cell-sub ${className}"${styleAttr}>${metricText}</span></span>`;
+  const subHtml = metricText ? `<span class="cell-sub ${className}"${styleAttr}>${metricText}</span>` : "";
+  return `<span class="stacked-cell"><span class="cell-price">${price.toFixed(2)}</span>${subHtml}</span>`;
 }
 
 // The Best Price cell: price + Edge%/Ret% (metricPercent — the same
@@ -439,14 +441,18 @@ function bookieCellHtml(price, metric) {
 // by its EV tier (or plain green/red-by-sign, below every tier), with the
 // winning bookie's badge(s) vertically centered on the right — a wider
 // "card row" layout rather than the plain stacked-cell treatment every
-// other column uses, since this is the headline column.
+// other column uses, since this is the headline column. Same "Off" ->
+// no sub-line at all treatment as bookieCellHtml above.
 function bestPriceCellHtml(price, badgesHtml, metric) {
   if (price == null) return "—";
   const { className, styleAttr } = edgeMetricHtml(metric);
   const metricText = formatMetric(metric);
+  const subHtml = metricText
+    ? `<span class="best-price-edge ${className}"${styleAttr}>${metricText}</span>`
+    : "";
   return `<span class="best-price-cell"><span class="best-price-text"><span class="best-price-value ${className}"${styleAttr}>${price.toFixed(
     2
-  )}</span><span class="best-price-edge ${className}"${styleAttr}>${metricText}</span></span><span class="best-price-badges">${badgesHtml}</span></span>`;
+  )}</span>${subHtml}</span><span class="best-price-badges">${badgesHtml}</span></span>`;
 }
 
 // What you'd owe if the lay bet loses (the backed selection wins) — the
