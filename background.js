@@ -52,10 +52,19 @@ function sportForMarket(market) {
 // tracked-tab id lives in storage. TAB has no public race-list API like
 // Sportsbet's (js/sportsbet/api.js), so its URLs are instead built from
 // codes learned by tabMeetings.js (see tabRaceUrlFromCodes below), simply
-// absent for a race until a code for that venue's been seen.
+// absent for a race until a code for that venue's been seen. Ladbrokes
+// has neither a public feed nor a learnable code scheme (every race
+// lives at an opaque per-race GUID with no derivable pattern, and the
+// overview page's race grid has no real link to scrape one from at all
+// — confirmed live) — its own URL field is never populated at all yet
+// (see ladbrokesWatcher.js), so scrapeBookieTab's periodic re-scan for
+// it currently never actually runs (nothing ever sets ladbrokesTabId).
+// Kept wired up the same as the other two anyway, ready for whenever a
+// way to populate ladbrokesUrl is found.
 const BOOKIE_EXTRAS = {
   sportsbet: { scraperFile: "js/contentScripts/sportsbet.js", tabIdKey: "sportsbetTabId" },
   tab: { scraperFile: "js/contentScripts/tab.js", tabIdKey: "tabTabId" },
+  ladbrokes: { scraperFile: "js/contentScripts/ladbrokes.js", tabIdKey: "ladbrokesTabId" },
 };
 const BOOKIES = Object.fromEntries(
   BOOKIE_LIST.map((b) => [b.id, { ...b, ...BOOKIE_EXTRAS[b.id] }])
@@ -877,6 +886,11 @@ async function listUpcomingRacesInner() {
         // searched under "horse" — user-reported as "TAB doesn't
         // auto-load harness races".
         tabUrl: tabRaceUrlFromCodes(tabVenueCodes, track, raceType, raceNumber, market.marketStartTime),
+        // No ladbrokesUrl field at all yet — see BOOKIE_EXTRAS' own
+        // comment for why. openRaceTabs (popup.js) already treats a
+        // missing bookie URL field as "nothing to open for this one",
+        // same as it would treat an explicit null, so leaving the key
+        // out entirely here needs no special-casing there.
       };
     })
     .filter((r) => r.raceNumber !== null);
@@ -1239,6 +1253,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "BOOKMAKER_ODDS_UPDATED") {
     applyBookieOdds("sportsbet", message.odds).catch((err) =>
       console.warn("Failed to apply live Sportsbet update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  if (message.type === "LADBROKES_ODDS_UPDATED") {
+    applyBookieOdds("ladbrokes", message.odds).catch((err) =>
+      console.warn("Failed to apply live Ladbrokes update:", err.message)
     );
     return; // fire-and-forget — the content script isn't awaiting a reply
   }

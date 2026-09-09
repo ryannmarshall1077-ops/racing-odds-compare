@@ -8,6 +8,7 @@
 const BOOKIE_LIST = [
   { id: "sportsbet", label: "Sportsbet" },
   { id: "tab", label: "TAB" },
+  { id: "ladbrokes", label: "Ladbrokes" },
 ];
 
 // Single-letter race-type code shown in the compact race-info bar (e.g.

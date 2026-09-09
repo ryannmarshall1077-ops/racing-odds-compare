@@ -1409,3 +1409,49 @@ https://developer.betfair.com/.
       Verified in the local static-preview harness: the sidebar renders
       just the "Today" list with no console errors and no leftover
       "Past" header.
+- [x] Added Ladbrokes as a third bookmaker column, alongside Sportsbet
+      and TAB — user-requested. The table/footer/note rendering
+      (`bookieCellHtml`, the Market % row, `noteFor`, `bestBookmakerPrices`)
+      was already fully driven off `BOOKIE_LIST` (bookies.js), so adding
+      the id there plus a header `<th>` (popup.html) was the entire
+      popup-side change; verified in the local static-preview harness
+      with a mock Ladbrokes price on one runner and a null on another —
+      renders, sorts by best price, and shows "—" correctly with no
+      console errors.
+      - `js/contentScripts/ladbrokesWatcher.js` (persistent, mirrors
+        sportsbetWatcher.js/tabWatcher.js) and `js/contentScripts/
+        ladbrokes.js` (one-shot, mirrors tab.js) — selectors verified
+        against real Ladbrokes race pages: runner rows carry
+        `data-testid="runner-row"`, the name `data-testid="runner-name"`,
+        and Fixed Win is the first of five same-named
+        `data-testid="price-button"` elements per row (Fixed Win, Fixed
+        Place, Starting Price, Best Tote/SP, Mid Tote Place — no
+        per-column testid to key off instead, but confirmed live across
+        two different real races). A scratched runner isn't rendered as
+        a row at all on Ladbrokes (unlike TAB), so no scratched-row
+        filter was needed. Market-closed signal is
+        `data-testid="race-card-header-countdown"` — a live duration
+        ("20m") while open, a status word ("final", confirmed on an
+        already-resulted race) once closed — same "isn't a duration"
+        check as Sportsbet/TAB's own version, rather than allow-listing
+        specific wording.
+      - **Known v1 limitation**: no `ladbrokesUrl` field exists yet, so
+        clicking a race in Upcoming Races won't auto-open the matching
+        Ladbrokes tab the way it does for Sportsbet/TAB — investigated
+        live and found no way to build one. Every Ladbrokes race lives
+        at an opaque per-race GUID
+        (`/racing/<venue-slug>/<race-guid>`) with no derivable pattern
+        (unlike TAB's slug+code); the overview page's own race-number
+        grid has no real `<a href>` at all — confirmed live, it's pure
+        client-side Vue routing with no API call visible either (the
+        actual odds/race data never showed up in any captured network
+        request, so it appears to be held in the SPA's in-memory state
+        rather than fetched per-navigation). A race page's own 1-10
+        race-number tabs DO carry real hrefs to each other once you're
+        already on one, so a TAB-meetings-style "learn codes" content
+        script is possible in principle, just needs a bootstrap
+        (getting to any one race page per venue first) — not built yet.
+        Same starting point Sportsbet and TAB both had before their own
+        auto-matching existed: this works today for any race the user
+        already has open in a Ladbrokes tab (matched by runner name,
+        same as every other bookie), just not auto-opened.
