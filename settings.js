@@ -26,14 +26,14 @@ const DEFAULT_SETTINGS = {
   // Market Base Rate. 0 = no discount, matches every rate we've verified
   // so far.
   commissionDiscount: 0,
-  // NOT yet consumed by Bonus Mode's Ret% column — that's still correctly
+  // NOT consumed by Bonus Mode's Ret% column — that's still correctly
   // computed live per-runner from real odds (bonusRetentionPercent(),
   // verified against real HorsePower output). This mirrors HorsePower's
   // own "Default retention" field, which per its own hint text is a
-  // fallback/target rather than what drives their real Ret% either — held
-  // here as infrastructure for the still-unbuilt Run 2nd 3rd EV column
-  // (see README's "EV deliberately NOT implemented" note), which does
-  // need a retention *assumption* rather than a per-runner calculation.
+  // fallback/target rather than what drives their real Ret% either.
+  // Run 2nd/Run 2nd 3rd (promoEVPercent, popup.js) do need a retention
+  // *assumption* rather than a per-runner calculation, since it's a
+  // promo bonus-bet value, not a real quoted price — this is that.
   defaultRetention: 80,
   // "percent" (Edge %/Ret%/EV% — whichever Mode is active), "dollar"
   // (EV $ — same underlying figure, stake × (that %/100) instead of the
