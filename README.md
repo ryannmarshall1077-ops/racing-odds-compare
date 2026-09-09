@@ -1356,3 +1356,24 @@ https://developer.betfair.com/.
          to `[data-automation-id="racecard-frame"]` (the real race
          card only), verified live to give back exactly 8 correctly-
          paired runners for the same race.
+- [x] Added New Zealand racing. Checked every downstream piece before
+      touching anything, since most of it turned out to already
+      support NZ with zero changes needed:
+      - `commission.js` already has a full NZ track/state map and its
+        own 6% commission rate.
+      - Sportsbet's own "DOMESTIC" feed already returns real NZ races
+        (confirmed live: `country: "New Zealand"`, e.g. Cambridge,
+        Ascot Park) under its existing `australia-nz` URL scheme —
+        already matched by the manifest's existing content-script
+        patterns.
+      - TAB's own meetings pages already list NZ tracks alongside AU
+        ones (confirmed live: "Cambridge (NZL)"), and
+        `tabMeetings.js`'s venue-name scraping already strips *any*
+        parenthetical country/state code generically, not just AU
+        ones — nothing NZ-specific needed there either.
+
+      The one actual gap: Betfair's own market fetch
+      (`listWinMarkets`, `js/betfair/api.js`) hardcoded
+      `marketCountries: ["AU"]`, filtering NZ out at the very first
+      step before any of the above ever got a chance to run. Added
+      `"NZ"` alongside it — the single change this needed.

@@ -54,7 +54,15 @@ async function listWinMarkets(appKey, sessionToken, eventTypeIds, maxResults = 1
   return betfairApiCall(appKey, sessionToken, "listMarketCatalogue", {
     filter: {
       eventTypeIds,
-      marketCountries: ["AU"],
+      // NZ added alongside AU — every downstream piece (Sportsbet's own
+      // NextEvents feed, TAB's meetings pages, commission.js's own
+      // NZ:0.06 rate table) already covers NZ racing without any change;
+      // this was the one remaining place still hardcoded to AU only.
+      // Confirmed live: Sportsbet's "DOMESTIC" filter already returns
+      // real NZ races (country: "New Zealand", e.g. Cambridge, Ascot
+      // Park); TAB's own meetings page already lists NZ tracks
+      // (e.g. "Cambridge (NZL)") alongside AU ones.
+      marketCountries: ["AU", "NZ"],
       marketTypeCodes: ["WIN"],
       // Excludes markets that have already jumped — listMarketCatalogue
       // otherwise keeps returning an in-play/just-closed race until it's
