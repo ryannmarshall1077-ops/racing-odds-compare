@@ -1544,3 +1544,76 @@ https://developer.betfair.com/.
       "Colours" tab/section now holds Accent Colour, Compact table
       rows, and all 4 EV band swatches + the "below every threshold"
       one together, no dead tab, no console errors.
+- [x] Rewrote Run 2nd 3rd mode's EV formula and enabled Run 2nd mode
+      (previously disabled — no verified formula existed for it) —
+      from a full formula spec the user supplied ("Racing Edge & EV
+      Formulas" doc, not committed to the repo — a personal reference
+      file, same treatment `.devserver.ps1` already gets via
+      `.gitignore`), complete with its own worked numeric example
+      (Bendigo R11, Coconut Carter) used to verify this against.
+      - The core insight the doc corrects: a Betfair win-market lay
+        only ever pays out on win vs. not-win, so the qualifying bet's
+        own dollar result (**QL**) is the *same number* whether the
+        runner wins or finishes last — the 2nd/3rd bonus is a fully
+        separate amount added on top, not something QL gets split
+        three ways for. `EV = QL + Pr(trigger placing) × bonus`. The
+        previously-shipped formula (PR #92) mixed QL into the
+        2nd-or-3rd branch as `bonusValue − QL` instead of leaving QL
+        alone there too — algebraically wrong (verified by expanding
+        it: it reduces to `QL×(1−2×Pr(2nd or 3rd)) + Pr(2nd or 3rd)×bonusValue`,
+        not `QL + Pr(2nd or 3rd)×bonusValue`), which is why every
+        earlier worked example this session refused to line up.
+      - `qlNoHedge`/`qlFullHedge`/`qualifyingLoss` (popup.js) — QL at a
+        given Hedge %, now an explicit linear blend of the 0% and 100%
+        dollar results (`(1−h)×QL(0%) + h×QL(100%)`) rather than the
+        previous nonlinear commission-scaling approach — a deliberate,
+        different (simpler, per the doc "an approximation, not an
+        exact derivation") partial-hedge treatment than Mug/Bonus
+        modes' own `edgePercent`, which is untouched.
+      - `harvillePlaceProbs` (popup.js) — Pr(exactly 2nd)/Pr(exactly
+        3rd) for every runner, derived purely from the WIN market's
+        own raw (non-normalized) implied probabilities via the
+        Harville (1973) sequential-elimination model, a direct
+        transcription of the doc's own reference implementation.
+        Replaces reading Pr(place) off Betfair's actual PLACE market
+        and subtracting Pr(win) (PR #92) — abandoned because that only
+        ever gives Pr(2nd or 3rd) combined, never Pr(2nd) alone, which
+        Run 2nd mode genuinely needs; Harville gives both from data
+        already on hand (the WIN market alone). `listPlaceMarket`
+        (js/betfair/api.js) and the place-market fetch/`numberOfWinners`
+        check it fed (background.js's `refreshRaceInner`) are gone —
+        one fewer Betfair API call per refresh.
+      - Computed once per race (`computeHarvillePlaceProbs`, called
+        from `renderRace`) rather than once per runner/bookie cell —
+        `metricPercent`/`bookieMetricPercent` get called up to 4x per
+        runner (main + each bookie column), and Harville's own
+        O(n²)/O(n³) work has no reason to redo itself that often for
+        the same field. Cached in a module-level Map keyed by
+        selectionId, same pattern `currentSettings`/`stakeAmount`
+        already use for "whatever's true of the render in progress."
+        Scratched runners and anything with no current Betfair price
+        are excluded from the Harville field entirely.
+      - `promoEVPercent` replaces `run2nd3rdEVPercent`, shared by both
+        Run 2nd (`placeProb` = Pr(2nd) alone) and Run 2nd 3rd
+        (`placeProb` = Pr(2nd) + Pr(3rd)) — `metricPercent`/
+        `bookieMetricPercent` pass in whichever applies. Bonus's own
+        cap defaults to the stake itself ("commonly C = S" per the
+        doc), same convention Bonus Mode already uses for its own
+        bonus-bet size.
+      - Verified in the local static-preview harness against the
+        doc's own worked example (stake $50, bestPrice 17.00, lay
+        16.50, commission 8%, retention 80%): reproduces its QL($1.52
+        at 0% hedge, −$2.38 at 100%) and EV (+$9.74 at 0%, matches to
+        the cent; +$5.84 at 100% — the doc's own text says $5.85, a
+        one-cent rounding slip in the doc itself, not this
+        implementation) exactly once its own Pr(2nd or 3rd) figure is
+        plugged in directly. Also spot-checked the full Harville +
+        blend chain end-to-end on a made-up 8-runner field at 0%, 50%,
+        and 100% hedge, both modes, hand-recomputing each shown EV%
+        independently — all matched — plus a scratched runner mid-
+        session to confirm it's excluded from Harville without error.
+      - `<option value="run2nd">` un-disabled (popup.html's Mode
+        select and Default Mode select, options.html's Default Mode
+        select); EV Colours' "Promo" hint text and the "Default
+        retention" hint text (both files) updated to no longer call
+        Run 2nd "still disabled".

@@ -49,44 +49,87 @@ function bonusRetentionPercent(betfair, bookmaker, commission, hedge) {
   return (100 * (bookmaker - 1) * (1 - c)) / (betfair - c);
 }
 
-// Run 2nd 3rd mode: EV of the qualifying bet plus a bonus bet awarded
-// only if the runner finishes 2nd or 3rd (not 1st, not worse than
-// 3rd). User-provided formula:
-//   EV = Pr(win) × QL
-//      + Pr(2nd or 3rd) × (bonusValue × retention% − QL)
-//      + Pr(worse than 3rd) × QL
-// QL ("qualifying loss") is the same dollar figure Mug Mode's own
-// Edge% already represents on this stake — user-confirmed: "QL is
-// just the edge in mug mode". bonusValue is the bonus bet's face
-// value — user-confirmed: the same as this stake, not a separate
-// fixed amount, matching how Bonus Mode already reuses the Stake
-// field as its own bonus-bet size.
-// Pr(win)/Pr(place) are both this runner's own implied probability
-// (1/Lay price) on the WIN and PLACE markets respectively; Pr(place)
-// only exists at all when the place market genuinely pays exactly 3
-// places (see background.js's own numberOfWinners check — a smaller
-// field's Top 2 Finish market would make Pr(place)-Pr(win) mean
-// Pr(2nd only), not Pr(2nd or 3rd), silently wrong for exactly the
-// races this promo cares about most). null placeBetfair (that check
-// failed, or this runner isn't in the place market at all) returns
-// null right back — same "no reliable number to show" convention
+// Qualifying loss/gain (QL) — the signed dollar result of the
+// qualifying bet behind Run 2nd/Run 2nd 3rd modes' own EV below, at a
+// given Hedge %. Constant regardless of whether the runner wins or
+// finishes anywhere else: a Betfair win-market lay only ever pays out
+// on win vs. not-win, so it can't tell 2nd from last — the bonus modes'
+// promo trigger is a completely separate thing bolted on top (see
+// promoEVPercent). At 0% hedge this is just the qualifying bet's own
+// unhedged result; at 100% it's the fully commission-adjusted hedge
+// result; in between, a straight linear blend of the two — an explicit
+// approximation (not an exact partial-hedge derivation), same as the
+// formula this was built from (see the "Racing Edge & EV Formulas" doc
+// in this repo).
+function qlNoHedge(stake, bestPrice, layOdds) {
+  return stake * (bestPrice / layOdds - 1);
+}
+function qlFullHedge(stake, bestPrice, layOdds, commission) {
+  return stake * ((bestPrice * (1 - commission)) / (layOdds - commission) - 1);
+}
+function qualifyingLoss(stake, bestPrice, layOdds, commission, hedge) {
+  return (1 - hedge) * qlNoHedge(stake, bestPrice, layOdds) + hedge * qlFullHedge(stake, bestPrice, layOdds, commission);
+}
+
+// Harville (1973) place probabilities — Pr(finishes exactly 2nd) and
+// Pr(finishes exactly 3rd) for every runner in a race, derived purely
+// from each runner's own raw win probability (1/Lay price, NOT
+// renormalized to sum to 100% across the field — same raw convention
+// Mug mode's own Edge% already uses). Sequential-elimination: once a
+// runner "wins" and is removed from the field, rescale the rest and
+// repeat for the next placing. O(n²) for 2nd, O(n³) for 3rd — trivial
+// for a racing field (n ≤ ~24).
+//
+// Replaces an earlier version of Run 2nd 3rd (PR #92) that instead read
+// Pr(place) off Betfair's own PLACE market and subtracted Pr(win) —
+// abandoned because that only ever gives Pr(2nd or 3rd) combined, never
+// Pr(2nd) alone, which Run 2nd mode genuinely needs; Harville gives
+// both from data already on hand (the WIN market alone), no separate
+// place-market API call at all (see background.js/js/betfair/api.js —
+// listPlaceMarket and friends removed alongside this).
+function harvillePlaceProbs(winProbs) {
+  const n = winProbs.length;
+  const p2 = new Array(n).fill(0);
+  const p3 = new Array(n).fill(0);
+
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      if (j === i) continue;
+      p2[i] += winProbs[j] * (winProbs[i] / (1 - winProbs[j]));
+
+      for (let k = 0; k < n; k++) {
+        if (k === i || k === j) continue;
+        const remAfterJ = 1 - winProbs[j];
+        const remAfterJK = 1 - winProbs[j] - winProbs[k];
+        p3[i] += winProbs[j] * (winProbs[k] / remAfterJ) * (winProbs[i] / remAfterJK);
+      }
+    }
+  }
+
+  return { p2, p3 };
+}
+
+// Run 2nd / Run 2nd 3rd modes: EV of the qualifying bet (QL, constant
+// regardless of finishing position — see qualifyingLoss above) plus a
+// bonus bet awarded only on the promo's own trigger placing(s). Total
+// EV is simply QL + Pr(trigger) × refund — placeProb is Pr(2nd) for Run
+// 2nd, Pr(2nd)+Pr(3rd) for Run 2nd 3rd; callers (metricPercent/
+// bookieMetricPercent) pass in whichever already applies. Refund's
+// bonus cap defaults to the stake itself ("commonly C = S" per the
+// formula doc) — same convention Bonus Mode already uses for its own
+// bonus-bet size. null placeProb (this runner was scratched or missing
+// from the Harville field — see computeHarvillePlaceProbs) returns
+// null right back, same "no reliable number to show" convention
 // bookieMetricPercent already uses for a missing bookmaker price.
 // Expressed as a % of stake (like Edge%/Ret%), not a raw dollar
 // figure, so it slots into the exact same column/threshold/sorting
 // infrastructure those two already use.
-function run2nd3rdEVPercent(betfair, placeBetfair, bookmaker, commission, hedge, stake, retention) {
-  if (placeBetfair == null) return null;
+function promoEVPercent(betfair, bookmaker, commission, hedge, stake, retention, placeProb) {
+  if (placeProb == null) return null;
 
-  const qualifyingLoss = stake * (edgePercent(betfair, bookmaker, commission, hedge) / 100);
-  const bonusValue = stake * (retention / 100);
-
-  const prWin = 1 / betfair;
-  const prPlace = 1 / placeBetfair;
-  const pr2ndOr3rd = prPlace - prWin;
-  const prWorse = 1 - prPlace;
-
-  const ev =
-    prWin * qualifyingLoss + pr2ndOr3rd * (bonusValue - qualifyingLoss) + prWorse * qualifyingLoss;
+  const ql = qualifyingLoss(stake, bookmaker, betfair, commission, hedge);
+  const refund = stake * (retention / 100);
+  const ev = ql + placeProb * refund;
 
   return (ev / stake) * 100;
 }
@@ -168,12 +211,12 @@ let hedgePercent = 100;
 // Back stake used to compute the Lay $ column. Persists the same way.
 let stakeAmount = 50;
 
-// "mug" (standard Win back+lay), "bonus" (SNR free/bonus bet retention),
-// or "run2nd3rd" (qualifying bet + a bonus bet only if 2nd/3rd — see
-// run2nd3rdEVPercent). Determines both which formula the Lay $ and
-// metric columns use, and what the metric column is even called (Edge/
-// Ret%/EV%). Persists the same way as the other controls. "run2nd" isn't
-// wired up yet — its own formula hasn't been provided/verified.
+// "mug" (standard Win back+lay), "bonus" (SNR free/bonus bet
+// retention), "run2nd" (qualifying bet + a bonus bet only if 2nd), or
+// "run2nd3rd" (same, but 2nd or 3rd) — see promoEVPercent for the
+// latter two. Determines both which formula the Lay $ and metric
+// columns use, and what the metric column is even called (Edge/Ret%/
+// EV%). Persists the same way as the other controls.
 let currentMode = "mug";
 
 // Which race types show up in the Upcoming Races list — "horse", "harness",
@@ -258,20 +301,52 @@ function parseRunnerNumber(name) {
   return match ? Number(match[1]) : Infinity;
 }
 
+// Harville place probabilities for the race currently loaded in the
+// table, keyed by selectionId — recomputed once per renderRace() call
+// (see its own call to computeHarvillePlaceProbs below) rather than
+// once per runner/bookie cell, since metricPercent/bookieMetricPercent
+// below get called up to 4x per runner (main + each bookie column) and
+// Harville's own O(n²)/O(n³) work has no reason to redo itself that
+// often for the exact same field. Module-level, same pattern
+// currentSettings/stakeAmount/etc. already use for "whatever's true of
+// the render currently in progress."
+let placeProbsBySelectionId = new Map();
+
+// Scratched runners and anything with no current Betfair price at all
+// (no real win probability to feed Harville) are excluded from the
+// field entirely, same as sortedRunners already excludes scratched
+// runners from sorting/display. Raw win probabilities (1/Lay price,
+// NOT renormalized to sum to 100%) — see harvillePlaceProbs' own
+// comment for why that's the right convention here.
+function computeHarvillePlaceProbs(runners) {
+  const active = runners.filter((r) => r.result !== "REMOVED" && r.betfair != null);
+  const winProbs = active.map((r) => 1 / r.betfair);
+  const { p2, p3 } = harvillePlaceProbs(winProbs);
+
+  const bySelectionId = new Map();
+  active.forEach((r, i) => {
+    bySelectionId.set(r.selectionId, { p2: p2[i], p3: p3[i] });
+  });
+  return bySelectionId;
+}
+
 // Mode-dispatching wrappers so the rest of the file doesn't need to know
 // which formula is active — sorting, rendering, and the column header all
 // go through these.
 function metricPercent(runner, commission, hedge) {
   const price = bestBookmakerPrices(runner).price ?? 0;
-  if (currentMode === "run2nd3rd") {
-    return run2nd3rdEVPercent(
+  if (currentMode === "run2nd" || currentMode === "run2nd3rd") {
+    const placeProbs = placeProbsBySelectionId.get(runner.selectionId);
+    const placeProb =
+      placeProbs == null ? null : currentMode === "run2nd" ? placeProbs.p2 : placeProbs.p2 + placeProbs.p3;
+    return promoEVPercent(
       runner.betfair,
-      runner.placeBetfair,
       price,
       commission,
       hedge,
       stakeAmount,
-      currentSettings.defaultRetention
+      currentSettings.defaultRetention,
+      placeProb
     );
   }
   return currentMode === "bonus"
@@ -288,15 +363,18 @@ function metricPercent(runner, commission, hedge) {
 // misleading 0%/-100%.
 function bookieMetricPercent(runner, price, commission, hedge) {
   if (price == null) return null;
-  if (currentMode === "run2nd3rd") {
-    return run2nd3rdEVPercent(
+  if (currentMode === "run2nd" || currentMode === "run2nd3rd") {
+    const placeProbs = placeProbsBySelectionId.get(runner.selectionId);
+    const placeProb =
+      placeProbs == null ? null : currentMode === "run2nd" ? placeProbs.p2 : placeProbs.p2 + placeProbs.p3;
+    return promoEVPercent(
       runner.betfair,
-      runner.placeBetfair,
       price,
       commission,
       hedge,
       stakeAmount,
-      currentSettings.defaultRetention
+      currentSettings.defaultRetention,
+      placeProb
     );
   }
   return currentMode === "bonus"
@@ -319,12 +397,13 @@ function sortedRunners(race, commission, hedge) {
   const runners = race.runners.filter((r) => r.result !== "REMOVED");
 
   if (sortMode === "edge") {
-    // metricPercent can be null now (Run 2nd 3rd mode, no reliable
-    // place-market data for this runner — see run2nd3rdEVPercent) —
-    // previously always a real number for every runner, so this sort
-    // never needed a null case before. Sorts to the bottom, same "no
-    // reliable number to show" treatment as everywhere else this can
-    // happen.
+    // metricPercent can be null now (Run 2nd/Run 2nd 3rd mode, no
+    // Harville place probability for this runner — see
+    // computeHarvillePlaceProbs; only happens for a runner with no
+    // current Betfair price at all) — previously always a real number
+    // for every runner, so this sort never needed a null case before.
+    // Sorts to the bottom, same "no reliable number to show" treatment
+    // as everywhere else this can happen.
     runners.sort((a, b) => {
       const bMetric = metricPercent(b, commission, hedge);
       const aMetric = metricPercent(a, commission, hedge);
@@ -534,6 +613,12 @@ function formatJumpTime(startTimeIso) {
 function renderRace(race) {
   currentRace = race;
   if (race.marketId) selectedMarketId = race.marketId;
+
+  // Recomputed for every render, not just Run 2nd/Run 2nd 3rd modes —
+  // cheap for a normal field size, and means switching Mode mid-session
+  // never shows a stale field's worth of Harville numbers for even one
+  // render before catching up.
+  placeProbsBySelectionId = computeHarvillePlaceProbs(race.runners);
 
   // Race Result / Display > Betfair commission discount — percentage
   // points off whatever the track/sport would otherwise charge, floored
