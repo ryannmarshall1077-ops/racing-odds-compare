@@ -97,6 +97,39 @@ const raceTypeCheckboxes = {
   greyhound: document.getElementById("setting-race-type-greyhound"),
 };
 
+// Settings > Bookie — built from BOOKIE_LIST (bookies.js) rather than a
+// fixed set of ids like raceTypeCheckboxes above: bookies get added to
+// this extension over time (Sportsbet/TAB/Ladbrokes so far), and a new
+// one should show up here automatically rather than needing its own
+// checkbox added by hand every time. Each checkbox saves the full
+// selection immediately on change, same pattern as race types.
+const bookieCheckboxesEl = document.getElementById("bookie-checkboxes");
+const bookieCheckboxes = {};
+for (const bookie of BOOKIE_LIST) {
+  const label = document.createElement("label");
+  label.className = "checkbox-label";
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.id = `setting-bookie-${bookie.id}`;
+  label.append(checkbox, ` ${bookie.label}`);
+  bookieCheckboxesEl.append(label);
+  bookieCheckboxes[bookie.id] = checkbox;
+}
+
+function selectedBookiesFromForm() {
+  return Object.entries(bookieCheckboxes)
+    .filter(([, checkbox]) => checkbox.checked)
+    .map(([id]) => id);
+}
+
+for (const checkbox of Object.values(bookieCheckboxes)) {
+  checkbox.addEventListener("change", () => {
+    saveSettings({ enabledBookies: selectedBookiesFromForm() }).then(() =>
+      flashSettingsStatus("Saved")
+    );
+  });
+}
+
 // Reflects a settings object into every control on the page — used both on
 // initial load and after "Restore defaults", so the two never drift out of
 // sync with each other.
@@ -156,6 +189,10 @@ function applySettingsToForm(settings) {
 
   for (const [type, checkbox] of Object.entries(raceTypeCheckboxes)) {
     checkbox.checked = settings.defaultRaceTypes.includes(type);
+  }
+
+  for (const [id, checkbox] of Object.entries(bookieCheckboxes)) {
+    checkbox.checked = settings.enabledBookies.includes(id);
   }
 
   applyEdgeBandsToForm(settings.edgeColorBands);

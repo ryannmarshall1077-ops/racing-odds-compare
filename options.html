@@ -139,6 +139,18 @@
       </details>
 
       <details class="settings-section">
+        <summary>Bookie</summary>
+        <div class="settings-section-body">
+          <p class="field-hint">
+            Which bookmakers show as their own column in the odds table, and count toward Best
+            Price/Edge%. Unchecking one hides it everywhere without losing its odds &mdash;
+            re-check it and it picks back up immediately, no rescan needed.
+          </p>
+          <fieldset class="checkbox-group" id="bookie-checkboxes"></fieldset>
+        </div>
+      </details>
+
+      <details class="settings-section">
         <summary>Tab and Window management</summary>
         <div class="settings-section-body">
           <label class="checkbox-label">
@@ -279,6 +291,7 @@
     </div>
 
     <script src="settings.js"></script>
+    <script src="bookies.js"></script>
     <script src="js/betfair/auth.js"></script>
     <script src="options.js"></script>
   </body>

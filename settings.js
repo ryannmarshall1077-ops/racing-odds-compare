@@ -43,6 +43,18 @@ const DEFAULT_SETTINGS = {
   // percent-based regardless of this setting). See formatMetric()
   // (popup.js).
   metricDisplay: "percent",
+  // Settings > Bookie — which bookmakers (bookies.js's BOOKIE_LIST ids)
+  // actually show as their own column and count toward Best Price/Edge%
+  // right now. Hardcoded here rather than derived from BOOKIE_LIST
+  // itself, same reasoning defaultRaceTypes above already has: bookies.js
+  // loads AFTER this file in every context that loads both (popup.html's
+  // own <script> tags, background.js's importScripts), so BOOKIE_LIST
+  // wouldn't exist yet at the point this object literal runs. See
+  // visibleBookies() (popup.js) for what this actually gates — NOT the
+  // odds table's own column rendering (every bookie's cell is always
+  // generated, just hidden), so a newly-added bookie here defaults to
+  // enabled the moment it's added to this array, not silently invisible.
+  enabledBookies: ["sportsbet", "tab", "ladbrokes"],
   showLiquidityColumn: true,
   showLiabilityColumn: false,
   // Scratched (Betfair status REMOVED) runners default to showing as

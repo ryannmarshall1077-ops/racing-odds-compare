@@ -1501,3 +1501,32 @@ https://developer.betfair.com/.
         per-page difference is needed here, so one shared rule styles
         both the popup's modal and the standalone options.html page,
         rather than duplicating it into options.css too.
+- [x] Settings > "Bookie" tab — a checkbox per bookmaker (Sportsbet/
+      TAB/Ladbrokes, built from BOOKIE_LIST so a future fourth bookie
+      shows up here with no hand-added checkbox) to show/hide it as its
+      own column and, more importantly, exclude/include it from Best
+      Price/Edge% and the data-source note. `visibleBookies()`
+      (popup.js) — a settings-filtered view of BOOKIE_LIST — is now
+      what `bestBookmakerPrices`, `noteFor`, and `openRaceTabs` iterate,
+      so a disabled bookie can never win the Best Price badge and no
+      longer gets its own race tab auto-opened either. Deliberately
+      NOT what the table's own column rendering iterates, though: the
+      header (`<th data-bookie="...">`, popup.html), each body row's
+      per-bookie `<td>`, the scratched-runner placeholder row, and the
+      Market % footer row all still always generate every bookie's
+      cell (over the full, unfiltered `BOOKIE_LIST`) and hide the
+      disabled ones via their own `hidden` attribute instead — the
+      header is static markup that never regenerates, unlike the body/
+      footer, which `applyDisplaySettings` (called on startup and every
+      Settings-modal close) handles directly; the alternative
+      (skipping disabled bookies' cells outright) would have left the
+      header/body/footer column counts drifting apart from each other.
+      `bookies.js` also had to be added to options.html's own `<script>`
+      tags — it's already loaded in popup.html, but the standalone
+      options.html page never needed it before this. Verified in the
+      local static-preview harness on both pages: unchecking TAB and
+      Ladbrokes hides both columns immediately, re-computes Best Price
+      down to Sportsbet alone, drops both from the data-source note,
+      and re-checking either brings it straight back with its
+      already-cached odds — no rescan needed, and "Restore defaults"
+      correctly re-checks all three.

@@ -103,9 +103,9 @@
                     <span class="bl-cell bl-lay">Lay</span>
                   </span>
                 </th>
-                <th title="Sportsbet's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it">Sportsbet</th>
-                <th title="TAB's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it">TAB</th>
-                <th title="Ladbrokes' own price, with Edge%/Ret% (whichever Mode is active) shown beneath it">Ladbrokes</th>
+                <th data-bookie="sportsbet" title="Sportsbet's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it">Sportsbet</th>
+                <th data-bookie="tab" title="TAB's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it">TAB</th>
+                <th data-bookie="ladbrokes" title="Ladbrokes' own price, with Edge%/Ret% (whichever Mode is active) shown beneath it">Ladbrokes</th>
                 <th>Lay $</th>
                 <th class="col-liability" title="What you'd owe if the lay bet loses: Lay $ × (Betfair odds − 1)">Liability</th>
               </tr>
@@ -143,6 +143,7 @@
         <div class="modal-tabs">
           <button class="modal-tab-btn active" data-tab="betfair">Betfair</button>
           <button class="modal-tab-btn" data-tab="display">Display</button>
+          <button class="modal-tab-btn" data-tab="bookie">Bookie</button>
           <button class="modal-tab-btn" data-tab="behaviour">Behaviour</button>
           <button class="modal-tab-btn" data-tab="colours">Colours</button>
           <button class="modal-tab-btn" data-tab="ev-colours">EV Colours</button>
@@ -279,6 +280,15 @@
               >
               <input type="number" id="setting-max-liability" min="0" step="1" placeholder="unlimited" />
             </label>
+          </div>
+
+          <div class="modal-tab-panel" data-tab="bookie" hidden>
+            <p class="field-hint">
+              Which bookmakers show as their own column in the odds table, and count toward Best
+              Price/Edge%. Unchecking one hides it everywhere without losing its odds &mdash;
+              re-check it and it picks back up immediately, no rescan needed.
+            </p>
+            <fieldset class="checkbox-group" id="bookie-checkboxes"></fieldset>
           </div>
 
           <div class="modal-tab-panel" data-tab="behaviour" hidden>
