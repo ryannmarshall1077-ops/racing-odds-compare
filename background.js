@@ -432,6 +432,39 @@ async function refreshRaceInner(marketId) {
     market.runners.map((r) => [r.selectionId, r.runnerName])
   );
 
+  // Run 2nd 3rd mode's own EV needs Pr(place) from the event's separate
+  // PLACE market — same selectionIds, different market/price entirely.
+  // Only trusted when it actually pays exactly 3 places (numberOfWinners
+  // — Betfair's own PLACE markets pay 2/3/4 depending on field size): a
+  // smaller field's "Top 2 Finish" market implies Pr(1st or 2nd), and
+  // subtracting Pr(win) from that gives Pr(2nd only), not Pr(2nd or
+  // 3rd) — silently wrong for exactly the races this promo cares about
+  // most (small fields), so left null there rather than approximated.
+  // Best-effort: a missing/failed place-market lookup shouldn't block
+  // the rest of the refresh, same reasoning as the bookmaker scan
+  // fallbacks elsewhere in this function.
+  //
+  // Deliberately real market data here, not the Harville model
+  // (popup.js's harvillePlaceProbs, still used for Run 2nd mode) —
+  // user-verified live against a real matched-betting tool: Harville's
+  // own Pr(2nd or 3rd) estimate came out roughly 2x the real market's
+  // own implied figure for an actual runner in a small field. Run 2nd
+  // mode still needs Harville since the place market alone can never
+  // isolate Pr(2nd) from Pr(2nd or 3rd) — but Run 2nd 3rd doesn't have
+  // that problem, so real market data wins here instead.
+  let placeBookRunners = null;
+  try {
+    const [placeMarket] = await listPlaceMarket(appKey, sessionToken, market.event.id);
+    if (placeMarket) {
+      const [placeBook] = await getMarketBook(appKey, sessionToken, [placeMarket.marketId]);
+      if (placeBook?.numberOfWinners === 3) {
+        placeBookRunners = new Map(placeBook.runners.map((r) => [String(r.selectionId), r]));
+      }
+    }
+  } catch (err) {
+    console.warn("Place market lookup skipped:", err.message);
+  }
+
   // stored.bookmakerOdds is keyed by bookie id: { sportsbet: {runners,
   // scrapedAt}, tab: {...} } — each bookie's own cache aged out
   // independently, same MAX_AGE for all of them for now.
@@ -543,6 +576,15 @@ async function refreshRaceInner(marketId) {
             : null;
       }
 
+      // Pr(place) for Run 2nd 3rd mode's own EV — REST-only (no DOM
+      // watcher for this, unlike the WIN market's own Lay price above);
+      // a place-market price doesn't need anywhere near the same
+      // freshness for this purpose. null whenever the place market
+      // wasn't found/didn't pay exactly 3 places (placeBookRunners
+      // itself null in that case), or this specific runner isn't in it
+      // (e.g. scratched after the place market's own snapshot).
+      const placeBetfair = placeBookRunners?.get(selectionId)?.ex?.availableToLay?.[0]?.price ?? null;
+
       return {
         name,
         selectionId,
@@ -550,6 +592,7 @@ async function refreshRaceInner(marketId) {
         betfairLiquidity,
         betfairBack,
         betfairBackLiquidity,
+        placeBetfair,
         // ACTIVE pre-race, WINNER/LOSER once settled — lets the UI show
         // the result and highlight the winning row without needing a
         // separate settlement check of its own. Sticky once WINNER,
