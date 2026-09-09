@@ -68,6 +68,17 @@
             Default Hedge (%)
             <input type="number" id="setting-default-hedge" min="0" max="100" step="1" />
           </label>
+          <label>
+            <span class="field-name">Metric display</span>
+            <span class="field-hint"
+              >Edge%/Ret%/EV% (whichever Mode is active) or the same figure as a dollar amount
+              &mdash; stake &times; that %, not a different calculation.</span
+            >
+            <select id="setting-metric-display">
+              <option value="percent">Percent (Edge%/Ret%/EV%)</option>
+              <option value="dollar">Dollar ($, based on Stake)</option>
+            </select>
+          </label>
           <fieldset class="checkbox-group">
             <legend>Default Race Types</legend>
             <label class="checkbox-label">

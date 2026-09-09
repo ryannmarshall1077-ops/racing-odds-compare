@@ -71,6 +71,7 @@ const settingFields = {
   defaultSort: document.getElementById("setting-default-sort"),
   defaultStake: document.getElementById("setting-default-stake"),
   defaultHedge: document.getElementById("setting-default-hedge"),
+  metricDisplay: document.getElementById("setting-metric-display"),
   showCountdowns: document.getElementById("setting-show-countdowns"),
   maxResults: document.getElementById("setting-max-results"),
   commissionDiscount: document.getElementById("setting-commission-discount"),
@@ -119,6 +120,7 @@ function applySettingsToForm(settings) {
   settingFields.defaultSort.value = settings.defaultSort;
   settingFields.defaultStake.value = settings.defaultStake;
   settingFields.defaultHedge.value = settings.defaultHedge;
+  settingFields.metricDisplay.value = settings.metricDisplay;
   settingFields.showCountdowns.checked = settings.showCountdowns;
   settingFields.maxResults.value = settings.maxResults ?? "";
   settingFields.commissionDiscount.value = settings.commissionDiscount;
