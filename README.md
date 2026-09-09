@@ -1389,3 +1389,23 @@ https://developer.betfair.com/.
         Sportsbet "itz trixton time nz (10m)") for the venue name too,
         instead of a second copy of the same idea — the exact same
         style of mismatch, just one level up from runners to venues.
+- [x] Removed the sidebar's "Past" section (races settled in the last
+      10 minutes) — user-requested. Full removal, not just hiding the
+      UI: `checkPendingResultsInner`'s (background.js) winner-name
+      resolution (a second `listMarketsByIds` catalogue call per tick,
+      solely to build the now-removed section's rows) and the
+      `recentResults` storage field are both gone — a newly-settled
+      race is now just dropped from `pendingResultChecks` outright,
+      one fewer Betfair API call per background tick. The
+      `pendingResultChecks`/`checkPendingResultsInner` machinery itself
+      stays: it also stamps a real OPEN/SUSPENDED/CLOSED market status
+      onto the "Today" list's own rows (`listUpcomingRacesInner`),
+      unrelated to the section being removed. Also removed:
+      `LIST_RECENT_RESULTS` (background.js message handler),
+      `loadRecentResults`/`renderPastRacesList`/`formatElapsed`
+      (popup.js), the `past-races-section` markup (popup.html), and
+      the now-dead `.race-closed-badge`/`.race-elapsed`/`.race-winner`/
+      `.races-group-chevron`/`.races-count-badge` CSS (popup.css).
+      Verified in the local static-preview harness: the sidebar renders
+      just the "Today" list with no console errors and no leftover
+      "Past" header.

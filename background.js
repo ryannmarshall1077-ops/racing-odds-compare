@@ -9,16 +9,10 @@ importScripts(
 const AUTO_REFRESH_ALARM = "refreshRace";
 const BOOKMAKER_ODDS_MAX_AGE_MS = 10 * 60 * 1000;
 
-// Past-races ("PAST" section, Upcoming Races) — how long to keep trying
-// a pending race that hasn't shown a result yet (covers an abandoned/void
-// market that never actually settles, so pendingResultChecks doesn't grow
-// forever), how long a settled result stays in storage at all (generous
-// padding past the 10-minute display window, so a slightly-late check on
-// one alarm tick doesn't lose a result that should still be shown), and
-// the actual display window itself.
+// How long to keep trying a pending race that hasn't shown a result yet
+// (checkPendingResults) — covers an abandoned/void market that never
+// actually settles, so pendingResultChecks doesn't grow forever.
 const RESULT_CHECK_MAX_AGE_MS = 20 * 60 * 1000;
-const RECENT_RESULTS_STORAGE_MAX_AGE_MS = 30 * 60 * 1000;
-const RECENT_RESULTS_DISPLAY_MAX_AGE_MS = 10 * 60 * 1000;
 
 // Racing sports this extension supports, and how each maps to Betfair's
 // event-type name / exchange URL path segment. Betfair doesn't split
@@ -228,14 +222,16 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
   refreshRace().catch((err) => console.warn("Auto-refresh skipped:", err.message));
 
-  // Keeps the "PAST" section's candidate list fed even if the user never
-  // manually refreshes Upcoming Races, and checks anything already due
-  // for a real result. Runs every tick regardless of what's selected —
-  // unlike refreshRace() above, this isn't about the one loaded race.
+  // Keeps pendingResultChecks fed even if the user never manually
+  // refreshes Upcoming Races, and checks anything already due for a real
+  // result (feeds the sidebar's own marketStatus — see
+  // listUpcomingRacesInner). Runs every tick regardless of what's
+  // selected — unlike refreshRace() above, this isn't about the one
+  // loaded race.
   listUpcomingRaces().catch((err) =>
     console.warn("Background upcoming-races refresh skipped:", err.message)
   );
-  checkPendingResults().catch((err) => console.warn("Past-results check skipped:", err.message));
+  checkPendingResults().catch((err) => console.warn("Pending-results check skipped:", err.message));
 });
 
 function normalizeName(name) {
@@ -302,10 +298,10 @@ async function settledRaceFromBook(appKey, sessionToken, marketId, previousRace)
   const winnerRunner = book?.runners?.find((r) => r.status === "WINNER");
 
   // Diagnostic: user-reported the winner still doesn't show even after
-  // this function was added — and the sidebar's own Past section
-  // (checkPendingResultsInner, a completely separate code path to
-  // listMarketBook for the same market) also has no winner for this
-  // race, so the common dependency worth actually confirming is
+  // this function was added — and checkPendingResultsInner (a
+  // completely separate code path to listMarketBook for the same
+  // market) also has no winner for this race, so the common dependency
+  // worth actually confirming is
   // whether listMarketBook itself still has anything for this exact
   // marketId once catalogue's already dropped it — not necessarily
   // true just because it's true while a market's still IN catalogue
@@ -378,8 +374,8 @@ async function refreshRaceInner(marketId) {
       // The selected race has dropped out of Betfair's catalogue — but
       // listMarketBook (the actual result) persists noticeably longer
       // than catalogue does, same asymmetry checkPendingResultsInner
-      // already relies on for the sidebar's own Past results. Check
-      // there before giving up on this selection: user-reported
+      // already relies on. Check there before giving up on this
+      // selection: user-reported
       // Betfair's own page already showed "Closed" with a named winner
       // while this popup, unable to find the market in catalogue, was
       // silently switching to the next race before ever trying to
@@ -811,9 +807,9 @@ async function listUpcomingRacesInner() {
   // winnerName handling) — lets the sidebar's own countdown switch
   // straight to "RESULTED" for the selected race the instant the top
   // bar does, instead of only via checkPendingResultsInner's separate,
-  // REST-only Past-results check (which has its own real lag on a
-  // Delayed key — see the winner-detection fix this was built
-  // alongside). Same inherent limitation as bookieMarketClosed above:
+  // REST-only result check (which has its own real lag on a Delayed
+  // key — see the winner-detection fix this was built alongside). Same
+  // inherent limitation as bookieMarketClosed above:
   // only the currently-selected race can ever carry this here.
   const winnerByMarketId =
     liveRace?.marketId && liveRace.winner ? new Map([[liveRace.marketId, liveRace.winner]]) : new Map();
@@ -918,14 +914,16 @@ async function seedPendingResultChecks(races) {
 }
 
 // Checks every pending race whose start time has already passed for a
-// real result (a runner marked WINNER, plus that runner's actual name)
-// — Betfair's own listMarketBook keeps returning a market for a while
-// after it closes (the same mechanism the winner banner already relies
-// on for whichever race is currently selected), so this works the same
-// way for any other race too. Gives up on a pending race (drops it,
-// unresolved) once its start time is more than RESULT_CHECK_MAX_AGE_MS
-// in the past, covering an abandoned/void market that never actually
-// settles.
+// real result (a runner marked WINNER) — Betfair's own listMarketBook
+// keeps returning a market for a while after it closes (the same
+// mechanism the winner banner already relies on for whichever race is
+// currently selected), so this works the same way for any other race
+// too. Once a race is confirmed settled it's simply dropped from
+// pendingResultChecks — the only thing this feeds now is the sidebar's
+// own marketStatus (see listUpcomingRacesInner). Gives up on a pending
+// race (drops it, unresolved) once its start time is more than
+// RESULT_CHECK_MAX_AGE_MS in the past, covering an abandoned/void
+// market that never actually settles.
 async function checkPendingResultsInner() {
   const { betfairAppKey: appKey, betfairSessionToken: sessionToken } = await chrome.storage.sync.get([
     "betfairAppKey",
@@ -933,10 +931,7 @@ async function checkPendingResultsInner() {
   ]);
   if (!appKey || !sessionToken) return; // not connected yet — nothing to check
 
-  const { pendingResultChecks = [], recentResults = [] } = await chrome.storage.local.get([
-    "pendingResultChecks",
-    "recentResults",
-  ]);
+  const { pendingResultChecks = [] } = await chrome.storage.local.get(["pendingResultChecks"]);
   if (pendingResultChecks.length === 0) return;
 
   const now = Date.now();
@@ -948,13 +943,12 @@ async function checkPendingResultsInner() {
   const bookByMarketId = new Map(books.map((b) => [b.marketId, b]));
 
   const stillPending = [];
-  const settledCandidates = []; // {race, winnerSelectionId} — name resolved below, once, for all of them together
   for (const race of due) {
     const book = bookByMarketId.get(race.marketId);
-    const winnerSelectionId = book?.runners?.find((r) => r.status === "WINNER")?.selectionId;
-    if (winnerSelectionId != null) {
-      settledCandidates.push({ race, winnerSelectionId });
-    } else if (now - new Date(race.startTime).getTime() < RESULT_CHECK_MAX_AGE_MS) {
+    const hasWinner = book?.runners?.some((r) => r.status === "WINNER");
+    if (hasWinner) continue; // settled — drop it, nothing further to track
+
+    if (now - new Date(race.startTime).getTime() < RESULT_CHECK_MAX_AGE_MS) {
       // Not settled yet — retry next tick. Carries the market's actual
       // OPEN/SUSPENDED/CLOSED status along (see listUpcomingRacesInner,
       // which merges this onto the matching upcoming race), so the
@@ -972,35 +966,8 @@ async function checkPendingResultsInner() {
     } // else: given up on — dropped silently rather than checked forever
   }
 
-  // The winner's actual name — listMarketBook only ever gives selection
-  // ids, never runner names, so resolving "who won" needs the catalogue
-  // too (same two-call split refreshRaceInner already uses for the
-  // currently-selected race). One batched call for every newly-settled
-  // market this tick, not one per race.
-  let newlySettled = [];
-  if (settledCandidates.length > 0) {
-    const catalogues = await listMarketsByIds(
-      appKey,
-      sessionToken,
-      settledCandidates.map((c) => c.race.marketId)
-    );
-    const catalogueByMarketId = new Map(catalogues.map((m) => [m.marketId, m]));
-
-    newlySettled = settledCandidates.map(({ race, winnerSelectionId }) => {
-      const winnerRunner = catalogueByMarketId
-        .get(race.marketId)
-        ?.runners?.find((r) => r.selectionId === winnerSelectionId);
-      return { ...race, winner: winnerRunner?.runnerName ?? null, settledAt: now };
-    });
-  }
-
-  const prunedResults = [...recentResults, ...newlySettled].filter(
-    (r) => now - r.settledAt < RECENT_RESULTS_STORAGE_MAX_AGE_MS
-  );
-
   await chrome.storage.local.set({
     pendingResultChecks: [...notYetDue, ...stillPending],
-    recentResults: prunedResults,
   });
 }
 
@@ -1046,21 +1013,6 @@ async function refreshRace(marketId) {
 
 async function listUpcomingRaces() {
   return withSessionRetry(listUpcomingRacesInner);
-}
-
-// The "PAST" section, Upcoming Races — races confirmed settled (see
-// checkPendingResults) within the last RECENT_RESULTS_DISPLAY_MAX_AGE_MS.
-// Storage itself keeps a longer window (RECENT_RESULTS_STORAGE_MAX_AGE_MS)
-// so a slightly-late check doesn't lose one right at the edge; the actual
-// 10-minute cutoff is applied here, at display time. Sorted oldest-
-// start-time-first, same as the upcoming list itself — chronological
-// order across tracks, not "just settled first".
-async function listRecentResults() {
-  const { recentResults = [] } = await chrome.storage.local.get(["recentResults"]);
-  const now = Date.now();
-  return recentResults
-    .filter((r) => now - r.settledAt <= RECENT_RESULTS_DISPLAY_MAX_AGE_MS)
-    .sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
 }
 
 // Scrapes Win odds off the given tab's currently displayed bookmaker race
@@ -1319,10 +1271,4 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  if (message.type === "LIST_RECENT_RESULTS") {
-    listRecentResults()
-      .then((results) => sendResponse({ ok: true, results }))
-      .catch((err) => sendResponse({ ok: false, error: err.message }));
-    return true;
-  }
 });

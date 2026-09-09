@@ -852,15 +852,12 @@ async function openRaceTabs(race) {
   }
 }
 
-// One race-list row, shared by "Today" (upcoming) and "Past" (settled in
-// the last 10 minutes) — a card matching a reference screenshot: a
+// One race-list row (Today) — a card matching a reference screenshot: a
 // coloured sport-letter badge (RACE_TYPE_CODE, bookies.js — same R/H/G
 // scheme the race-info bar's own title and TAB's race URLs already use),
-// a status indicator (live dot vs a "CLOSED" pill), the race itself, and
-// a right-aligned time that counts a different direction depending on
-// which group this is: forward to an upcoming jump, backward from a past
-// one's settlement.
-function raceCardHtml(race, { isPast }) {
+// a live-status dot, the race itself, and a right-aligned countdown to
+// its jump.
+function raceCardHtml(race) {
   const code = RACE_TYPE_CODE[race.raceType] || RACE_TYPE_CODE[race.sport] || "?";
   const selected = race.marketId === selectedMarketId ? " selected" : "";
 
@@ -869,13 +866,7 @@ function raceCardHtml(race, { isPast }) {
     minute: "2-digit",
   });
 
-  const statusHtml = isPast
-    ? '<span class="race-closed-badge">Closed</span>'
-    : '<span class="race-live-dot"></span>';
-
-  const timeHtml = isPast
-    ? `<span class="race-elapsed" data-settled-at="${race.settledAt}"></span>`
-    : currentSettings.showCountdowns
+  const timeHtml = currentSettings.showCountdowns
     ? `<span class="race-countdown" data-start="${race.startTime}" data-bookie-market-closed="${
         race.bookieMarketClosed ? "true" : ""
       }" data-has-winner="${race.winner ? "true" : ""}"></span>`
@@ -886,16 +877,12 @@ function raceCardHtml(race, { isPast }) {
       <span class="race-sport-badge">${code}</span>
       <span class="race-card-body">
         <span class="race-card-title-row">
-          ${statusHtml}
+          <span class="race-live-dot"></span>
           <span class="race-card-title">R${race.raceNumber} ${race.track}</span>
         </span>
         <span class="race-card-sub">${time}${
-    !isPast && race.sportsbetUrl === null
+    race.sportsbetUrl === null
       ? '<span class="race-warn" title="No matching Sportsbet race found">!</span>'
-      : ""
-  }${
-    isPast && race.winner
-      ? ` &middot; <span class="race-winner">&#127942; ${race.winner}</span>`
       : ""
   }</span>
       </span>
@@ -904,28 +891,21 @@ function raceCardHtml(race, { isPast }) {
   `;
 }
 
-// Settled-in-the-last-10-minutes races for the "Past" section — parallel
-// to latestRaces, refreshed by loadRecentResults().
-let recentResults = [];
-
-// Delegated on each stable <ul> rather than one listener per <li> (bound
-// once, at setup, below — NOT inside the render functions, since those
-// rebuild innerHTML on every refresh and re-adding a delegated listener
+// Delegated on the stable <ul> rather than one listener per <li> (bound
+// once, at setup, below — NOT inside renderRacesList, since that
+// rebuilds innerHTML on every refresh and re-adding a delegated listener
 // each time would fire it that many times over per click). Looks the
-// clicked race up fresh from whichever list actually has it rather than
-// closing over a snapshot, so it never goes stale across re-renders.
+// clicked race up fresh from latestRaces rather than closing over a
+// snapshot, so it never goes stale across re-renders.
 function bindRaceCardClicks(listEl) {
   listEl.addEventListener("click", (event) => {
     const card = event.target.closest(".race-card");
     if (!card) return;
-    const race =
-      latestRaces.find((r) => r.marketId === card.dataset.marketId) ||
-      recentResults.find((r) => r.marketId === card.dataset.marketId);
+    const race = latestRaces.find((r) => r.marketId === card.dataset.marketId);
     if (race) selectRace(race);
   });
 }
 bindRaceCardClicks(racesListEl);
-bindRaceCardClicks(document.getElementById("past-races-list"));
 
 function renderRacesList(races) {
   if (races.length === 0) {
@@ -933,25 +913,7 @@ function renderRacesList(races) {
     return;
   }
 
-  racesListEl.innerHTML = races.map((race) => raceCardHtml(race, { isPast: false })).join("");
-}
-
-// "Past" section — hidden entirely (not shown empty) when there's
-// nothing settled in the last 10 minutes yet. Takes the already-filtered
-// subset to render (see renderFilteredRacesList) — recentResults itself
-// stays the full, unfiltered set, same separation latestRaces/
-// renderRacesList already use for "Today".
-function renderPastRacesList(results) {
-  const sectionEl = document.getElementById("past-races-section");
-  const countEl = document.getElementById("past-races-count");
-
-  sectionEl.hidden = results.length === 0;
-  if (results.length === 0) return;
-
-  countEl.textContent = results.length;
-  document.getElementById("past-races-list").innerHTML = results
-    .map((race) => raceCardHtml(race, { isPast: true }))
-    .join("");
+  racesListEl.innerHTML = races.map((race) => raceCardHtml(race)).join("");
 }
 
 // Shared by the sidebar's race list and the race-number pills under the
@@ -1009,8 +971,8 @@ function renderTrackRacesRow(race) {
   }
 }
 
-// Shared by formatCountdown and formatElapsed below — "Xh Ym" once past
-// an hour, else "Xm Ys" (always 2-digit seconds), no sign of its own.
+// Used by formatCountdown below — "Xh Ym" once past an hour, else
+// "Xm Ys" (always 2-digit seconds), no sign of its own.
 function formatDuration(totalSeconds) {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -1060,25 +1022,13 @@ function formatCountdown(startTimeIso, bookieMarketClosed, hasWinner) {
   return `-${formatDuration(Math.floor(-diffMs / 1000))}`;
 }
 
-// The "Past" section's own time — how long ago a race settled, counting
-// backward instead of forward, same shape as formatCountdown's own
-// negative case once a race is past its scheduled time.
-function formatElapsed(settledAtMs) {
-  const totalSeconds = Math.max(0, Math.floor((Date.now() - Number(settledAtMs)) / 1000));
-  return `-${formatDuration(totalSeconds)}`;
-}
-
 // Ticks every second, independent of whenever the races list was last
-// rendered — just re-reads whatever ".race-countdown"/".race-elapsed"
-// elements currently exist in the DOM, so it naturally keeps working
-// across re-renders without needing its own cleanup/restart logic.
+// rendered — just re-reads whatever ".race-countdown" elements currently
+// exist in the DOM, so it naturally keeps working across re-renders
+// without needing its own cleanup/restart logic.
 function tickCountdowns() {
   for (const el of document.querySelectorAll(".race-countdown")) {
     el.textContent = formatCountdown(el.dataset.start, el.dataset.bookieMarketClosed, el.dataset.hasWinner);
-  }
-
-  for (const el of document.querySelectorAll(".race-elapsed")) {
-    el.textContent = formatElapsed(el.dataset.settledAt);
   }
 
   const countdownMainEl = document.getElementById("race-countdown-main");
@@ -1104,9 +1054,9 @@ function tickCountdowns() {
 tickCountdowns();
 setInterval(tickCountdowns, 1000);
 
-// No manual refresh button — this and loadRecentResults are the only
-// entry points now (initial load + the periodic poll further down), so
-// this needs to behave well called repeatedly on its own: only shows the
+// No manual refresh button — this is the only entry point now (initial
+// load + the periodic poll further down), so this needs to behave well
+// called repeatedly on its own: only shows the
 // "Loading..."/error placeholder on the very first call (latestRaces
 // still empty), rather than blanking out an already-populated list (and
 // flashing it back in a moment later) on every routine background poll.
@@ -1131,31 +1081,16 @@ function loadUpcomingRaces() {
   });
 }
 
-// "Past" section — races background.js has confirmed settled within the
-// last 10 minutes (see checkPendingResults). Silent on failure (leaves
-// whatever's already showing, or stays hidden) rather than replacing the
-// section with an error — unlike the main races list, this one's easy to
-// just not notice failed, and it isn't the primary thing this popup is
-// for.
-function loadRecentResults() {
-  chrome.runtime.sendMessage({ type: "LIST_RECENT_RESULTS" }, (response) => {
-    if (!response || !response.ok) return;
-    recentResults = response.results;
-    renderFilteredRacesList();
-  });
-}
-
 // Applies the Race Types toggles and the track search box to the
-// last-fetched lists (both Today and Past) without re-querying
-// background.js — instant, and doesn't burn an extra Betfair call just
-// to hide/show rows the extension already has.
+// last-fetched Today list without re-querying background.js — instant,
+// and doesn't burn an extra Betfair call just to hide/show rows the
+// extension already has.
 function renderFilteredRacesList() {
   const query = trackSearchQuery.trim().toLowerCase();
   const matchesFilter = (race) =>
     selectedRaceTypes.has(race.raceType) && (query === "" || race.track.toLowerCase().includes(query));
 
   renderRacesList(latestRaces.filter(matchesFilter));
-  renderPastRacesList(recentResults.filter(matchesFilter));
 }
 
 const trackSearchInput = document.getElementById("track-search");
@@ -1165,34 +1100,20 @@ trackSearchInput.addEventListener("input", () => {
 });
 
 loadUpcomingRaces();
-loadRecentResults();
 
-// Keeps the sidebar's Today/Past lists from going stale while the popup
-// stays open. Without this, a race that's already gone in-play just sits
-// in Today showing "IN PLAY" forever — its own countdown correctly
-// detects that client-side, but nothing was actually re-fetching the list to
-// drop it once Betfair's own upcoming-races feed does — and a race
-// background.js has since confirmed settled never shows up in Past
-// until something asks for it again. Same ~1-minute cadence as
-// background.js's own alarm-driven refresh (no point polling faster
-// than the underlying data actually changes), and gated by the same
-// Settings > Automatically refresh toggle every other auto-refresh in
-// this extension already respects.
+// Keeps the sidebar's Today list from going stale while the popup stays
+// open. Without this, a race that's already gone in-play just sits in
+// Today showing "IN PLAY" forever — its own countdown correctly detects
+// that client-side, but nothing was actually re-fetching the list to
+// drop it once Betfair's own upcoming-races feed does. Same ~1-minute
+// cadence as background.js's own alarm-driven refresh (no point polling
+// faster than the underlying data actually changes), and gated by the
+// same Settings > Automatically refresh toggle every other auto-refresh
+// in this extension already respects.
 setInterval(() => {
   if (!currentSettings.autoRefresh) return;
   loadUpcomingRaces();
-  loadRecentResults();
 }, 60 * 1000);
-
-// "Past" section collapses/expands — starts expanded each time it
-// appears (matches the reference this is modelled on, and the section
-// only shows at all once renderPastRacesList has something to put in
-// it), rather than remembering a prior session's collapsed state.
-const pastRacesToggleBtn = document.getElementById("past-races-toggle");
-pastRacesToggleBtn.addEventListener("click", () => {
-  const collapsed = document.getElementById("past-races-section").classList.toggle("collapsed");
-  document.getElementById("past-races-list").hidden = collapsed;
-});
 
 for (const btn of document.querySelectorAll(".race-type-btn")) {
   btn.addEventListener("click", () => {
