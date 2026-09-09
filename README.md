@@ -1530,3 +1530,17 @@ https://developer.betfair.com/.
       and re-checking either brings it straight back with its
       already-cached odds — no rescan needed, and "Restore defaults"
       correctly re-checks all three.
+- [x] Merged Settings' "Colours" and "EV Colours" tabs into one
+      "Colours" tab (popup.html) / section (options.html) — user-
+      requested. No JS changes needed: every field kept its own id, so
+      options.js's `document.getElementById` lookups and the EV band
+      swatch wiring don't care where in the DOM tree they ended up.
+      Purely markup — dropped the now-unused "EV Colours" tab button
+      (popup.html) and unwrapped its panel's content directly into
+      "Colours"'s own (same merge on options.html's side: one
+      `<details>` section instead of two, "Colours and Layout"/"EV
+      Colours and Thresholds" both shortened to plain "Colours").
+      Verified in the local static-preview harness on both pages: one
+      "Colours" tab/section now holds Accent Colour, Compact table
+      rows, and all 4 EV band swatches + the "below every threshold"
+      one together, no dead tab, no console errors.
