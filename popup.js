@@ -91,6 +91,20 @@ function run2nd3rdEVPercent(betfair, placeBetfair, bookmaker, commission, hedge,
   return (ev / stake) * 100;
 }
 
+// Settings > Bookie — which bookmakers actually participate in the
+// comparison right now (bookies.js's BOOKIE_LIST stays the full,
+// unfiltered set; background.js keeps scraping/tracking every one of
+// them regardless, so re-enabling one here picks its odds straight back
+// up with no fresh scan needed). Used everywhere BOOKIE_LIST previously
+// drove an actual calculation or behaviour (Best Price, this note,
+// opening a bookie's own race tab) — NOT for the odds table's own
+// column rendering, which always builds every bookie's cell (so header/
+// body/footer stay aligned) and instead hides the disabled ones via
+// their own `hidden` attribute (see bookieCells/applyDisplaySettings).
+function visibleBookies() {
+  return BOOKIE_LIST.filter((b) => currentSettings.enabledBookies.includes(b.id));
+}
+
 function noteFor(race) {
   const systemNotePart = race.systemNote ? `${race.systemNote} ` : "";
 
@@ -103,12 +117,14 @@ function noteFor(race) {
 
   if (race.source !== "live-betfair") return systemNotePart + betfairPart;
 
-  const bookmakerPart = BOOKIE_LIST.map(
-    (b) =>
-      ` ${b.label}: ${
-        race.bookmakerSources?.[b.id] === "live" ? "live." : "placeholder markup (not yet scanned)."
-      }`
-  ).join("");
+  const bookmakerPart = visibleBookies()
+    .map(
+      (b) =>
+        ` ${b.label}: ${
+          race.bookmakerSources?.[b.id] === "live" ? "live." : "placeholder markup (not yet scanned)."
+        }`
+    )
+    .join("");
 
   return systemNotePart + betfairPart + bookmakerPart;
 }
@@ -124,15 +140,15 @@ function noteFor(race) {
 // Price column displays.
 function bestBookmakerPrices(runner) {
   let price = null;
-  for (const bookie of BOOKIE_LIST) {
+  for (const bookie of visibleBookies()) {
     const p = runner.bookmakers?.[bookie.id];
     if (p != null && (price === null || p > price)) price = p;
   }
   if (price === null) return { price: null, bookieIds: [] };
 
-  const bookieIds = BOOKIE_LIST.filter((b) => runner.bookmakers?.[b.id] === price).map(
-    (b) => b.id
-  );
+  const bookieIds = visibleBookies()
+    .filter((b) => runner.bookmakers?.[b.id] === price)
+    .map((b) => b.id);
   return { price, bookieIds };
 }
 
@@ -577,11 +593,16 @@ function renderRace(race) {
       })
       .join(" ");
     const bestMetric = metricPercent(runner, commission, hedge);
+    // Every bookie's own cell is always generated here, even a disabled
+    // one — hidden via its own `hidden` attribute instead of being left
+    // out, so the header/body/footer column count never drifts apart
+    // (see visibleBookies()'s own comment for the full split).
     const bookieCells = BOOKIE_LIST.map((b) => {
       const price = runner.bookmakers?.[b.id];
       const bestClass = bestBookieIds.includes(b.id) ? " best-price" : "";
       const bookieMetric = bookieMetricPercent(runner, price, commission, hedge);
-      return `<td class="col-bookie${bestClass}">${bookieCellHtml(price, bookieMetric)}</td>`;
+      const hiddenAttr = currentSettings.enabledBookies.includes(b.id) ? "" : " hidden";
+      return `<td class="col-bookie${bestClass}"${hiddenAttr}>${bookieCellHtml(price, bookieMetric)}</td>`;
     }).join("");
 
     // Betfair settling the market and marking a runner WINNER (see
@@ -626,7 +647,9 @@ function renderRace(race) {
       <td>${runner.name} <em class="scratched-tag">Scratched</em></td>
       <td class="col-best-price">—</td>
       <td class="col-backlay">${backLayCellHtml(null, null, null, null)}</td>
-      ${BOOKIE_LIST.map(() => "<td>—</td>").join("")}
+      ${BOOKIE_LIST.map(
+        (b) => `<td${currentSettings.enabledBookies.includes(b.id) ? "" : " hidden"}>—</td>`
+      ).join("")}
       <td>—</td>
       <td class="col-liability">—</td>
     `;
@@ -645,7 +668,9 @@ function renderRace(race) {
     )}</span></span></td>`,
     ...BOOKIE_LIST.map(
       (b) =>
-        `<td>${formatMarketPct(marketPercentFor(race.runners, (r) => r.bookmakers?.[b.id]))}</td>`
+        `<td${currentSettings.enabledBookies.includes(b.id) ? "" : " hidden"}>${formatMarketPct(
+          marketPercentFor(race.runners, (r) => r.bookmakers?.[b.id])
+        )}</td>`
     ),
     "<td></td>",
     `<td class="col-liability"></td>`,
@@ -833,6 +858,9 @@ async function openOrNavigateTab(tabId, url, { pinned = false, active = false } 
 // entry in bookies.js. A bookie with no URL for this race (most commonly
 // TAB, before its venue code has been learned — see tabMeetings.js) is
 // simply left untouched, same as Sportsbet already was when unmatched.
+// Settings > Bookie disabled ones are skipped entirely here too (see
+// visibleBookies()) — no tab opened/updated for one at all, same as if
+// it had no URL for this race.
 //
 // Focus behavior is Settings-driven (Tab and Window management >
 // focusRaceTabsOnOpen): by default every race tab opens/reuses in the
@@ -843,7 +871,7 @@ async function openOrNavigateTab(tabId, url, { pinned = false, active = false } 
 // skipping the refocus step wouldn't have been enough on its own, since
 // new tabs are still created inactive either way.
 async function openRaceTabs(race) {
-  const tabIdKeys = BOOKIE_LIST.map((b) => `${b.id}TabId`);
+  const tabIdKeys = visibleBookies().map((b) => `${b.id}TabId`);
   const stored = await chrome.storage.local.get(["betfairTabId", ...tabIdKeys]);
 
   const betfairTabId = await openOrNavigateTab(stored.betfairTabId, race.betfairUrl, {
@@ -852,7 +880,7 @@ async function openRaceTabs(race) {
   });
 
   const updates = { betfairTabId };
-  for (const bookie of BOOKIE_LIST) {
+  for (const bookie of visibleBookies()) {
     const urlKey = `${bookie.id}Url`;
     const tabIdKey = `${bookie.id}TabId`;
     updates[tabIdKey] = race[urlKey]
@@ -1197,6 +1225,15 @@ function applyDisplaySettings(settings) {
   document.body.classList.toggle("compact-rows", settings.compactRows);
   document.body.classList.toggle("hide-liquidity", !settings.showLiquidityColumn);
   document.body.classList.toggle("show-liability", settings.showLiabilityColumn);
+
+  // Settings > Bookie — the header row's own <th data-bookie="..."> is
+  // static markup (popup.html), never regenerated the way each render
+  // rebuilds the table body/footer (see bookieCells' own comment for
+  // those), so it's the one place that needs updating here rather than
+  // inline at render time.
+  for (const th of document.querySelectorAll("[data-bookie]")) {
+    th.hidden = !settings.enabledBookies.includes(th.dataset.bookie);
+  }
 
   if (currentRace) renderRace(currentRace);
   if (latestRaces.length > 0) renderFilteredRacesList();
