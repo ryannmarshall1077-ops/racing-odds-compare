@@ -622,18 +622,31 @@ function renderRace(race) {
   // temporarily) suspends its own market right at its scheduled start.
   const hasLiveBookie = Object.values(race.bookmakerSources || {}).some((s) => s === "live");
 
-  // Same "gone in-play" rule tickCountdowns/formatCountdown use for this
-  // race's own countdown (bookieMarketClosed primary, Betfair's own
-  // status a rougher fallback — see isBetfairMarketClosed's own
-  // comment) — reused here to (a) blank every Edge%/Ret%/EV% figure for
-  // as long as it's true (metricsSuspended, read by formatMetric — a
-  // suspended bookmaker market's prices are no longer tradeable) and
-  // (b) flash the panel once, exactly on the moment it flips from false
-  // to true, so switching Mode/Stake/Hedge or an ordinary auto-refresh
-  // while already in play doesn't keep re-triggering it. A different
-  // race loading (marketId change) resets the tracked state first, so
+  // The exact same "is the countdown currently showing IN PLAY/
+  // RESULTED" check tickCountdowns/formatCountdown use — calling
+  // isShowingStatusWord directly here (not a hand-rolled second copy of
+  // its rule) so this can never drift out of sync with what the
+  // countdown itself displays. An earlier version re-derived this
+  // inline from just bookieMarketClosed/marketStatus and dropped
+  // isShowingStatusWord's own isPastJumpTime gate entirely — user-
+  // reported: every Edge%/EV% figure vanishing minutes before the jump
+  // (a benign, temporary Betfair status blip unrelated to actually
+  // being in-play, since nothing was gating on the jump time at all).
+  // Reused here to (a) blank every Edge%/Ret%/EV% figure for as long as
+  // it's true (metricsSuspended, read by formatMetric — a suspended
+  // bookmaker market's prices are no longer tradeable) and (b) flash
+  // the panel once, exactly on the moment it flips from false to true,
+  // so switching Mode/Stake/Hedge or an ordinary auto-refresh while
+  // already in play doesn't keep re-triggering it. A different race
+  // loading (marketId change) resets the tracked state first, so
   // opening a race that's already in play never spuriously flashes.
-  const raceInPlay = Boolean(race.bookieMarketClosed) || isBetfairMarketClosed(race.marketStatus, hasLiveBookie);
+  const raceInPlay = isShowingStatusWord(
+    race.startTime,
+    race.bookieMarketClosed ? "true" : "",
+    race.winner ? "true" : "",
+    race.marketStatus,
+    hasLiveBookie ? "true" : ""
+  );
   if (race.marketId !== lastRenderedMarketId) lastRenderedInPlay = false;
   if (raceInPlay && !lastRenderedInPlay) flashMainPanel();
   lastRenderedMarketId = race.marketId;
