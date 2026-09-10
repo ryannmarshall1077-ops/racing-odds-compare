@@ -661,14 +661,19 @@ function formatMatched(amount) {
   return amount == null ? "—" : `$${Math.round(amount).toLocaleString()}`;
 }
 
-// The race-info bar's "Jumps at HH:MM" — local time, 24-hour, no seconds.
-// Deliberately not toLocaleTimeString() (which can insert AM/PM depending
-// on the user's locale) — the reference bar this matches always shows
-// plain 24-hour digits.
+// The race-info bar's "Jumps at H:MM am/pm" — local time, 12-hour, no
+// seconds. User-requested switch from the previous plain 24-hour
+// digits. Hand-rolled rather than toLocaleTimeString() so the am/pm
+// casing and lack of a leading zero on the hour are guaranteed
+// (locale-dependent otherwise) and match raceCardHtml's own sidebar
+// time formatting exactly.
 function formatJumpTime(startTimeIso) {
   if (!startTimeIso) return "—";
   const d = new Date(startTimeIso);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const hours24 = d.getHours();
+  const hours12 = hours24 % 12 || 12;
+  const suffix = hours24 < 12 ? "am" : "pm";
+  return `${hours12}:${String(d.getMinutes()).padStart(2, "0")} ${suffix}`;
 }
 
 // One-shot highlight flash on #main-panel (CSS animation, see popup.css)
@@ -782,6 +787,31 @@ function renderRace(race) {
     rows = rows.slice(0, currentSettings.maxResults);
   }
 
+  // Two independent comparisons, matching a reference terminal's own
+  // pair of settings ("Highlight best bookie per runner" / "Highlight
+  // best runner per bookie") rather than the single row-only outline
+  // this used to be: row-wise (which bookie is best FOR THIS RUNNER —
+  // a green tint) and column-wise (which runner is best FOR THIS
+  // BOOKIE, across the whole race — an amber outline). The row
+  // comparison reuses the existing bestBookmakerPrices price-based
+  // check (equivalent to comparing EV directly — every mode's formula
+  // is monotonic in the bookmaker price for a fixed runner, so "best
+  // price" and "best EV" never disagree within one row). The column
+  // comparison needs its own pass over every row first, since it has
+  // to know every runner's figure for a given bookie before any one
+  // row can be judged against it.
+  const bestBookieMetricByBookie = new Map();
+  for (const b of BOOKIE_LIST) {
+    let best = null;
+    for (const { runner } of rows) {
+      const price = runner.bookmakers?.[b.id];
+      if (price == null) continue;
+      const metric = bookieMetricPercent(runner, price, commission, hedge);
+      if (metric != null && (best === null || metric > best)) best = metric;
+    }
+    bestBookieMetricByBookie.set(b.id, best);
+  }
+
   for (const { runner, layDollars, liability } of rows) {
     const row = document.createElement("tr");
     if (runner.result === "WINNER") row.className = "winner-row";
@@ -800,11 +830,21 @@ function renderRace(race) {
     // (see visibleBookies()'s own comment for the full split).
     const bookieCells = BOOKIE_LIST.map((b) => {
       const price = runner.bookmakers?.[b.id];
-      const bestClass = bestBookieIds.includes(b.id) ? " best-price" : "";
       const bookieMetric = bookieMetricPercent(runner, price, commission, hedge);
       const hiddenAttr = currentSettings.enabledBookies.includes(b.id) ? "" : " hidden";
-      const { bg } = edgeMetricHtml(price == null ? null : bookieMetric);
-      return `<td class="col-bookie${bestClass}"${hiddenAttr} style="background:${bg}">${bookieCellHtml(price, bookieMetric)}</td>`;
+      // Row-wise ("best bookie per runner") — a strong green tint,
+      // overriding this cell's own EV-tier tint outright rather than
+      // layering both (green already means "good" on its own). Column-
+      // wise ("best runner per bookie") — an independent amber outline,
+      // never fighting the tint since a box-shadow paints on top of
+      // whatever background is already there; can coincide with the
+      // green tint above for the same cell (both conditions are just
+      // independently true), same as the reference this matches.
+      const rowBest = bestBookieIds.includes(b.id);
+      const colBest = price != null && bookieMetric != null && bookieMetric === bestBookieMetricByBookie.get(b.id);
+      const cellClass = `col-bookie${rowBest ? " row-best" : ""}${colBest ? " col-best" : ""}`;
+      const bg = rowBest ? "rgba(61, 220, 151, 0.22)" : edgeMetricHtml(price == null ? null : bookieMetric).bg;
+      return `<td class="${cellClass}"${hiddenAttr} style="background:${bg}">${bookieCellHtml(price, bookieMetric)}</td>`;
     }).join("");
 
     // Betfair settling the market and marking a runner WINNER (see
@@ -824,11 +864,18 @@ function renderRace(race) {
     // style attribute is left off entirely so that class-level fallback
     // still applies, same as before this cell had a per-metric tint at all.
     const bestPriceBgAttr = bestPriceBg !== "transparent" ? ` style="background:${bestPriceBg}"` : "";
+    // Same accent-outline highlight a winning bookie's own cell gets
+    // (.col-bookie.best-price) — user-reported the Best Price cell
+    // itself didn't carry the same boxed highlight as the bookie
+    // column it's summarizing. Only when there's a real price to
+    // highlight — never on a scratched row's "—" (see the other
+    // col-best-price call sites, which stay plain "col-best-price").
+    const bestPriceClass = bestPrice != null ? " has-price" : "";
     const { html: runnerNumberBadge, label: runnerLabel } = runnerNumberHtml(runner.name);
 
     row.innerHTML = `
       <td>${runnerNumberBadge}${runnerLabel}${winnerTag}</td>
-      <td class="col-best-price"${bestPriceBgAttr}>${bestPriceCellHtml(bestPrice, bestPriceBadges, bestPriceMetric)}</td>
+      <td class="col-best-price${bestPriceClass}"${bestPriceBgAttr}>${bestPriceCellHtml(bestPrice, bestPriceBadges, bestPriceMetric)}</td>
       <td class="col-backlay">${backLayCellHtml(
         runner.betfairBack,
         runner.betfairBackLiquidity,
@@ -1148,9 +1195,13 @@ function raceCardHtml(race) {
   const code = RACE_TYPE_CODE[race.raceType] || RACE_TYPE_CODE[race.sport] || "?";
   const selected = race.marketId === selectedMarketId ? " selected" : "";
 
+  // hour12 explicit (not left to the browser's own locale default) so
+  // this can never silently drift from formatJumpTime's own guaranteed
+  // 12-hour am/pm format above.
   const time = new Date(race.startTime).toLocaleTimeString([], {
     hour: "numeric",
     minute: "2-digit",
+    hour12: true,
   });
 
   const timeHtml = currentSettings.showCountdowns

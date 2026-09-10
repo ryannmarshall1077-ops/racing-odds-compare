@@ -709,6 +709,18 @@ tbody tr:hover td {
   background: rgba(47, 111, 235, 0.06);
 }
 
+th.col-best-price {
+  color: var(--accent);
+}
+
+/* Same accent-outline highlight as a winning bookie's own cell
+   (.col-bookie.best-price, further down) — this cell IS the best
+   price by definition, so it gets the same boxed treatment whenever
+   there's a real price to show (has-price, set in renderRace). */
+td.col-best-price.has-price {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
 .best-price-cell {
   display: flex;
   align-items: center;
@@ -771,17 +783,26 @@ tbody tr:hover td {
   align-items: center;
 }
 
-/* Whichever bookie(s) tie for the best (highest) price for a runner — the
-   one Edge%/Ret%/Lay $/Liability are actually computed from. An inset
-   outline (not a real border — avoids fighting border-collapse/the
-   inline per-metric background this cell also carries, see renderRace's
-   own comment) boxes the cell, same "here's the winner" boldness as a
-   reference terminal's own highlight, in the brand accent rather than
-   its colour. */
-.col-bookie.best-price {
-  color: var(--accent);
+/* Two independent comparisons (renderRace's own comment, popup.js has
+   the full reasoning) — matching a reference terminal's own two
+   separate settings, "Highlight best bookie per runner" and
+   "Highlight best runner per bookie", rather than one single signal:
+   row-best (.row-best) — whichever bookie(s) tie for the best price
+   for THIS runner, the one Edge%/Ret%/Lay $/Liability are actually
+   computed from — a strong green tint (its own inline background,
+   set in renderRace, overriding this cell's usual EV-tier tint
+   outright) plus bold --positive text.
+   col-best (.col-best) — whichever runner has the best figure for
+   THIS bookie, across the whole race — an inset amber outline (not a
+   real border, so it never fights border-collapse or the cell's own
+   background) — independent of row-best, so a cell can carry both. */
+.col-bookie.row-best {
+  color: var(--positive);
   font-weight: 600;
-  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.col-bookie.col-best {
+  box-shadow: inset 0 0 0 1.5px var(--amber);
 }
 
 th, td {
@@ -824,20 +845,11 @@ td.col-backlay {
   line-height: 1.3;
 }
 
-/* Header labels stay plain/muted like every other column header (see
-   th's own base rule) — user-reported the header row's own mix of
-   coloured (Best Price, Back, Lay) and plain (Runner, Lay $,
-   Liability) labels reading as inconsistent. .bl-back/.bl-lay's own
-   blue/pink stays exactly as-is for the actual data cells below (still
-   meaningful there — it's what colour-codes the real Back vs Lay
-   price), this just overrides it back to plain for the header only. */
 .header-box .bl-cell {
   padding: 3px 8px;
   font-size: 11px;
   text-transform: uppercase;
   font-weight: 600;
-  background: transparent;
-  color: var(--muted);
 }
 
 .bl-back {

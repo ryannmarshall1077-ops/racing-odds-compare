@@ -2077,16 +2077,21 @@ https://developer.betfair.com/.
 
 - [x] Same session, three more user-reported rough edges once the
       denser styling above made them stand out:
-      - **Header row inconsistency** — Best Price/Back/Lay's own
-        column headers were coloured (accent blue / --back-color /
-        --lay-color) while every other header (Runner, the bookie
-        logos, Lay $, Liability) stayed plain muted text, reading as
-        mismatched. `th.col-best-price`'s own colour override removed
-        outright; `.header-box .bl-cell` (the header-only instance of
-        the same `.bl-back`/`.bl-lay` classes the real Back/Lay price
-        cells use) now explicitly resets to plain muted/transparent —
-        the data cells below keep their blue/pink exactly as before,
-        only the header text changed.
+      - **Header row inconsistency — misdiagnosed, then corrected**:
+        first removed Best Price/Back/Lay's own coloured headers
+        (accent blue / --back-color / --lay-color) to match the plain
+        muted headers everywhere else, assuming that colour mismatch
+        was the actual complaint. User clarified it wasn't — "I was
+        referring to the best price box didnt have the same highlight
+        as the other" — the real gap was that `.col-best-price` never
+        got the same accent-outline box a winning bookie's own cell
+        does. Reverted the header-colour change outright (Best
+        Price/Back/Lay headers are coloured again, same as always)
+        and added the actual fix instead: `td.col-best-price.has-price`
+        gets the same `box-shadow: inset 0 0 0 1.5px var(--accent)` as
+        `.col-bookie.best-price` (now `.row-best`, see below),
+        conditioned on `bestPrice != null` — never on a scratched
+        row's "—" or the footer's Market % row.
       - **A stray divider line** — `#race-info-bar`'s own
         `border-bottom` sat directly under both the race title/countdown
         and the Mode/Stake/Hedge controls, at the same height the
@@ -2110,11 +2115,55 @@ https://developer.betfair.com/.
         against a light-mode page background; every swatch now carries
         its own explicit text colour instead of assuming white always
         works.
-      - Verified in the harness: every header cell's computed `color`
-        confirmed identical (one shared muted rgb value, not just
-        visually similar); `#race-info-bar`'s computed
+      - Verified in the harness: `#race-info-bar`'s computed
         `border-bottom-width` confirmed `0px`; each runner badge's
         computed background/border/`background-image` checked
         individually (red/orange/blue solids, #3's real border,
         #2's real `background-image` gradient, not just a solid
         colour). No console errors.
+
+- [x] Same session, two more from the user: the row/column highlight
+      needed to actually match a reference terminal's own two
+      *independent* settings ("Highlight best bookie per runner" —
+      green tint per row — and "Highlight best runner per bookie" —
+      gold outline per column), not the single row-only outline this
+      had become; and race times switched from 24-hour to 12-hour
+      am/pm.
+      - **Row + column highlight, both at once** — `renderRace`
+        (popup.js) now computes `bestBookieMetricByBookie` once per
+        render (one pass over every displayed row, per bookie: the
+        highest `bookieMetricPercent` value in that bookie's own
+        column) before building any row, since column-best has to know
+        every runner's figure for a bookie before any one row can be
+        judged against it. Each bookie `<td>` then carries two
+        independent classes: `.row-best` (this bookie ties for the
+        best price for *this* runner — reuses the existing price-based
+        `bestBookmakerPrices` check outright, since every mode's EV
+        formula is monotonic in the bookmaker price for a fixed
+        runner, so "best price" and "best EV" never disagree within
+        one row) gets a strong green (`--positive`) tint, overriding
+        the cell's usual EV-tier tint outright; `.col-best` (this
+        runner ties for the best figure *this bookie* has anywhere in
+        the race) gets an inset amber (`--amber`) outline, independent
+        of `.row-best` — a cell can carry both at once, same as the
+        reference. Old `.col-bookie.best-price` (a single outline,
+        conflating the two) removed outright.
+      - **12-hour race times** — `formatJumpTime` (the race-info bar's
+        "Jumps at…") hand-rolled to `H:MM am/pm` (no leading zero on
+        the hour, lower-case am/pm, guaranteed regardless of browser
+        locale) instead of relying on `toLocaleTimeString()`, which
+        the plain-24-hour version this replaces had deliberately
+        avoided for the opposite reason. The sidebar's own per-race
+        time (`raceCardHtml`) already used `toLocaleTimeString` in a
+        way that likely already showed am/pm under most locales, but
+        gained an explicit `hour12: true` so it can never silently
+        drift from `formatJumpTime`'s own guaranteed format.
+      - Verified in the harness: a synthetic 3-runner/3-bookie race
+        with deliberately distinct prices per cell — every single
+        `.row-best`/`.col-best` flag checked against independently
+        hand-computed row and column maxima (all correct); the one
+        cell that was column-best but not row-best had its computed
+        `box-shadow` confirmed as the exact `--amber` rgb value, not
+        just visually present. `formatJumpTime` checked directly for
+        midnight (`12:05 am`) and noon (`12:00 pm`), not just a
+        daytime example. No console errors.
