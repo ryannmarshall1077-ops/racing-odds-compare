@@ -533,7 +533,6 @@ h1 {
   justify-content: space-between;
   gap: 16px;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
 }
 
 .race-info-left {
@@ -710,10 +709,6 @@ tbody tr:hover td {
   background: rgba(47, 111, 235, 0.06);
 }
 
-th.col-best-price {
-  color: var(--accent);
-}
-
 .best-price-cell {
   display: flex;
   align-items: center;
@@ -829,11 +824,20 @@ td.col-backlay {
   line-height: 1.3;
 }
 
+/* Header labels stay plain/muted like every other column header (see
+   th's own base rule) — user-reported the header row's own mix of
+   coloured (Best Price, Back, Lay) and plain (Runner, Lay $,
+   Liability) labels reading as inconsistent. .bl-back/.bl-lay's own
+   blue/pink stays exactly as-is for the actual data cells below (still
+   meaningful there — it's what colour-codes the real Back vs Lay
+   price), this just overrides it back to plain for the header only. */
 .header-box .bl-cell {
   padding: 3px 8px;
   font-size: 11px;
   text-transform: uppercase;
   font-weight: 600;
+  background: transparent;
+  color: var(--muted);
 }
 
 .bl-back {
@@ -879,8 +883,10 @@ th:first-child, td:first-child {
 }
 
 /* The coloured barrier/box-number badge every runner row now leads with
-   (runnerNumberHtml, popup.js — RUNNER_NUMBER_COLORS) instead of a
-   plain "1." folded into the name text. */
+   (runnerNumberHtml, popup.js — RUNNER_NUMBER_COLORS, the real AU
+   saddlecloth colour-by-number convention) instead of a plain "1."
+   folded into the name text. Background/text colour come inline per
+   number (style attr) — this rule just supplies the shared shape. */
 .runner-number {
   display: inline-flex;
   align-items: center;
@@ -892,8 +898,30 @@ th:first-child, td:first-child {
   border-radius: 5px;
   font-size: 11px;
   font-weight: 700;
-  color: #ffffff;
   vertical-align: middle;
+}
+
+/* #3 (white) needs a real border regardless of theme — otherwise it
+   disappears against a light-mode page background the same way it
+   would against the white swatch itself. */
+.runner-number-bordered {
+  border: 1px solid #9aa3ad;
+}
+
+/* #2 (black/white check) — a small checkerboard instead of a flat
+   fill, via two offset copies of the same diagonal-split gradient.
+   The number's own text colour is set inline like every other swatch,
+   plus a black outline (text-shadow, cheaper than an SVG/stroke) so it
+   stays legible over both the light and dark squares underneath. */
+.runner-number-check {
+  background-image:
+    linear-gradient(45deg, #111 25%, transparent 25%, transparent 75%, #111 75%),
+    linear-gradient(45deg, #111 25%, transparent 25%, transparent 75%, #111 75%);
+  background-size: 10px 10px;
+  background-position: 0 0, 5px 5px;
+  background-color: #ffffff;
+  border: 1px solid #9aa3ad;
+  text-shadow: 0 0 2px #000000, 0 0 3px #000000;
 }
 
 th {

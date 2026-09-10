@@ -291,18 +291,29 @@ function parseRunnerNumber(name) {
   return match ? Number(match[1]) : Infinity;
 }
 
-// A fixed, saturated colour per barrier/box number — 12 distinct hues,
-// cycling past that (rare in racing) — for the small square badge every
-// runner row now leads with, matching a reference terminal's own bolder
-// per-runner colour identity instead of a plain "1." in front of the
-// name. Deliberately our own palette, not a copy of any real bookmaker's
-// silk colours, and independent of the brand accent (a runner's own
-// identity, not a UI/chrome colour) — all 12 are dark/saturated enough
-// to stay readable with plain white text, so no per-colour text-colour
-// pairing is needed the way some of the EV tier colours would.
+// The real Australian saddlecloth/barrier colour-by-number convention
+// (user-provided reference screenshot: 1 red, 2 black/white check, 3
+// white, 4 blue, 5 orange, 6 green, 7 black, 8 pink) — not our own
+// invented palette. 9-12 continue the same real convention (emerald,
+// purple, grey, brown); cycling past 12 is rare enough in AU racing
+// not to need its own real-world answer. Each entry gives its own text
+// colour too (white doesn't work on white or the check pattern the
+// way it does on every saturated colour here), and `checkered: true`
+// switches #2 to a checkerboard background instead of a flat one —
+// see runnerNumberHtml.
 const RUNNER_NUMBER_COLORS = [
-  "#e63946", "#1d3557", "#2a9d8f", "#e76f51", "#6a4c93", "#264653",
-  "#8338ec", "#ff006e", "#3a86ff", "#588157", "#7f5539", "#495057",
+  { bg: "#d5211b", text: "#ffffff" }, // 1 red
+  { bg: "#ffffff", text: "#111111", checkered: true }, // 2 black/white check
+  { bg: "#ffffff", text: "#111111", border: true }, // 3 white
+  { bg: "#1a56c4", text: "#ffffff" }, // 4 blue
+  { bg: "#f2860d", text: "#ffffff" }, // 5 orange
+  { bg: "#1a8a3c", text: "#ffffff" }, // 6 green
+  { bg: "#111111", text: "#ffffff" }, // 7 black
+  { bg: "#e0177f", text: "#ffffff" }, // 8 pink
+  { bg: "#0e8f7a", text: "#ffffff" }, // 9 emerald
+  { bg: "#7b3fa0", text: "#ffffff" }, // 10 purple
+  { bg: "#8a8f98", text: "#ffffff" }, // 11 grey
+  { bg: "#8a5a2b", text: "#ffffff" }, // 12 brown
 ];
 
 // Splits "N. Horse Name" into the coloured number badge (below) and the
@@ -315,9 +326,15 @@ function runnerNumberHtml(name) {
   const match = name.match(/^(\d+)\.\s*(.*)$/);
   if (!match) return { html: "", label: name };
   const number = Number(match[1]);
-  const color = RUNNER_NUMBER_COLORS[(number - 1) % RUNNER_NUMBER_COLORS.length];
+  const swatch = RUNNER_NUMBER_COLORS[(number - 1) % RUNNER_NUMBER_COLORS.length];
+  const classes = ["runner-number", swatch.checkered && "runner-number-check", swatch.border && "runner-number-bordered"]
+    .filter(Boolean)
+    .join(" ");
+  const style = swatch.checkered
+    ? `color:${swatch.text}`
+    : `background:${swatch.bg};color:${swatch.text}`;
   return {
-    html: `<span class="runner-number" style="background:${color}">${number}</span>`,
+    html: `<span class="${classes}" style="${style}">${number}</span>`,
     label: match[2],
   };
 }

@@ -2074,3 +2074,47 @@ https://developer.betfair.com/.
         and the winner-row's own tint coexist without conflict; the
         flash-on-in-play animation (an unrelated, pre-existing feature)
         still fires correctly. No console errors.
+
+- [x] Same session, three more user-reported rough edges once the
+      denser styling above made them stand out:
+      - **Header row inconsistency** — Best Price/Back/Lay's own
+        column headers were coloured (accent blue / --back-color /
+        --lay-color) while every other header (Runner, the bookie
+        logos, Lay $, Liability) stayed plain muted text, reading as
+        mismatched. `th.col-best-price`'s own colour override removed
+        outright; `.header-box .bl-cell` (the header-only instance of
+        the same `.bl-back`/`.bl-lay` classes the real Back/Lay price
+        cells use) now explicitly resets to plain muted/transparent —
+        the data cells below keep their blue/pink exactly as before,
+        only the header text changed.
+      - **A stray divider line** — `#race-info-bar`'s own
+        `border-bottom` sat directly under both the race title/countdown
+        and the Mode/Stake/Hedge controls, at the same height the
+        sidebar's own race list was still visible beside it — user
+        described it as "the line that runs across separating the race
+        list and race details and mode box." Removed outright; the
+        table's own header row still has its own border immediately
+        below, so no visual gap opened up where it used to be.
+      - **Runner badge colours were invented, not real** — user sent a
+        real Sportsbet/racing screenshot showing the actual Australian
+        saddlecloth colour-by-number convention (1 red, 2 black/white
+        check, 3 white, 4 blue, 5 orange, 6 green, 7 black, 8 pink).
+        `RUNNER_NUMBER_COLORS` (popup.js) replaced with exactly that,
+        continued 9-12 with the same real convention (emerald, purple,
+        grey, brown) instead of the made-up 12-hue palette from the PR
+        above. #2 gets an actual small CSS checkerboard
+        (`.runner-number-check`, two offset diagonal-split gradients)
+        rather than a flat colour, with a black text-shadow so the
+        number stays legible over both the light and dark squares; #3
+        (white) gets a fixed grey border so it doesn't disappear
+        against a light-mode page background; every swatch now carries
+        its own explicit text colour instead of assuming white always
+        works.
+      - Verified in the harness: every header cell's computed `color`
+        confirmed identical (one shared muted rgb value, not just
+        visually similar); `#race-info-bar`'s computed
+        `border-bottom-width` confirmed `0px`; each runner badge's
+        computed background/border/`background-image` checked
+        individually (red/orange/blue solids, #3's real border,
+        #2's real `background-image` gradient, not just a solid
+        colour). No console errors.
