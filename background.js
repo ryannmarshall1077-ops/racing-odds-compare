@@ -440,18 +440,19 @@ async function refreshRaceInner(marketId) {
   //   numberOfWinners === 3 ("Top 3 Finish"): Pr(place)−Pr(win) IS
   //     Pr(2nd or 3rd) combined — exactly what Run 2nd 3rd needs
   //     directly. Run 2nd can't use this figure as its own Pr(2nd)
-  //     outright (it's 2nd-or-3rd, not 2nd alone) — see
-  //     promoPlaceProb's own comment for how it's still put to use
-  //     there (split by Harville's own relative 2nd:3rd ratio, so Run
-  //     2nd's number can never end up higher than Run 2nd 3rd's for
-  //     the same runner, real data unlike an earlier version of this
-  //     that used Harville's absolute figure for both and had exactly
-  //     that inconsistency — user-reported).
+  //     outright (it's 2nd-or-3rd, not 2nd alone), and there's no real
+  //     data to split it with — popup.js's own promoPlaceProb leaves
+  //     Run 2nd null in this case rather than falling back to a
+  //     theoretical model (an earlier version used the Harville place-
+  //     probability model here, both as the 2nd:3rd split and as a
+  //     no-place-market fallback; real market data was user-verified to
+  //     disagree with Harville's estimate by roughly 2x for an actual
+  //     runner in a small field, so Harville was dropped entirely).
   //   numberOfWinners === 2 ("Top 2 Finish"): Pr(place)−Pr(win) IS
   //     Pr(2nd) alone this time (only two placings exist at all, so
   //     "placed but didn't win" only ever means 2nd) — usable by Run
-  //     2nd directly, real data, no Harville involved. Run 2nd 3rd has
-  //     no 3rd-place information at all in this case, so stays null.
+  //     2nd directly, real data. Run 2nd 3rd has no 3rd-place
+  //     information at all in this case, so stays null.
   //   Anything else (4, or no place market at all): left null:
   //     numberOfWinners 4 doesn't correspond to either promo's own
   //     definition, and there's nothing to isolate at all without a

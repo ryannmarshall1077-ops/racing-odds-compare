@@ -1728,3 +1728,53 @@ https://developer.betfair.com/.
         winner known (still "RESULTED", unaffected) — plus the same
         check against the main race-info bar's own countdown. No
         console errors.
+
+- [x] Removed the Harville (1973) place-probability model from Run 2nd
+      mode entirely — user asked to factor Betfair's own market
+      efficiency % (overround) into the formula as a non-configurable
+      default (reversing an earlier "nah dont add it" on the same
+      idea); scoping that out, Harville's own two fallback uses in
+      `promoPlaceProb` (an absolute Pr(2nd) estimate when no place
+      market exists, and a relative 2nd:3rd ratio to split a real
+      "Top 3 Finish" total) were both already known to disagree with
+      real market data by roughly 2x for an actual runner in a small
+      field — the reason Run 2nd 3rd was moved onto real place-market
+      data outright in an earlier fix. Rather than layer a market-
+      efficiency correction onto a model already found unreliable,
+      user asked to drop Harville altogether: Run 2nd now shows a
+      number only when a real "Top 2 Finish" place market is available
+      (Pr(2nd) directly, no model), and stays "—" for everything else
+      (a "Top 3 Finish" market with no way to isolate 2nd from the
+      combined total, or no place market at all) — same "no reliable
+      number to show" convention already used for a missing bookmaker
+      price. Mug mode's Edge% and Bonus mode's Ret% were never touched
+      by any of this (they don't use Harville or `promoPlaceProb`) and
+      still match their own verified HorsePower figures.
+      - Removed `harvillePlaceProbs`, `computeHarvillePlaceProbs`, and
+        the module-level `placeProbsBySelectionId` cache from popup.js
+        entirely, along with `renderRace`'s own per-render call to
+        recompute it. `promoPlaceProb` collapsed to: `run2nd3rd` →
+        real combined Pr(2nd or 3rd) when `placeMarketWinners === 3`,
+        else `null`; `run2nd` → real Pr(2nd) when
+        `placeMarketWinners === 2`, else `null`. `promoEVPercent` and
+        `metricPercent`/`bookieMetricPercent` needed no changes — they
+        already treat a `null` placeProb as "nothing reliable to show."
+      - background.js's own comment on the PLACE market fetch
+        (`refreshRaceInner`) updated to describe the same real-data-or-
+        null behavior instead of the old Harville-split/fallback
+        framing.
+      - Verified in the local static-preview harness with a 3-runner
+        mock race and a synthetic PLACE market (two runners with a
+        real `placeBetfair` price, one without): with
+        `placeMarketWinners = 3`, Run 2nd 3rd showed a real EV% for the
+        two runners with place prices (hand-verified exact match: QL
+        via `qualifyingLoss` + Pr(2nd or 3rd) × refund, e.g. +43.8% for
+        Thunder Strike at TAB) and "—" for the one without; Run 2nd
+        showed "—" for every runner (no way to isolate 2nd from a
+        Top 3 total without Harville). Re-rendered the same race with
+        `placeMarketWinners = 2`: Run 2nd now showed the same real
+        figures Run 2nd 3rd had shown (correct — with only two
+        placings, "placed but didn't win" only ever means 2nd).
+        Switched to Mug mode and confirmed its Edge% figures were
+        byte-for-byte unchanged from before this fix. No console
+        errors.
