@@ -1,3 +1,10 @@
+// Small inline icon (currentColor, inherits .winner-tag's own green) for
+// the "Winner" tag on a settled runner's row — replaces a plain trophy
+// emoji, same flat single-colour treatment as the rest of the header
+// icons (see applyTheme's own THEME_ICON_MOON/SUN).
+const WINNER_ICON =
+  '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 5H4a1 1 0 0 0-1 1v1a4 4 0 0 0 4 4M17 5h3a1 1 0 0 1 1 1v1a4 4 0 0 1-4 4"/></svg>';
+
 // Commission-adjusted edge, generalized for a partial hedge (0-100% of a
 // full lay). At hedge=1 this is exactly the standard QL% formula
 // (100 × [B(1-c) - (L-c)] / (L-c)); at hedge=0 commission drops out
@@ -713,7 +720,7 @@ function renderRace(race) {
     const bestPriceBadges = bestBookieIds
       .map((id) => {
         const bookie = BOOKIE_LIST.find((b) => b.id === id);
-        return `<span class="bookie-badge">${bookie.label}</span>`;
+        return `<span class="bookie-badge"><img class="bookie-logo" src="${bookie.logo}" alt="" />${bookie.label}</span>`;
       })
       .join(" ");
     const bestMetric = metricPercent(runner, commission, hedge);
@@ -735,7 +742,9 @@ function renderRace(race) {
     // above the table used to duplicate this, removed per request as
     // redundant once this tag existed).
     const winnerTag =
-      runner.result === "WINNER" ? ' <em class="winner-tag">&#127942; Winner</em>' : "";
+      runner.result === "WINNER"
+        ? ` <em class="winner-tag">${WINNER_ICON} Winner</em>`
+        : "";
 
     row.innerHTML = `
       <td>${runner.name}${winnerTag}</td>
@@ -1374,7 +1383,7 @@ for (const btn of document.querySelectorAll(".race-type-btn")) {
 // block handles every other variable) — --accent is set inline below
 // instead, since an untouched accentColor needs to resolve differently
 // per theme and a plain CSS override can't win against an inline style.
-const THEME_DEFAULT_ACCENT = { dark: "#3ddc97", light: "#1f9d68" };
+const THEME_DEFAULT_ACCENT = { dark: "#2f6feb", light: "#1f56c9" };
 
 const themeToggleBtn = document.getElementById("theme-toggle-btn");
 
@@ -1382,13 +1391,24 @@ const themeToggleBtn = document.getElementById("theme-toggle-btn");
 // popup.css's light-mode block keys off — split out from
 // applyDisplaySettings so the button reacts the instant it's clicked,
 // without waiting on a settings round-trip first.
+// Inline SVGs (currentColor, so they inherit #theme-toggle-btn's own
+// color/hover rules exactly like the plain-text emoji they replaced) —
+// a moon while in light mode (next click goes dark), a sun while in
+// dark mode (next click goes light). Matches the flat, single-colour
+// icon treatment the rest of the header now uses (see settings-btn/
+// comms-badge/matched-badge) instead of a platform emoji glyph.
+const THEME_ICON_MOON =
+  '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>';
+const THEME_ICON_SUN =
+  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>';
+
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   if (theme === "light") {
-    themeToggleBtn.textContent = "\u{1F319}"; // 🌙 — click to go dark
+    themeToggleBtn.innerHTML = THEME_ICON_MOON;
     themeToggleBtn.title = "Switch to dark mode";
   } else {
-    themeToggleBtn.textContent = "\u{2600}\u{FE0F}"; // ☀️ — click to go light
+    themeToggleBtn.innerHTML = THEME_ICON_SUN;
     themeToggleBtn.title = "Switch to light mode";
   }
 }

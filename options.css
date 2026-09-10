@@ -174,11 +174,11 @@ button:hover {
 .settings-section-body .status,
 .settings-footer .status {
   margin: 0;
-  color: var(--accent);
+  color: var(--positive);
 }
 
 .status.ok {
-  color: var(--accent);
+  color: var(--positive);
 }
 
 .status.error {

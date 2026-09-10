@@ -1914,3 +1914,89 @@ https://developer.betfair.com/.
       - Also changed the flash's own colour from `--accent-neg` (red)
         to plain white per user request — a deliberate, non-themed
         colour, same regardless of dark/light mode.
+
+- [x] Rebranded around Betting Blueprint's own logo and gave the whole
+      layout a polish pass — user request: "make the layout look
+      professional and developed", then "add our logo and make it
+      themed with similar colours, make it look like an end product".
+      Scoped as a refinement of the existing structure/colours (not a
+      from-scratch redesign, confirmed with the user first), plus the
+      brand-colour swap and real logo placement once those were asked
+      for explicitly.
+      - **Brand colour** — `--accent` (popup.css) changed from the old
+        teal-green (`#3ddc97`) to Betting Blueprint's own blue
+        (`#2f6feb`, `#1f56c9` in light mode), used for every general
+        UI/chrome touchpoint: buttons, focus rings, the headline Best
+        Price column + its bookie badge, selected sidebar race, hover
+        states. `DEFAULT_SETTINGS.accentColor` (settings.js) and
+        `THEME_DEFAULT_ACCENT` (popup.js) updated to match — both must
+        stay equal for an unedited Settings > Colours accent to still
+        resolve per-theme correctly; an already-customized accent is
+        untouched.
+      - **New `--positive` token** (popup.css) — carved out a small,
+        fixed set of "good/live/won" *data* signals (greyhound's own
+        sport-identity colour, the live-connection dot, a settled
+        winner's row/tag, an "ok" status message in both the popup and
+        options.html) that stay green regardless of the brand colour,
+        the same way `--accent-neg`'s red already does for "bad". Every
+        literal rgba() tint paired with one of these (winner-row,
+        live-dot's glow) was already hardcoded green and needed no
+        change; the ones that were actually brand-blue now
+        (best-price/bookie-badge/selected-race/live-bookie-dot tints)
+        got their own literal rgba() updated to match — this file can't
+        `rgba(var(--accent))` directly, so each tint is a literal
+        spelled-out copy of whichever token it's meant to track (an
+        existing convention, not a new one).
+      - **Real logo** — the sidebar header's plain "Racing Odds
+        Compare" text gained a `.brand-mark` slot using the extension's
+        own already-in-repo toolbar icon (`icons/icon128.png` — this
+        was already the Betting Blueprint "BB" mark, just never
+        reused inside the page itself). The user's source PNG (with
+        the full "BETTING BLUEPRINT" wordmark) came from a file on
+        their Desktop, not directly extractable from a pasted chat
+        image — asked, then found it once told where to look.
+      - **Real bookie logos** — `BOOKIE_LIST` (bookies.js) gained a
+        `logo` field per bookmaker. Couldn't extract these from the
+        user's pasted screenshots either (same limitation); asked, and
+        per the user's own choice fetched each bookmaker's real logo
+        directly from their own site's `<link rel="icon">`/
+        `apple-touch-icon` tags (sportsbet.com.au, tab.com.au,
+        ladbrokes.com.au — same "identify the bookmaker" nominative use
+        every odds-comparison tool already makes of these) rather than
+        hunting for local files. Saved to `icons/bookies/*.png`. Shown
+        as a small rounded-square `.bookie-logo` next to the bookmaker's
+        name in both the table's own column headers and the Best
+        Price cell's "which bookie(s) won" badge.
+      - **General polish** — every plain-text/emoji icon replaced with
+        a matching inline SVG (currentColor, so it inherits its own
+        element's colour/hover rules): the settings gear, the search
+        field's icon (now positioned inside the input via CSS instead
+        of living in the placeholder string), the Comms/Matched header
+        badges, the winner tag's trophy, and the theme toggle's sun/
+        moon. Added: a shared hover/focus transition across every
+        interactive control; a themed thin scrollbar (sidebar, odds
+        table, settings modal); a focus-ring glow (`--focus-ring`,
+        matching accent) on text/number inputs and the mode select; a
+        rounded-card border + sticky header on the odds table itself
+        (`#odds-table-wrapper`, safe to combine with its existing
+        horizontal scroll — `overflow-x`/`overflow-y` both explicitly
+        `auto`, which clips to the border-radius per spec); a subtle
+        row-hover highlight; unified control heights/padding across
+        the search field, Stake/Hedge inputs, and Mode select; a new
+        `--panel-raised` token for hover backgrounds (light mode's own
+        copy deliberately not identical to `--panel`, unlike an
+        earlier pass of this same token — white-on-white made the new
+        table row hover invisible in light mode until caught and
+        fixed).
+      - Verified in the local static-preview harness across dark and
+        light mode: brand-blue vs `--positive`-green applied to the
+        right elements (spot-checked bookie badges, greyhound sport
+        badge, a marked WINNER row + its trophy icon, the live dot),
+        Settings modal's every tab (Betfair/Display/Bookie/Colours —
+        confirmed Colours' own EV tier bands are untouched, still
+        user-configurable independent of the brand accent), row hover
+        visible in both themes after the `--panel-raised` fix, real
+        bookie logos loading without error
+        (`naturalWidth`/`complete` checked on every `.bookie-logo`),
+        and the layout holding up cleanly from a wide (1600px) down to
+        a narrow (500px) viewport. No console errors.

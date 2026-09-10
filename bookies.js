@@ -6,9 +6,9 @@
 // other; both load this file via their own mechanism (a <script> tag for
 // popup.html, importScripts for the service worker).
 const BOOKIE_LIST = [
-  { id: "sportsbet", label: "Sportsbet" },
-  { id: "tab", label: "TAB" },
-  { id: "ladbrokes", label: "Ladbrokes" },
+  { id: "sportsbet", label: "Sportsbet", logo: "icons/bookies/sportsbet.png" },
+  { id: "tab", label: "TAB", logo: "icons/bookies/tab.png" },
+  { id: "ladbrokes", label: "Ladbrokes", logo: "icons/bookies/ladbrokes.png" },
 ];
 
 // Single-letter race-type code shown in the compact race-info bar (e.g.

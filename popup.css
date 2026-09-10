@@ -4,16 +4,38 @@
      instead of leaving it to guess and potentially auto-dark-invert an
      explicitly light page back to dark. */
   color-scheme: dark;
-  --bg: #0f1720;
-  --panel: #17212b;
-  --text: #e6edf3;
+  --bg: #0a0e17;
+  --panel: #131b26;
+  --panel-raised: #182432;
+  --text: #e9eef4;
   --muted: #8b98a5;
-  --accent: #3ddc97;
+  /* Betting Blueprint's own brand blue (the logo's colour) — the
+     general UI/chrome accent (buttons, focus rings, selection, the
+     headline Best Price column, hover states). Settings > Colours'
+     own "Accent Color" picker overrides this inline at runtime
+     (applyDisplaySettings, popup.js) — see DEFAULT_SETTINGS.accentColor
+     (settings.js) and THEME_DEFAULT_ACCENT (popup.js), which must both
+     stay equal to this value for an "untouched" accentColor to resolve
+     correctly per theme. */
+  --accent: #2f6feb;
   --accent-neg: #ff6b6b;
-  --border: #263241;
+  /* Separate from --accent on purpose — a small, fixed set of
+     genuinely "good/live/won" data signals (greyhound's own sport-
+     identity colour, the live-connection dot, a settled winner's row/
+     tag, an "ok" status message) that should stay green regardless of
+     whatever brand accent colour is configured, the same way
+     --accent-neg's red stays fixed for "bad" regardless of it too. */
+  --positive: #3ddc97;
+  --border: #232e3d;
   --back-color: #4fa8f5;
   --lay-color: #ef6fb0;
   --amber: #ffb454;
+  --shadow: rgba(0, 0, 0, 0.35);
+  /* Focus-ring glow — the accent's own default hex spelled out as rgba
+     (CSS can't rgba() a var() directly, same reasoning every other
+     tint literal in this file already follows) — drifts out of sync
+     with a custom Settings > Colours accent the same way those do. */
+  --focus-ring: rgba(47, 111, 235, 0.18);
 }
 
 /* Light mode — toggled via #theme-toggle-btn (popup.js sets
@@ -28,19 +50,23 @@
    applied there instead of here — an untouched accentColor still needs
    to resolve differently per theme, which a CSS override alone can't
    do once JS has already written an inline style. --back-color/
-   --lay-color/--amber are darkened here the same way (paler on light
-   backgrounds otherwise) since nothing sets those inline. */
+   --lay-color/--amber/--positive are darkened here the same way (paler
+   on light backgrounds otherwise) since nothing sets those inline. */
 :root[data-theme="light"] {
   color-scheme: light;
   --bg: #f4f6f8;
   --panel: #ffffff;
+  --panel-raised: #eaeef2;
   --text: #1a2530;
   --muted: #5b6b7c;
   --accent-neg: #d93a3a;
+  --positive: #1f9d68;
   --border: #dde3ea;
   --back-color: #2f80d6;
   --lay-color: #cf4691;
   --amber: #c97a12;
+  --shadow: rgba(15, 23, 32, 0.1);
+  --focus-ring: rgba(31, 86, 201, 0.18);
 }
 
 * {
@@ -52,8 +78,56 @@ html, body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+  font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Thin, themed scrollbars (webkit only — fine, this only ever runs in
+   Chrome) instead of the OS default, for every independently-scrolling
+   region (#sidebar, #odds-table-wrapper, the settings modal body). */
+#sidebar::-webkit-scrollbar,
+#odds-table-wrapper::-webkit-scrollbar,
+#settings-modal .modal-body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+#sidebar::-webkit-scrollbar-track,
+#odds-table-wrapper::-webkit-scrollbar-track,
+#settings-modal .modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+#sidebar::-webkit-scrollbar-thumb,
+#odds-table-wrapper::-webkit-scrollbar-thumb,
+#settings-modal .modal-body::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+#sidebar::-webkit-scrollbar-thumb:hover,
+#odds-table-wrapper::-webkit-scrollbar-thumb:hover,
+#settings-modal .modal-body::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* A shared, subtle transition on every interactive control's own
+   hover/focus-relevant properties — nothing here snapped instantly
+   before, which read as flatter/less finished than intended. Listed by
+   selector rather than a blanket `*` rule so it never fights an
+   animation-driving property (e.g. #main-panel.flash-in-play's own
+   background) or costs anything on elements that never change. */
+button,
+input,
+select,
+.race-type-btn,
+.race-card,
+.race-pill,
+.bookie-badge,
+.metric-display-btn,
+#settings-modal .modal-tab-btn,
+#settings-modal .checkbox-label {
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease,
+    box-shadow 0.15s ease, opacity 0.15s ease;
 }
 
 /* This page only ever opens as a full browser tab (no default_popup in the
@@ -82,34 +156,71 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px 8px;
+  gap: 8px;
+  padding: 14px 14px 12px;
   border-bottom: 1px solid var(--border);
+}
+
+/* Brand mark + wordmark — a placeholder lettermark (swap #brand-mark's
+   own inner SVG for an <img> once a logo file exists) styled with the
+   brand accent so the header reads as a real product identity instead
+   of plain text. */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.brand-mark {
+  flex: 0 0 auto;
+  width: 27px;
+  height: 27px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 2px 8px var(--shadow);
 }
 
 h1 {
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-header-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  flex: 0 0 auto;
 }
 
 #settings-btn,
 #theme-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   background: none;
   border: none;
+  border-radius: 6px;
   color: var(--muted);
   cursor: pointer;
-  font-size: 15px;
   line-height: 1;
-  padding: 2px 4px;
+  padding: 0;
 }
 
 #settings-btn:hover,
 #theme-toggle-btn:hover {
+  background: var(--panel-raised);
   color: var(--text);
 }
 
@@ -185,9 +296,9 @@ h1 {
   color: var(--amber);
 }
 .race-type-btn.active[data-race-type="greyhound"] {
-  border-color: var(--accent);
+  border-color: var(--positive);
   background: rgba(61, 220, 151, 0.12);
-  color: var(--accent);
+  color: var(--positive);
 }
 
 .race-type-btn.active[data-race-type="horse"] .race-type-letter {
@@ -199,23 +310,39 @@ h1 {
   color: #0f1720;
 }
 .race-type-btn.active[data-race-type="greyhound"] .race-type-letter {
-  background: var(--accent);
+  background: var(--positive);
   color: #0f1720;
 }
 
-#track-search {
+.search-field {
+  position: relative;
   margin: 0 14px 10px;
-  padding: 7px 10px;
+}
+
+.search-field-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+#track-search {
+  width: 100%;
+  padding: 7px 10px 7px 30px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--text);
   font-size: 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 #track-search:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 #track-search::-webkit-search-cancel-button {
@@ -273,7 +400,7 @@ h1 {
 }
 
 .race-card.selected {
-  background: rgba(61, 220, 151, 0.1);
+  background: rgba(47, 111, 235, 0.12);
   border-left: 2px solid var(--accent);
 }
 
@@ -302,7 +429,7 @@ h1 {
 }
 
 .race-card.sport-greyhound .race-sport-badge {
-  background: var(--accent);
+  background: var(--positive);
 }
 
 .race-card-body {
@@ -348,7 +475,7 @@ h1 {
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 0 2px rgba(61, 220, 151, 0.2);
+  box-shadow: 0 0 0 2px rgba(47, 111, 235, 0.2);
 }
 
 .race-countdown {
@@ -434,7 +561,7 @@ h1 {
    placeholder data, so the dot means something rather than being purely
    decorative. */
 .live-dot.live {
-  background: var(--accent);
+  background: var(--positive);
   box-shadow: 0 0 0 3px rgba(61, 220, 151, 0.15);
 }
 
@@ -516,14 +643,35 @@ h1 {
    redesign of everything else on the page. */
 #odds-table-wrapper {
   overflow-x: auto;
+  overflow-y: auto;
   flex: 1;
-  padding: 0 16px;
+  margin: 0 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
 }
 
 table {
   width: 100%;
   min-width: 700px;
   border-collapse: collapse;
+}
+
+/* Sticky header — its own background needed explicitly (transparent by
+   default lets rows scroll up through it) now that the wrapper's own
+   border/radius makes this read as a proper card rather than a bare
+   table sitting on the page background. */
+thead th {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  z-index: 1;
+}
+
+/* Rows themselves stay borderless/backgroundless otherwise, so a
+   subtle hover here is the only per-row feedback — winner/scratched
+   rows keep their own tint (higher specificity) instead of this. */
+tbody tr:hover td {
+  background: var(--panel-raised);
 }
 
 .winner-row {
@@ -541,11 +689,14 @@ table {
 }
 
 .winner-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   margin-left: 6px;
   font-size: 11px;
   font-style: normal;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--positive);
 }
 
 /* The headline summary column — the highest price across every bookmaker
@@ -556,7 +707,7 @@ table {
    right, vertically centered — a wider, "cleaner" card-row style instead
    of the plain stacked-cell treatment every other column uses. */
 .col-best-price {
-  background: rgba(61, 220, 151, 0.05);
+  background: rgba(47, 111, 235, 0.06);
 }
 
 th.col-best-price {
@@ -595,16 +746,36 @@ th.col-best-price {
 }
 
 .bookie-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  padding: 4px 9px;
+  padding: 3px 9px 3px 4px;
   border-radius: 999px;
-  background: rgba(61, 220, 151, 0.15);
-  border: 1px solid rgba(61, 220, 151, 0.4);
+  background: rgba(47, 111, 235, 0.15);
+  border: 1px solid rgba(47, 111, 235, 0.4);
   color: var(--accent);
   white-space: nowrap;
+}
+
+/* Each bookmaker's own real logo (bookies.js's BOOKIE_LIST.logo) — a
+   small rounded square, same treatment wherever a bookie's name is
+   shown (a column header, or the Best Price cell's own "which bookie(s)
+   won" badge) rather than plain text alone. */
+.bookie-logo {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  flex: 0 0 auto;
+  display: block;
+}
+
+.bookie-th {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 /* Whichever bookie(s) tie for the best (highest) price for a runner — the
@@ -720,17 +891,18 @@ th:first-child {
 #sort-toggle-btn {
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: 4px;
   color: var(--text);
   font-size: 10px;
   text-transform: none;
-  padding: 2px 6px;
+  padding: 3px 7px;
   cursor: pointer;
 }
 
 #sort-toggle-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
+  background: var(--panel-raised);
 }
 
 /* Every Edge%/Ret% value now gets a configured colour (a matched EV
@@ -807,20 +979,20 @@ th:first-child {
 #mode-select {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 5px 6px;
+  border-radius: 6px;
+  padding: 6px 8px;
   color: var(--text);
   font-size: 12px;
 }
 
 #hedge-input,
 #stake-input {
-  width: 52px;
+  width: 56px;
   text-align: right;
 }
 
 #stake-input {
-  width: 64px;
+  width: 68px;
 }
 
 #hedge-input:focus,
@@ -828,6 +1000,7 @@ th:first-child {
 #mode-select:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .hedge-hint {
@@ -1141,11 +1314,11 @@ footer {
 
 #settings-modal .status {
   font-size: 12px;
-  color: var(--accent);
+  color: var(--positive);
 }
 
 #settings-modal .status.ok {
-  color: var(--accent);
+  color: var(--positive);
 }
 
 #settings-modal .status.error {
