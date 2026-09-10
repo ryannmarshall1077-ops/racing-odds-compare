@@ -635,11 +635,17 @@ function renderRace(race) {
   // Reused here to (a) blank every Edge%/Ret%/EV% figure for as long as
   // it's true (metricsSuspended, read by formatMetric — a suspended
   // bookmaker market's prices are no longer tradeable) and (b) flash
-  // the panel once, exactly on the moment it flips from false to true,
-  // so switching Mode/Stake/Hedge or an ordinary auto-refresh while
-  // already in play doesn't keep re-triggering it. A different race
-  // loading (marketId change) resets the tracked state first, so
-  // opening a race that's already in play never spuriously flashes.
+  // the panel once, exactly on the moment it flips from false to true
+  // *while already viewing this same race* — switching Mode/Stake/
+  // Hedge or an ordinary auto-refresh while already in play doesn't
+  // keep re-triggering it. isNewMarket (a different race loading —
+  // marketId change) skips the flash outright regardless of that new
+  // race's own in-play state — user-reported: opening a race that
+  // happened to already be in play flashed immediately, since nothing
+  // actually just transitioned, that's simply the race's existing
+  // state; an earlier version reset lastRenderedInPlay to false first
+  // and then treated that as a transition, flashing exactly backwards
+  // from what its own comment claimed.
   const raceInPlay = isShowingStatusWord(
     race.startTime,
     race.bookieMarketClosed ? "true" : "",
@@ -647,8 +653,8 @@ function renderRace(race) {
     race.marketStatus,
     hasLiveBookie ? "true" : ""
   );
-  if (race.marketId !== lastRenderedMarketId) lastRenderedInPlay = false;
-  if (raceInPlay && !lastRenderedInPlay) flashMainPanel();
+  const isNewMarket = race.marketId !== lastRenderedMarketId;
+  if (raceInPlay && !lastRenderedInPlay && !isNewMarket) flashMainPanel();
   lastRenderedMarketId = race.marketId;
   lastRenderedInPlay = raceInPlay;
   metricsSuspended = raceInPlay;

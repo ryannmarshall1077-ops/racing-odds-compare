@@ -1894,3 +1894,23 @@ https://developer.betfair.com/.
       genuinely-in-play case (past jump time, suspended, no live
       bookie) still correctly sets `metricsSuspended: true` and flashes
       the panel — no regression on the fix above it.
+
+- [x] Same PR, third bug: user-reported the panel flashing every time
+      they opened a race that happened to already be in play — e.g.
+      clicking a different race card whose market had already jumped.
+      `renderRace`'s own transition tracking reset `lastRenderedInPlay`
+      to `false` on a marketId change and then treated that reset as a
+      transition, flashing exactly backwards from what its own comment
+      claimed ("opening a race that's already in play never spuriously
+      flashes" — the code did the opposite). Added `isNewMarket` and
+      skip the flash outright whenever it's true, regardless of the
+      newly-loaded race's own in-play state — only a genuine false→true
+      transition *while already viewing the same race* still flashes.
+      Verified in the harness: opening a different, already-in-play
+      race no longer flashes (still correctly sets
+      `metricsSuspended: true`, just silently); the same race
+      transitioning to in-play while being watched continuously still
+      flashes and blanks its figures, unchanged.
+      - Also changed the flash's own colour from `--accent-neg` (red)
+        to plain white per user request — a deliberate, non-themed
+        colour, same regardless of dark/light mode.
