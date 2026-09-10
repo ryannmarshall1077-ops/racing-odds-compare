@@ -1687,3 +1687,44 @@ https://developer.betfair.com/.
           number for Run 2nd and "—" for Run 2nd 3rd; no place market
           shows Run 2nd falling back to its old Harville figure and
           Run 2nd 3rd showing "—" — no console errors in any case.
+- [x] Sidebar "IN PLAY" for races other than the one currently loaded
+      — user-noticed: a race's countdown just kept counting down past
+      zero indefinitely for every OTHER row in Upcoming Races, since
+      `bookieMarketClosed` (the actual "gone in-play" trigger) only
+      ever exists for whichever one race has a live-scraped bookie tab
+      open. Discussed the options first (asked, didn't implement
+      until user picked one): a plain "stop the countdown looking
+      broken past zero" relabel (cheapest, no new signal); reusing
+      Betfair's own OPEN/SUSPENDED/CLOSED market status — already
+      fetched for every pending race by `checkPendingResultsInner`'s
+      own winner check, zero new API cost — as a rougher fallback
+      in-play signal for rows with no tab open (chosen); opening a
+      background bookie tab per upcoming race to scrape each one's own
+      status the same way TAB's venue codes get learned (rejected —
+      heavy, would visibly flicker many tabs continuously for a
+      cosmetic sidebar detail).
+      - `isShowingStatusWord`/`formatCountdown` (popup.js) now take a
+        4th `betfairMarketStatus` parameter — "IN PLAY" fires on
+        `bookieMarketClosed === "true"` OR Betfair's own status being
+        anything other than "OPEN" (a new `isBetfairMarketClosed()`
+        helper), not just the former. bookieMarketClosed still wins
+        first/fastest for the one race with a tab open, matching the
+        existing "Betfair itself stays tradeable well past the real
+        jump" finding — this is deliberately just an *additional*,
+        rougher fallback for every other row, not a replacement.
+      - `race.marketStatus` was already being computed for every
+        upcoming race (`listUpcomingRacesInner`, background.js) and
+        already synced into the sidebar's own cache on live updates
+        (`chrome.storage.onChanged` listener) — this just had to be
+        threaded into each race card's `data-market-status` attribute
+        (`raceCardHtml`) and the main race-info bar's own countdown
+        element, the same way `bookieMarketClosed`/`hasWinner` already
+        are, so `tickCountdowns()` can read it every second.
+      - Verified in the local static-preview harness with 3 sidebar
+        rows: one past its jump time with Betfair still "OPEN" (stays
+        a plain negative countdown, unchanged — no signal available at
+        all, matches the known, accepted residual gap), one
+        "SUSPENDED" (now shows "IN PLAY" — the fix), and one with a
+        winner known (still "RESULTED", unaffected) — plus the same
+        check against the main race-info bar's own countdown. No
+        console errors.

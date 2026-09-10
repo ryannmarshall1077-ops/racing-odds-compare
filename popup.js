@@ -828,6 +828,7 @@ function renderRace(race) {
   countdownMainEl.dataset.start = race.startTime || "";
   countdownMainEl.dataset.bookieMarketClosed = race.bookieMarketClosed ? "true" : "";
   countdownMainEl.dataset.hasWinner = race.winner ? "true" : "";
+  countdownMainEl.dataset.marketStatus = race.marketStatus || "";
 
   document.getElementById("data-source-note").textContent = noteFor(race);
 }
@@ -1064,7 +1065,9 @@ function raceCardHtml(race) {
   const timeHtml = currentSettings.showCountdowns
     ? `<span class="race-countdown" data-start="${race.startTime}" data-bookie-market-closed="${
         race.bookieMarketClosed ? "true" : ""
-      }" data-has-winner="${race.winner ? "true" : ""}"></span>`
+      }" data-has-winner="${race.winner ? "true" : ""}" data-market-status="${
+        race.marketStatus || ""
+      }"></span>`
     : "";
 
   return `
@@ -1177,23 +1180,40 @@ function formatDuration(totalSeconds) {
 
 // bookieMarketClosed (sportsbetWatcher.js/tabWatcher.js's live DOM scrape
 // of whichever bookie tab is open, applied via background.js's
-// applyBookieOdds) is the actual "gone in-play" trigger — not Betfair's
-// own status. User-reported/explicit direction: Betfair itself commonly
-// stays tradeable well past the real jump, so it was never a reliable
-// signal for this; the bookmaker actually closing its own market is. The
-// displayed clock itself is untouched by this — still just Betfair's own
-// scheduled startTime counting down, then on into negative, same as
-// always; only what triggers the switch to "IN PLAY" changed.
+// applyBookieOdds) is the primary "gone in-play" trigger — not Betfair's
+// own status by itself. User-reported/explicit direction: Betfair itself
+// commonly stays tradeable well past the real jump, so its own status
+// was never a reliable signal for the ONE race that actually has a
+// bookie tab open. betfairMarketStatus (below) is a fallback for every
+// OTHER race in the sidebar list, which never has a tab open at all —
+// user-reported those just counting down past zero forever with no way
+// to show "IN PLAY" until a winner eventually appears. Betfair's own
+// OPEN/SUSPENDED/CLOSED status (checkPendingResultsInner, background.js
+// — already fetched there for the winner check, no new API cost) is a
+// rougher, sometimes-later signal than bookieMarketClosed, but it's real
+// data instead of nothing: once it's no longer "OPEN", betting there has
+// genuinely stopped. The displayed clock itself is untouched by any of
+// this — still just Betfair's own scheduled startTime counting down,
+// then on into negative, same as always; only what triggers the switch
+// to "IN PLAY" changed.
 // Exported as its own check (not just inlined in formatCountdown) so
 // the race-info bar's "in" prefix (only makes sense before a duration,
 // not in front of the word "IN PLAY") can key off the exact same rule
 // instead of a second copy of it drifting out of sync.
-// "true" (string), not a boolean, for both params below — every real
-// caller sources these from DOM dataset attributes (renderRace/
-// raceCardHtml both write race.bookieMarketClosed/race.winner through
-// a `? "true" : ""` ternary), and dataset values are always strings.
+// "true" (string), not a boolean, for bookieMarketClosed/hasWinner below
+// — every real caller sources these from DOM dataset attributes
+// (renderRace/raceCardHtml both write race.bookieMarketClosed/race.winner
+// through a `? "true" : ""` ternary), and dataset values are always
+// strings. betfairMarketStatus is instead whatever raw string
+// race.marketStatus already is ("OPEN"/"SUSPENDED"/"CLOSED"/"" for
+// unknown) — no ternary needed, "OPEN" and "" both mean "not closed yet"
+// so both fall through the same way.
 function isPastJumpTime(startTimeIso) {
   return new Date(startTimeIso).getTime() - Date.now() <= 0;
+}
+
+function isBetfairMarketClosed(betfairMarketStatus) {
+  return Boolean(betfairMarketStatus) && betfairMarketStatus !== "OPEN";
 }
 
 // Whether the countdown is currently showing a status word ("IN PLAY"/
@@ -1201,19 +1221,23 @@ function isPastJumpTime(startTimeIso) {
 // just inlined in formatCountdown) so the race-info bar's "in" prefix
 // (only makes sense before a duration) can key off the exact same rule
 // instead of a second copy of it drifting out of sync.
-function isShowingStatusWord(startTimeIso, bookieMarketClosed, hasWinner) {
-  return isPastJumpTime(startTimeIso) && (hasWinner === "true" || bookieMarketClosed === "true");
+function isShowingStatusWord(startTimeIso, bookieMarketClosed, hasWinner, betfairMarketStatus) {
+  return (
+    isPastJumpTime(startTimeIso) &&
+    (hasWinner === "true" || bookieMarketClosed === "true" || isBetfairMarketClosed(betfairMarketStatus))
+  );
 }
 
-function formatCountdown(startTimeIso, bookieMarketClosed, hasWinner) {
+function formatCountdown(startTimeIso, bookieMarketClosed, hasWinner, betfairMarketStatus) {
   const diffMs = new Date(startTimeIso).getTime() - Date.now();
   if (diffMs > 0) return formatDuration(Math.floor(diffMs / 1000));
   // RESULTED takes priority over IN PLAY — a winner being known means
-  // the race is definitely done, regardless of what bookieMarketClosed
-  // (which only tracks betting having closed, not the actual result)
-  // says by this point.
+  // the race is definitely done, regardless of what bookieMarketClosed/
+  // betfairMarketStatus (which only track betting having closed, not
+  // the actual result) say by this point.
   if (hasWinner === "true") return "RESULTED";
-  if (isPastJumpTime(startTimeIso) && bookieMarketClosed === "true") return "IN PLAY";
+  if (isPastJumpTime(startTimeIso) && (bookieMarketClosed === "true" || isBetfairMarketClosed(betfairMarketStatus)))
+    return "IN PLAY";
   return `-${formatDuration(Math.floor(-diffMs / 1000))}`;
 }
 
@@ -1223,7 +1247,12 @@ function formatCountdown(startTimeIso, bookieMarketClosed, hasWinner) {
 // without needing its own cleanup/restart logic.
 function tickCountdowns() {
   for (const el of document.querySelectorAll(".race-countdown")) {
-    el.textContent = formatCountdown(el.dataset.start, el.dataset.bookieMarketClosed, el.dataset.hasWinner);
+    el.textContent = formatCountdown(
+      el.dataset.start,
+      el.dataset.bookieMarketClosed,
+      el.dataset.hasWinner,
+      el.dataset.marketStatus
+    );
   }
 
   const countdownMainEl = document.getElementById("race-countdown-main");
@@ -1231,7 +1260,8 @@ function tickCountdowns() {
     ? formatCountdown(
         countdownMainEl.dataset.start,
         countdownMainEl.dataset.bookieMarketClosed,
-        countdownMainEl.dataset.hasWinner
+        countdownMainEl.dataset.hasWinner,
+        countdownMainEl.dataset.marketStatus
       )
     : "";
   // "Jumps at HH:MM · in -1m 02s" reads fine; "Jumps at HH:MM · in IN
@@ -1242,7 +1272,8 @@ function tickCountdowns() {
       isShowingStatusWord(
         countdownMainEl.dataset.start,
         countdownMainEl.dataset.bookieMarketClosed,
-        countdownMainEl.dataset.hasWinner
+        countdownMainEl.dataset.hasWinner,
+        countdownMainEl.dataset.marketStatus
       )
   );
 }
