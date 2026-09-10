@@ -2000,3 +2000,214 @@ https://developer.betfair.com/.
         (`naturalWidth`/`complete` checked on every `.bookie-logo`),
         and the layout holding up cleanly from a wide (1600px) down to
         a narrow (500px) viewport. No console errors.
+      - Follow-up, same session: dropped each bookie's own text label
+        next to its logo (both the column header and the Best Price
+        cell's badge) — user-requested, once the real logos made the
+        text redundant. `.bookie-th`/`.bookie-badge` go icon-only; the
+        bookmaker's name is still reachable via `alt` text and (for the
+        badge, which has no visible label of its own left at all) a new
+        `title` attribute on hover. `.bookie-badge` shrank from a
+        pill sized for icon+text to a small circular icon-only badge.
+
+- [x] Matched the odds table's own density/boldness to bet337 Terminal
+      specifically — user sent a screenshot and asked to "aim to match
+      the visual feel of bet337's while keeping the colour scheme the
+      same" (i.e. our own brand blue/positive-green, not a copy of
+      their palette). This PR also had to re-apply the previous PR's
+      own bookie-text-removal commit (`0172798`) — that branch got
+      merged into `main` one push before it landed, so it never
+      actually shipped; brought back in here via cherry-pick.
+      - **Coloured runner badges** — `runnerNumberHtml`/
+        `RUNNER_NUMBER_COLORS` (popup.js): a small solid-colour square
+        badge (12 distinct hues, cycling past that) now leads every
+        runner row instead of a plain "1." folded into the name text —
+        our own palette, not any bookmaker's real silk colours, and
+        independent of the brand accent (a runner's own identity, not
+        UI chrome). Scratched rows deliberately kept plain (no badge)
+        — a bold colour there would fight the existing muted/italic
+        "this runner is out" treatment.
+      - **Bolder full-cell EV tint** — `edgeMetricHtml` (popup.js) now
+        also returns a `bg` (the same EV tier colour as a ~14%-opacity
+        `rgba()`, via a new `hexToRgb` helper — needed because these
+        are arbitrary user-configured hex values from Settings > EV
+        Colours, not one of popup.css's own fixed tokens), applied as
+        an inline `style="background:…"` on the Best Price and each
+        bookie's own `<td>` directly — a real coloured cell background
+        next to the coloured text, not text-colour alone, matching the
+        reference's own denser look. Respects `metricsSuspended` (an
+        in-play race) the same way the text already does, so a
+        suspended market's cells don't show a bold colour with no
+        figure behind it. The Best Price cell's own existing default
+        tint (`.col-best-price`'s flat class-level background) is left
+        alone when there's no real metric to show — the inline style is
+        only added when there's an actual colour to override it with.
+      - **Best-price cell outline** — `.col-bookie.best-price` gained
+        an inset `box-shadow` outline in the brand accent, boxing
+        whichever bookie(s) tie for the best price on that row, on top
+        of its existing bold-blue text — the reference's own "here's
+        the winner" boxed highlight, in our colour instead of theirs.
+      - **Mode as segmented pills, not a `<select>`** — `#mode-tabs`/
+        `.mode-tab-btn` (popup.html/css) replace the live toolbar's
+        `<select>` with 4 buttons in a recessed track, the active one a
+        solid accent pill — the reference's own Win/Place/Bonus/Promo
+        tab treatment. `setMode(mode)` (popup.js) is now the one place
+        that changes `currentMode` — both the click handler and
+        Settings > Display's own defaultMode seeding go through it, so
+        the active pill can never drift out of sync with the real mode
+        the way two separate copies of "set currentMode + sync the UI"
+        risked. Settings > Display's own "Default Mode" field
+        deliberately stayed a plain `<select>` — a normal fit for a
+        settings form, not the live control the reference's own
+        tab-styled toggle was actually replacing.
+      - Deliberately NOT attempted: the reference's own "FLUCTS"
+        sparkline column (a live price-history mini-chart per runner).
+        That's a real feature needing price-history tracking we don't
+        currently store, not a styling change — flagged rather than
+        faked with placeholder data.
+      - Verified in the local static-preview harness, both themes:
+        runner badges render distinct/readable; Mug → Bonus mode switch
+        via the new pills updates `currentMode`, the active pill, and
+        every cell's figures correctly (confirmed via DOM state, not
+        just visually, after initially misreading a compressed
+        screenshot); Settings > Display's "Default Mode" `<select>`
+        confirmed untouched; a marked WINNER row's own per-cell tints
+        and the winner-row's own tint coexist without conflict; the
+        flash-on-in-play animation (an unrelated, pre-existing feature)
+        still fires correctly. No console errors.
+
+- [x] Same session, three more user-reported rough edges once the
+      denser styling above made them stand out:
+      - **Header row inconsistency — misdiagnosed, then corrected**:
+        first removed Best Price/Back/Lay's own coloured headers
+        (accent blue / --back-color / --lay-color) to match the plain
+        muted headers everywhere else, assuming that colour mismatch
+        was the actual complaint. User clarified it wasn't — "I was
+        referring to the best price box didnt have the same highlight
+        as the other" — the real gap was that `.col-best-price` never
+        got the same accent-outline box a winning bookie's own cell
+        does. Reverted the header-colour change outright (Best
+        Price/Back/Lay headers are coloured again, same as always)
+        and added the actual fix instead: `td.col-best-price.has-price`
+        gets the same `box-shadow: inset 0 0 0 1.5px var(--accent)` as
+        `.col-bookie.best-price` (now `.row-best`, see below),
+        conditioned on `bestPrice != null` — never on a scratched
+        row's "—" or the footer's Market % row.
+      - **A stray divider line** — `#race-info-bar`'s own
+        `border-bottom` sat directly under both the race title/countdown
+        and the Mode/Stake/Hedge controls, at the same height the
+        sidebar's own race list was still visible beside it — user
+        described it as "the line that runs across separating the race
+        list and race details and mode box." Removed outright; the
+        table's own header row still has its own border immediately
+        below, so no visual gap opened up where it used to be.
+      - **Runner badge colours were invented, not real** — user sent a
+        real Sportsbet/racing screenshot showing the actual Australian
+        saddlecloth colour-by-number convention (1 red, 2 black/white
+        check, 3 white, 4 blue, 5 orange, 6 green, 7 black, 8 pink).
+        `RUNNER_NUMBER_COLORS` (popup.js) replaced with exactly that,
+        continued 9-12 with the same real convention (emerald, purple,
+        grey, brown) instead of the made-up 12-hue palette from the PR
+        above. #2 gets an actual small CSS checkerboard
+        (`.runner-number-check`, two offset diagonal-split gradients)
+        rather than a flat colour, with a black text-shadow so the
+        number stays legible over both the light and dark squares; #3
+        (white) gets a fixed grey border so it doesn't disappear
+        against a light-mode page background; every swatch now carries
+        its own explicit text colour instead of assuming white always
+        works.
+      - Verified in the harness: `#race-info-bar`'s computed
+        `border-bottom-width` confirmed `0px`; each runner badge's
+        computed background/border/`background-image` checked
+        individually (red/orange/blue solids, #3's real border,
+        #2's real `background-image` gradient, not just a solid
+        colour). No console errors.
+
+- [x] Same session, two more from the user: the row/column highlight
+      needed to actually match a reference terminal's own two
+      *independent* settings ("Highlight best bookie per runner" —
+      green tint per row — and "Highlight best runner per bookie" —
+      gold outline per column), not the single row-only outline this
+      had become; and race times switched from 24-hour to 12-hour
+      am/pm.
+      - **Row + column highlight, both at once** — `renderRace`
+        (popup.js) now computes `bestBookieMetricByBookie` once per
+        render (one pass over every displayed row, per bookie: the
+        highest `bookieMetricPercent` value in that bookie's own
+        column) before building any row, since column-best has to know
+        every runner's figure for a bookie before any one row can be
+        judged against it. Each bookie `<td>` then carries two
+        independent classes: `.row-best` (this bookie ties for the
+        best price for *this* runner — reuses the existing price-based
+        `bestBookmakerPrices` check outright, since every mode's EV
+        formula is monotonic in the bookmaker price for a fixed
+        runner, so "best price" and "best EV" never disagree within
+        one row) gets a strong green (`--positive`) tint, overriding
+        the cell's usual EV-tier tint outright; `.col-best` (this
+        runner ties for the best figure *this bookie* has anywhere in
+        the race) gets an inset amber (`--amber`) outline, independent
+        of `.row-best` — a cell can carry both at once, same as the
+        reference. Old `.col-bookie.best-price` (a single outline,
+        conflating the two) removed outright.
+      - **12-hour race times** — `formatJumpTime` (the race-info bar's
+        "Jumps at…") hand-rolled to `H:MM am/pm` (no leading zero on
+        the hour, lower-case am/pm, guaranteed regardless of browser
+        locale) instead of relying on `toLocaleTimeString()`, which
+        the plain-24-hour version this replaces had deliberately
+        avoided for the opposite reason. The sidebar's own per-race
+        time (`raceCardHtml`) already used `toLocaleTimeString` in a
+        way that likely already showed am/pm under most locales, but
+        gained an explicit `hour12: true` so it can never silently
+        drift from `formatJumpTime`'s own guaranteed format.
+      - Verified in the harness: a synthetic 3-runner/3-bookie race
+        with deliberately distinct prices per cell — every single
+        `.row-best`/`.col-best` flag checked against independently
+        hand-computed row and column maxima (all correct); the one
+        cell that was column-best but not row-best had its computed
+        `box-shadow` confirmed as the exact `--amber` rgb value, not
+        just visually present. `formatJumpTime` checked directly for
+        midnight (`12:05 am`) and noon (`12:00 pm`), not just a
+        daytime example. No console errors.
+
+- [x] Best Price cell's own highlight corrected again, and both
+      bookie-grid highlights made independently toggleable — user:
+      "change the best price colum to match the best price box shown
+      (green text and shded green box) not green highlighted border",
+      then "can we add it to seetings to be able to toggle on and off
+      like as seen in the photo" (the same bet337 Settings screenshot
+      from before).
+      - **Best Price cell** — the accent-outline box-shadow added two
+        commits ago (itself a fix for a different, earlier
+        misunderstanding) removed outright. It now just relies on the
+        same EV-tier tint every bookie cell already had — which
+        already reads as "green text and a shaded green box" whenever
+        the price is genuinely good, no separate signal needed. That
+        tint's own opacity bumped from 0.14 to 0.2 across the board
+        (`edgeMetricHtml`, popup.js) so it reads as a real shaded box
+        rather than a faint wash — the same change makes ordinary
+        bookie cells' own EV-tier tint a little more visible too.
+        `has-price`, the class this outline needed, removed along with
+        it — no longer used by anything.
+      - **Two new Settings > Colours toggles** —
+        `highlightBestBookiePerRunner`/`highlightBestRunnerPerBookie`
+        (settings.js, both default on — unchanged behaviour for
+        anyone who doesn't touch them), with matching checkboxes in
+        both popup.html's modal and options.html's standalone page
+        (the two already share every other Colours field the same
+        way). `renderRace`'s own `rowBest`/`colBest` computation
+        (popup.js) now short-circuits on the matching setting before
+        even checking the underlying condition, so a disabled
+        highlight is never computed as true, not just hidden by CSS.
+      - Verified in the harness: Best Price cell's computed
+        `box-shadow` confirmed `none` and its background confirmed an
+        exact rgba tint matching its own text colour (not just visibly
+        similar). Toggled each new setting off independently through
+        the actual Settings UI (not by editing `currentSettings`
+        directly) and confirmed `.row-best`/`.col-best` cell counts
+        dropped to 0 only for the disabled one, then restored both and
+        confirmed counts matched the pre-toggle baseline exactly —
+        caught a save-order race condition in testing itself (firing
+        two setting changes with no wait between them lost one
+        update, a pre-existing characteristic of `saveSettings`'s own
+        read-then-write pattern, not a bug in either new checkbox) and
+        redid the check with realistic timing between changes. No
+        console errors.

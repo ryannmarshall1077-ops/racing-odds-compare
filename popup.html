@@ -79,13 +79,12 @@
           </div>
 
           <div id="hedge-control">
-            <label for="mode-select">Mode</label>
-            <select id="mode-select">
-              <option value="mug">Mug</option>
-              <option value="bonus">Bonus</option>
-              <option value="run2nd3rd">Run 2nd 3rd</option>
-              <option value="run2nd">Run 2nd</option>
-            </select>
+            <div class="mode-tabs" id="mode-tabs" role="group" aria-label="Mode">
+              <button type="button" class="mode-tab-btn" data-mode="mug">Mug</button>
+              <button type="button" class="mode-tab-btn" data-mode="bonus">Bonus</button>
+              <button type="button" class="mode-tab-btn" data-mode="run2nd3rd">Run 2nd 3rd</button>
+              <button type="button" class="mode-tab-btn" data-mode="run2nd">Run 2nd</button>
+            </div>
             <label for="stake-input">Stake</label>
             <span>$</span>
             <input type="number" id="stake-input" min="0" step="1" value="50" />
@@ -111,9 +110,9 @@
                     <span class="bl-cell bl-lay">Lay</span>
                   </span>
                 </th>
-                <th data-bookie="sportsbet" title="Sportsbet's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it"><span class="bookie-th"><img class="bookie-logo" src="icons/bookies/sportsbet.png" alt="" />Sportsbet</span></th>
-                <th data-bookie="tab" title="TAB's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it"><span class="bookie-th"><img class="bookie-logo" src="icons/bookies/tab.png" alt="" />TAB</span></th>
-                <th data-bookie="ladbrokes" title="Ladbrokes' own price, with Edge%/Ret% (whichever Mode is active) shown beneath it"><span class="bookie-th"><img class="bookie-logo" src="icons/bookies/ladbrokes.png" alt="" />Ladbrokes</span></th>
+                <th data-bookie="sportsbet" title="Sportsbet's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it"><span class="bookie-th"><img class="bookie-logo" src="icons/bookies/sportsbet.png" alt="Sportsbet" /></span></th>
+                <th data-bookie="tab" title="TAB's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it"><span class="bookie-th"><img class="bookie-logo" src="icons/bookies/tab.png" alt="TAB" /></span></th>
+                <th data-bookie="ladbrokes" title="Ladbrokes' own price, with Edge%/Ret% (whichever Mode is active) shown beneath it"><span class="bookie-th"><img class="bookie-logo" src="icons/bookies/ladbrokes.png" alt="Ladbrokes" /></span></th>
                 <th>Lay $</th>
                 <th class="col-liability" title="What you'd owe if the lay bet loses: Lay $ × (Betfair odds − 1)">Liability</th>
               </tr>
@@ -321,6 +320,16 @@
             <label class="checkbox-label">
               <input type="checkbox" id="setting-compact-rows" /> Compact table rows
             </label>
+
+            <label class="checkbox-label">
+              <input type="checkbox" id="setting-highlight-best-bookie" /> Highlight best bookie per runner
+            </label>
+            <p class="field-hint">Green tint on the cell with the best price/EV in each row.</p>
+
+            <label class="checkbox-label">
+              <input type="checkbox" id="setting-highlight-best-runner" /> Highlight best runner per bookie
+            </label>
+            <p class="field-hint">Amber outline on the cell with the best price/EV in each column.</p>
 
             <p class="field-hint">
               Edge%/Ret% is coloured with the highest tier below whose threshold it meets or

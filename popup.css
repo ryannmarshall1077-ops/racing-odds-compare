@@ -533,7 +533,6 @@ h1 {
   justify-content: space-between;
   gap: 16px;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
 }
 
 .race-info-left {
@@ -745,25 +744,24 @@ th.col-best-price {
   gap: 4px;
 }
 
+/* Icon-only now (the logo itself identifies the bookie — see
+   .bookie-logo's own comment) — the bookmaker's name is still reachable
+   via this same element's title attribute (popup.js) on hover. */
 .bookie-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  padding: 3px 9px 3px 4px;
+  justify-content: center;
+  padding: 3px;
   border-radius: 999px;
   background: rgba(47, 111, 235, 0.15);
   border: 1px solid rgba(47, 111, 235, 0.4);
-  color: var(--accent);
-  white-space: nowrap;
 }
 
 /* Each bookmaker's own real logo (bookies.js's BOOKIE_LIST.logo) — a
-   small rounded square, same treatment wherever a bookie's name is
-   shown (a column header, or the Best Price cell's own "which bookie(s)
-   won" badge) rather than plain text alone. */
+   small rounded square, shown alone (no adjacent text label — the logo
+   itself is the identification) wherever a bookie's name used to be:
+   a column header, or the Best Price cell's own "which bookie(s) won"
+   badge. */
 .bookie-logo {
   width: 14px;
   height: 14px;
@@ -775,14 +773,28 @@ th.col-best-price {
 .bookie-th {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
 }
 
-/* Whichever bookie(s) tie for the best (highest) price for a runner — the
-   one Edge%/Ret%/Lay $/Liability are actually computed from. */
-.col-bookie.best-price {
-  color: var(--accent);
+/* Two independent comparisons (renderRace's own comment, popup.js has
+   the full reasoning) — matching a reference terminal's own two
+   separate settings, "Highlight best bookie per runner" and
+   "Highlight best runner per bookie", rather than one single signal:
+   row-best (.row-best) — whichever bookie(s) tie for the best price
+   for THIS runner, the one Edge%/Ret%/Lay $/Liability are actually
+   computed from — a strong green tint (its own inline background,
+   set in renderRace, overriding this cell's usual EV-tier tint
+   outright) plus bold --positive text.
+   col-best (.col-best) — whichever runner has the best figure for
+   THIS bookie, across the whole race — an inset amber outline (not a
+   real border, so it never fights border-collapse or the cell's own
+   background) — independent of row-best, so a cell can carry both. */
+.col-bookie.row-best {
+  color: var(--positive);
   font-weight: 600;
+}
+
+.col-bookie.col-best {
+  box-shadow: inset 0 0 0 1.5px var(--amber);
 }
 
 th, td {
@@ -872,6 +884,48 @@ body.show-liability .col-liability {
 th:first-child, td:first-child {
   text-align: left;
   white-space: normal;
+}
+
+/* The coloured barrier/box-number badge every runner row now leads with
+   (runnerNumberHtml, popup.js — RUNNER_NUMBER_COLORS, the real AU
+   saddlecloth colour-by-number convention) instead of a plain "1."
+   folded into the name text. Background/text colour come inline per
+   number (style attr) — this rule just supplies the shared shape. */
+.runner-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  margin-right: 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+/* #3 (white) needs a real border regardless of theme — otherwise it
+   disappears against a light-mode page background the same way it
+   would against the white swatch itself. */
+.runner-number-bordered {
+  border: 1px solid #9aa3ad;
+}
+
+/* #2 (black/white check) — a small checkerboard instead of a flat
+   fill, via two offset copies of the same diagonal-split gradient.
+   The number's own text colour is set inline like every other swatch,
+   plus a black outline (text-shadow, cheaper than an SVG/stroke) so it
+   stays legible over both the light and dark squares underneath. */
+.runner-number-check {
+  background-image:
+    linear-gradient(45deg, #111 25%, transparent 25%, transparent 75%, #111 75%),
+    linear-gradient(45deg, #111 25%, transparent 25%, transparent 75%, #111 75%);
+  background-size: 10px 10px;
+  background-position: 0 0, 5px 5px;
+  background-color: #ffffff;
+  border: 1px solid #9aa3ad;
+  text-shadow: 0 0 2px #000000, 0 0 3px #000000;
 }
 
 th {
@@ -975,8 +1029,7 @@ th:first-child {
 }
 
 #hedge-input,
-#stake-input,
-#mode-select {
+#stake-input {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -996,11 +1049,46 @@ th:first-child {
 }
 
 #hedge-input:focus,
-#stake-input:focus,
-#mode-select:focus {
+#stake-input:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* Mode — a segmented pill-button group (setMode, popup.js) instead of a
+   plain <select>, matching a reference terminal's own Win/Place/Bonus/
+   Promo tab treatment: a recessed track holding evenly-sized buttons,
+   the active one lifted onto a solid brand-accent pill. Only this live
+   toolbar control changed — Settings > Display's own "Default Mode"
+   stays a plain <select>, a normal fit for a settings form. */
+.mode-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.mode-tab-btn {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mode-tab-btn:hover {
+  color: var(--text);
+}
+
+.mode-tab-btn.active {
+  background: var(--accent);
+  color: #ffffff;
 }
 
 .hedge-hint {

@@ -291,6 +291,54 @@ function parseRunnerNumber(name) {
   return match ? Number(match[1]) : Infinity;
 }
 
+// The real Australian saddlecloth/barrier colour-by-number convention
+// (user-provided reference screenshot: 1 red, 2 black/white check, 3
+// white, 4 blue, 5 orange, 6 green, 7 black, 8 pink) — not our own
+// invented palette. 9-12 continue the same real convention (emerald,
+// purple, grey, brown); cycling past 12 is rare enough in AU racing
+// not to need its own real-world answer. Each entry gives its own text
+// colour too (white doesn't work on white or the check pattern the
+// way it does on every saturated colour here), and `checkered: true`
+// switches #2 to a checkerboard background instead of a flat one —
+// see runnerNumberHtml.
+const RUNNER_NUMBER_COLORS = [
+  { bg: "#d5211b", text: "#ffffff" }, // 1 red
+  { bg: "#ffffff", text: "#111111", checkered: true }, // 2 black/white check
+  { bg: "#ffffff", text: "#111111", border: true }, // 3 white
+  { bg: "#1a56c4", text: "#ffffff" }, // 4 blue
+  { bg: "#f2860d", text: "#ffffff" }, // 5 orange
+  { bg: "#1a8a3c", text: "#ffffff" }, // 6 green
+  { bg: "#111111", text: "#ffffff" }, // 7 black
+  { bg: "#e0177f", text: "#ffffff" }, // 8 pink
+  { bg: "#0e8f7a", text: "#ffffff" }, // 9 emerald
+  { bg: "#7b3fa0", text: "#ffffff" }, // 10 purple
+  { bg: "#8a8f98", text: "#ffffff" }, // 11 grey
+  { bg: "#8a5a2b", text: "#ffffff" }, // 12 brown
+];
+
+// Splits "N. Horse Name" into the coloured number badge (below) and the
+// bare name text — the badge now carries the number, so it's no longer
+// repeated in the name itself the way it always used to be. Runners
+// without a leading "N." (shouldn't happen in real data, but mock/test
+// data doesn't always bother) get no badge at all rather than a
+// misleading one, and the full original string as their label.
+function runnerNumberHtml(name) {
+  const match = name.match(/^(\d+)\.\s*(.*)$/);
+  if (!match) return { html: "", label: name };
+  const number = Number(match[1]);
+  const swatch = RUNNER_NUMBER_COLORS[(number - 1) % RUNNER_NUMBER_COLORS.length];
+  const classes = ["runner-number", swatch.checkered && "runner-number-check", swatch.border && "runner-number-bordered"]
+    .filter(Boolean)
+    .join(" ");
+  const style = swatch.checkered
+    ? `color:${swatch.text}`
+    : `background:${swatch.bg};color:${swatch.text}`;
+  return {
+    html: `<span class="${classes}" style="${style}">${number}</span>`,
+    label: match[2],
+  };
+}
+
 // Pr(trigger placing) for whichever promo mode is active — real Betfair
 // place-market data only, no theoretical model. Depends on how many
 // places the event's separate PLACE market actually pays
@@ -484,13 +532,39 @@ function edgeTierColor(metric, mode) {
 // rendered with no colour while a genuinely bad negative Mug Edge% still
 // went red. Both cases are just "didn't clear the lowest tier" now, one
 // single configured colour either way.
+// #rgb/#rrggbb -> "r, g, b" for building an rgba() string — needed
+// because the EV tier colours are arbitrary user-configured hex
+// (Settings > EV Colours), not one of this file's own fixed CSS
+// variables, so there's no existing token to reuse the way every other
+// rgba() tint in popup.css does. Malformed input (a mid-edit hex field)
+// falls back to a neutral grey rather than producing an invalid rgba().
+function hexToRgb(hex) {
+  const clean = (hex || "").replace("#", "");
+  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
+  const n = Number.parseInt(full, 16);
+  if (full.length !== 6 || Number.isNaN(n)) return "128, 128, 128";
+  return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+}
+
 function edgeMetricHtml(metric) {
-  if (metric == null) return { className: "", styleAttr: "" };
+  // metricsSuspended (a race in play — see renderRace) already blanks
+  // the text via formatMetric; treating the metric as absent here too
+  // keeps the new cell-background tint from being the only thing left
+  // showing a colour with no figure to justify it.
+  if (metric == null || metricsSuspended) return { className: "", styleAttr: "", bg: "transparent" };
   const color =
     edgeTierColor(metric, currentMode) ??
     currentSettings.edgeBelowThresholdColor ??
     DEFAULT_SETTINGS.edgeBelowThresholdColor;
-  return { className: "edge-tier", styleAttr: ` style="color:${color}"` };
+  // A full, bolder cell-background tint of the same colour (not just
+  // coloured text) — matches the denser, more saturated feel of a
+  // reference terminal the user pointed at, using our own EV tier
+  // colours rather than adopting that reference's own palette. 0.2
+  // (not the original 0.14) reads as an actual shaded box rather than
+  // a faint wash — user-reported wanting the Best Price cell to look
+  // like "green text and a shaded green box", which this same tint
+  // also drives.
+  return { className: "edge-tier", styleAttr: ` style="color:${color}"`, bg: `rgba(${hexToRgb(color)}, 0.2)` };
 }
 
 // Settings > Display: the same Edge%/Ret%/EV% figure (whichever Mode is
@@ -591,14 +665,19 @@ function formatMatched(amount) {
   return amount == null ? "—" : `$${Math.round(amount).toLocaleString()}`;
 }
 
-// The race-info bar's "Jumps at HH:MM" — local time, 24-hour, no seconds.
-// Deliberately not toLocaleTimeString() (which can insert AM/PM depending
-// on the user's locale) — the reference bar this matches always shows
-// plain 24-hour digits.
+// The race-info bar's "Jumps at H:MM am/pm" — local time, 12-hour, no
+// seconds. User-requested switch from the previous plain 24-hour
+// digits. Hand-rolled rather than toLocaleTimeString() so the am/pm
+// casing and lack of a leading zero on the hour are guaranteed
+// (locale-dependent otherwise) and match raceCardHtml's own sidebar
+// time formatting exactly.
 function formatJumpTime(startTimeIso) {
   if (!startTimeIso) return "—";
   const d = new Date(startTimeIso);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const hours24 = d.getHours();
+  const hours12 = hours24 % 12 || 12;
+  const suffix = hours24 < 12 ? "am" : "pm";
+  return `${hours12}:${String(d.getMinutes()).padStart(2, "0")} ${suffix}`;
 }
 
 // One-shot highlight flash on #main-panel (CSS animation, see popup.css)
@@ -712,6 +791,31 @@ function renderRace(race) {
     rows = rows.slice(0, currentSettings.maxResults);
   }
 
+  // Two independent comparisons, matching a reference terminal's own
+  // pair of settings ("Highlight best bookie per runner" / "Highlight
+  // best runner per bookie") rather than the single row-only outline
+  // this used to be: row-wise (which bookie is best FOR THIS RUNNER —
+  // a green tint) and column-wise (which runner is best FOR THIS
+  // BOOKIE, across the whole race — an amber outline). The row
+  // comparison reuses the existing bestBookmakerPrices price-based
+  // check (equivalent to comparing EV directly — every mode's formula
+  // is monotonic in the bookmaker price for a fixed runner, so "best
+  // price" and "best EV" never disagree within one row). The column
+  // comparison needs its own pass over every row first, since it has
+  // to know every runner's figure for a given bookie before any one
+  // row can be judged against it.
+  const bestBookieMetricByBookie = new Map();
+  for (const b of BOOKIE_LIST) {
+    let best = null;
+    for (const { runner } of rows) {
+      const price = runner.bookmakers?.[b.id];
+      if (price == null) continue;
+      const metric = bookieMetricPercent(runner, price, commission, hedge);
+      if (metric != null && (best === null || metric > best)) best = metric;
+    }
+    bestBookieMetricByBookie.set(b.id, best);
+  }
+
   for (const { runner, layDollars, liability } of rows) {
     const row = document.createElement("tr");
     if (runner.result === "WINNER") row.className = "winner-row";
@@ -720,7 +824,7 @@ function renderRace(race) {
     const bestPriceBadges = bestBookieIds
       .map((id) => {
         const bookie = BOOKIE_LIST.find((b) => b.id === id);
-        return `<span class="bookie-badge"><img class="bookie-logo" src="${bookie.logo}" alt="" />${bookie.label}</span>`;
+        return `<span class="bookie-badge" title="${bookie.label}"><img class="bookie-logo" src="${bookie.logo}" alt="${bookie.label}" /></span>`;
       })
       .join(" ");
     const bestMetric = metricPercent(runner, commission, hedge);
@@ -730,10 +834,29 @@ function renderRace(race) {
     // (see visibleBookies()'s own comment for the full split).
     const bookieCells = BOOKIE_LIST.map((b) => {
       const price = runner.bookmakers?.[b.id];
-      const bestClass = bestBookieIds.includes(b.id) ? " best-price" : "";
       const bookieMetric = bookieMetricPercent(runner, price, commission, hedge);
       const hiddenAttr = currentSettings.enabledBookies.includes(b.id) ? "" : " hidden";
-      return `<td class="col-bookie${bestClass}"${hiddenAttr}>${bookieCellHtml(price, bookieMetric)}</td>`;
+      // Row-wise ("best bookie per runner") — a strong green tint,
+      // overriding this cell's own EV-tier tint outright rather than
+      // layering both (green already means "good" on its own). Column-
+      // wise ("best runner per bookie") — an independent amber outline,
+      // never fighting the tint since a box-shadow paints on top of
+      // whatever background is already there; can coincide with the
+      // green tint above for the same cell (both conditions are just
+      // independently true), same as the reference this matches.
+      // Settings > Colours — each highlight is independently toggle-
+      // able (matching a reference terminal's own two separate
+      // settings), so a disabled one is never even computed as true.
+      const rowBest =
+        currentSettings.highlightBestBookiePerRunner && bestBookieIds.includes(b.id);
+      const colBest =
+        currentSettings.highlightBestRunnerPerBookie &&
+        price != null &&
+        bookieMetric != null &&
+        bookieMetric === bestBookieMetricByBookie.get(b.id);
+      const cellClass = `col-bookie${rowBest ? " row-best" : ""}${colBest ? " col-best" : ""}`;
+      const bg = rowBest ? "rgba(61, 220, 151, 0.22)" : edgeMetricHtml(price == null ? null : bookieMetric).bg;
+      return `<td class="${cellClass}"${hiddenAttr} style="background:${bg}">${bookieCellHtml(price, bookieMetric)}</td>`;
     }).join("");
 
     // Betfair settling the market and marking a runner WINNER (see
@@ -746,9 +869,23 @@ function renderRace(race) {
         ? ` <em class="winner-tag">${WINNER_ICON} Winner</em>`
         : "";
 
+    const bestPriceMetric = bestPrice != null ? bestMetric : null;
+    const bestPriceBg = edgeMetricHtml(bestPriceMetric).bg;
+    // Matches the same tint-based "shaded box" treatment a bookie's
+    // own cell gets (edgeMetricHtml's own EV-tier colour), not a
+    // separate border — user-reported an earlier accent-outline
+    // version of this highlight didn't match. Only overrides
+    // .col-best-price's own subtle default tint (popup.css) when
+    // there's an actual metric-driven colour to show — otherwise the
+    // style attribute is left off entirely so that class-level
+    // fallback still applies, same as before this cell had a
+    // per-metric tint at all.
+    const bestPriceBgAttr = bestPriceBg !== "transparent" ? ` style="background:${bestPriceBg}"` : "";
+    const { html: runnerNumberBadge, label: runnerLabel } = runnerNumberHtml(runner.name);
+
     row.innerHTML = `
-      <td>${runner.name}${winnerTag}</td>
-      <td class="col-best-price">${bestPriceCellHtml(bestPrice, bestPriceBadges, bestPrice != null ? bestMetric : null)}</td>
+      <td>${runnerNumberBadge}${runnerLabel}${winnerTag}</td>
+      <td class="col-best-price"${bestPriceBgAttr}>${bestPriceCellHtml(bestPrice, bestPriceBadges, bestPriceMetric)}</td>
       <td class="col-backlay">${backLayCellHtml(
         runner.betfairBack,
         runner.betfairBackLiquidity,
@@ -852,10 +989,25 @@ stakeInput.addEventListener("input", () => {
   if (currentRace) renderRace(currentRace);
 });
 
-const modeSelect = document.getElementById("mode-select");
+// Segmented pill buttons (a reference terminal's own Win/Place/Bonus/
+// Promo tab treatment) instead of the plain <select> this used to be —
+// setMode is the one place that actually changes currentMode, so
+// Settings > Display's own defaultMode seeding (further down) and this
+// click handler both go through it rather than each keeping their own
+// copy of "set currentMode, sync the active button, re-render."
+const modeTabsEl = document.getElementById("mode-tabs");
 
-modeSelect.addEventListener("change", () => {
-  currentMode = modeSelect.value;
+function setMode(mode) {
+  currentMode = mode;
+  for (const btn of modeTabsEl.querySelectorAll(".mode-tab-btn")) {
+    btn.classList.toggle("active", btn.dataset.mode === mode);
+  }
+}
+
+modeTabsEl.addEventListener("click", (event) => {
+  const btn = event.target.closest(".mode-tab-btn");
+  if (!btn) return;
+  setMode(btn.dataset.mode);
   if (currentRace) renderRace(currentRace);
 });
 
@@ -1053,9 +1205,13 @@ function raceCardHtml(race) {
   const code = RACE_TYPE_CODE[race.raceType] || RACE_TYPE_CODE[race.sport] || "?";
   const selected = race.marketId === selectedMarketId ? " selected" : "";
 
+  // hour12 explicit (not left to the browser's own locale default) so
+  // this can never silently drift from formatJumpTime's own guaranteed
+  // 12-hour am/pm format above.
   const time = new Date(race.startTime).toLocaleTimeString([], {
     hour: "numeric",
     minute: "2-digit",
+    hour12: true,
   });
 
   const timeHtml = currentSettings.showCountdowns
@@ -1469,13 +1625,12 @@ themeToggleBtn.addEventListener("click", () => {
 loadSettings().then((settings) => {
   applyDisplaySettings(settings);
 
-  currentMode = settings.defaultMode;
+  setMode(settings.defaultMode);
   sortMode = settings.defaultSort;
   hedgePercent = settings.defaultHedge;
   stakeAmount = settings.defaultStake;
   selectedRaceTypes = new Set(settings.defaultRaceTypes);
 
-  modeSelect.value = currentMode;
   hedgeInput.value = hedgePercent;
   stakeInput.value = stakeAmount;
   sortToggleBtn.textContent = sortMode === "number" ? "Sort: Number" : "Sort: Edge";

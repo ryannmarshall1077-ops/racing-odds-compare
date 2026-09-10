@@ -80,6 +80,14 @@ const DEFAULT_SETTINGS = {
   // so free to swap per-theme) by comparing it against this exact value.
   accentColor: "#2f6feb",
   compactRows: false,
+  // Two independent bookie-grid highlights (renderRace, popup.js) —
+  // matching a reference terminal's own two separate toggles rather
+  // than one combined setting, since they're genuinely different
+  // comparisons (row-wise vs column-wise) that a user might want on
+  // its own. Both default on (unchanged from before either was
+  // configurable).
+  highlightBestBookiePerRunner: true,
+  highlightBestRunnerPerBookie: true,
   // "dark" (default, unchanged existing look) or "light" — toggled via
   // the sidebar's sun/moon button next to Settings, not this settings
   // object's own form (see popup.js's theme-toggle-btn handler).
