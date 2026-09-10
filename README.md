@@ -1647,3 +1647,43 @@ https://developer.betfair.com/.
         all correctly shows "—", and Run 2nd mode is unaffected
         (still gets a real Harville-derived number for every runner
         regardless of `placeBetfair`).
+      - **Follow-up, same session**: user-reported Run 2nd's own EV%
+        coming out *higher* than Run 2nd 3rd's for the same runner —
+        should never happen, since finishing 2nd alone can't be more
+        likely (or more valuable) than finishing 2nd or 3rd. Root
+        cause: Run 2nd 3rd was reading real Pr(2nd or 3rd) off the
+        PLACE market (the fix above), but Run 2nd was still using
+        Harville's own *absolute* Pr(2nd) estimate regardless — two
+        independent sources with no guaranteed relationship to each
+        other, and Harville had already been found (same fix above) to
+        run noticeably hotter than real market data for at least one
+        real runner.
+        - `background.js`: the PLACE market lookup now also accepts
+          `numberOfWinners === 2` ("Top 2 Finish", common for smaller
+          fields), not just `=== 3` — new race-level
+          `placeMarketWinners` field records which one applied (or
+          null), since `placeBetfair` alone means a different thing
+          depending on it: Pr(2nd or 3rd) combined when the market
+          pays 3, but Pr(2nd) *alone* when it pays 2 (only two
+          placings exist at all, so "placed but didn't win" only ever
+          means 2nd there).
+        - `promoPlaceProb` (popup.js) now branches on
+          `placeMarketWinners`: pays-3 → Run 2nd 3rd uses the real
+          combined figure directly; Run 2nd splits that *same* real
+          number by Harville's own relative 2nd:3rd ratio (not its
+          absolute p2) — anchoring Run 2nd to the identical real total
+          Run 2nd 3rd uses, so Run 2nd's own figure can no longer
+          exceed Run 2nd 3rd's for the same runner, by construction.
+          Pays-2 → Run 2nd uses the real figure directly (no Harville
+          at all), Run 2nd 3rd stays null (no 3rd-place information
+          exists in a 2-place market). Neither/no market at all → Run
+          2nd 3rd stays null, Run 2nd falls back to Harville's own
+          absolute p2 (same behaviour as before this fix) — nothing to
+          anchor to or contradict in that case either.
+        - Verified in the local static-preview harness across all
+          three cases on the same 5-runner field: pays-3 now shows Run
+          2nd strictly below Run 2nd 3rd for every runner (previously
+          Run 2nd came out *higher* for all five); pays-2 shows a real
+          number for Run 2nd and "—" for Run 2nd 3rd; no place market
+          shows Run 2nd falling back to its old Harville figure and
+          Run 2nd 3rd showing "—" — no console errors in any case.

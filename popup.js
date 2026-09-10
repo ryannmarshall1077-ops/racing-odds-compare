@@ -83,11 +83,16 @@ function qualifyingLoss(stake, bestPrice, layOdds, commission, hedge) {
 // Only Run 2nd mode actually uses this (see promoPlaceProb) — Run 2nd
 // 3rd uses the real Betfair PLACE market instead (background.js's own
 // placeBetfair), because the place market alone can never isolate
-// Pr(2nd) from Pr(2nd or 3rd), the one thing Run 2nd genuinely needs
-// that real market data can't give it. Real market data was user-
-// verified to disagree with this theoretical estimate by roughly 2x
-// for an actual runner in a small field, so it's preferred everywhere
-// it's actually available (i.e. everywhere except Run 2nd).
+// Pr(2nd) from Pr(2nd or 3rd) when it pays exactly 3 — the one thing
+// Run 2nd genuinely needs that real market data can't give it outright
+// in that case. Real market data was user-verified to disagree with
+// this theoretical estimate by roughly 2x for an actual runner in a
+// small field, so Run 2nd itself prefers real data wherever it's
+// available too — either directly (a "Top 2 Finish" market) or as a
+// real total split by this function's own *relative* 2nd:3rd ratio (a
+// "Top 3 Finish" market) — falling back to this function's absolute p2
+// only when neither real source exists at all. See promoPlaceProb for
+// exactly which case applies when.
 function harvillePlaceProbs(winProbs) {
   const n = winProbs.length;
   const p2 = new Array(n).fill(0);
@@ -333,24 +338,63 @@ function computeHarvillePlaceProbs(runners) {
   return bySelectionId;
 }
 
-// Pr(trigger placing) for whichever promo mode is active — the two
-// modes deliberately use different sources, not just different
-// combinations of the same one. Run 2nd 3rd uses the REAL Betfair
-// PLACE market (background.js's own placeBetfair — Pr(place) minus
-// Pr(win); null whenever that market wasn't found/didn't pay exactly
-// 3 places, same "no reliable number to show" convention as a missing
-// bookmaker price). Run 2nd uses the Harville estimate instead
-// (placeProbsBySelectionId) since the place market alone can never
-// isolate Pr(2nd) from Pr(2nd or 3rd) — user-verified live against a
-// real matched-betting tool that for Run 2nd 3rd specifically, real
-// market data and Harville's theoretical estimate can disagree by
-// roughly 2x for an actual runner in a small field, so real data wins
-// wherever it's actually available.
+// Pr(trigger placing) for whichever promo mode is active. Both real
+// market data (background.js's own placeBetfair, from the event's
+// separate PLACE market) and the Harville model (placeProbsBySelectionId)
+// can be in play here, depending on how many places that PLACE market
+// itself actually pays (currentRace.placeMarketWinners — see
+// background.js's own comment for the full breakdown):
+//
+//   placeMarketWinners === 3 ("Top 3 Finish"): placeBetfair gives real
+//   Pr(2nd or 3rd) directly — exactly what Run 2nd 3rd needs. Run 2nd
+//   can't use that figure as its own Pr(2nd) outright (it's 2nd-or-
+//   3rd, not 2nd alone), so it's split by Harville's own *relative*
+//   2nd:3rd ratio for this runner instead of Harville's absolute p2 —
+//   anchoring Run 2nd to the same real number Run 2nd 3rd uses, so
+//   Run 2nd's own figure can never end up higher than Run 2nd 3rd's
+//   for the same runner. An earlier version used Harville's absolute
+//   p2 here regardless of placeMarketWinners, independent of whatever
+//   Run 2nd 3rd was showing — user-reported Run 2nd coming out better
+//   than Run 2nd 3rd for the same runner, which should never happen
+//   (2nd alone can't beat 2nd-or-3rd) once both draw from the same
+//   real total.
+//
+//   placeMarketWinners === 2 ("Top 2 Finish"): placeBetfair gives real
+//   Pr(2nd) directly this time — only two placings exist at all, so
+//   "placed but didn't win" only ever means 2nd. Real data, no
+//   Harville involved. Run 2nd 3rd has no 3rd-place information at
+//   all in this case, so stays null.
+//
+//   Anything else (placeMarketWinners 4, or no place market at all —
+//   placeBetfair null): Run 2nd 3rd stays null (same "no reliable
+//   number to show" convention as a missing bookmaker price). Run 2nd
+//   falls back to Harville's own absolute p2 estimate, same as before
+//   this fix — there's no real data to anchor to at all here, so no
+//   inconsistency risk with whatever Run 2nd 3rd shows (it's null too).
+//
+// User-verified live against a real matched-betting tool that Run 2nd
+// 3rd's real market data and Harville's theoretical estimate can
+// disagree by roughly 2x for an actual runner in a small field — real
+// data wins wherever it's actually available, for either mode.
 function promoPlaceProb(runner) {
-  if (currentMode === "run2nd3rd") {
-    return runner.placeBetfair == null ? null : 1 / runner.placeBetfair - 1 / runner.betfair;
-  }
   const placeProbs = placeProbsBySelectionId.get(runner.selectionId);
+  const winners = currentRace?.placeMarketWinners;
+
+  if (currentMode === "run2nd3rd") {
+    if (runner.placeBetfair == null || winners !== 3) return null;
+    return 1 / runner.placeBetfair - 1 / runner.betfair;
+  }
+
+  // run2nd
+  if (runner.placeBetfair != null && winners === 2) {
+    return 1 / runner.placeBetfair - 1 / runner.betfair;
+  }
+  if (runner.placeBetfair != null && winners === 3 && placeProbs != null) {
+    const harvilleTotal = placeProbs.p2 + placeProbs.p3;
+    if (harvilleTotal <= 0) return null;
+    const realCombined = 1 / runner.placeBetfair - 1 / runner.betfair;
+    return realCombined * (placeProbs.p2 / harvilleTotal);
+  }
   return placeProbs == null ? null : placeProbs.p2;
 }
 
