@@ -1778,3 +1778,45 @@ https://developer.betfair.com/.
         Switched to Mug mode and confirmed its Edge% figures were
         byte-for-byte unchanged from before this fix. No console
         errors.
+
+- [x] Flash the main panel and blank every Edge%/Ret%/EV% figure the
+      moment the loaded race goes in-play — user request: once a
+      bookmaker's market is suspended, the prices behind those figures
+      are no longer tradeable, so leaving them on screen unchanged
+      reads as "still actionable" when it isn't. Reuses the exact same
+      "gone in-play" rule tickCountdowns/formatCountdown already use
+      for that race's own countdown (bookieMarketClosed primary,
+      Betfair's own OPEN/SUSPENDED/CLOSED status a rougher fallback —
+      see isBetfairMarketClosed's own comment) rather than a second,
+      separate signal.
+      - `metricsSuspended` (popup.js, module-level, read by
+        `formatMetric`) — blanks the Edge%/Ret%/EV% sub-line in every
+        price cell for as long as the loaded race is in play,
+        independent of Settings > Display's own `metricDisplay`
+        ("off" is a persistent user choice; this is temporary and
+        reverts the moment the market's no longer suspended). Best
+        Price/bookie cells still show their price — only the metric
+        sub-line disappears — and the Market % footer row is untouched
+        (it's an overround figure, not an Edge%/EV%).
+      - `flashMainPanel()` (popup.js) + a `.flash-in-play` CSS
+        animation on `#main-panel` (popup.css, 1s, `--accent-neg` fading
+        to transparent — the same red already used for a negative
+        Edge%, reading here as "stopped/suspended") — triggered from
+        `renderRace` the moment the race's in-play state flips from
+        false to true, tracked via `lastRenderedMarketId`/
+        `lastRenderedInPlay` so it fires exactly once per transition,
+        not on every auto-refresh re-render for as long as the race
+        stays in play, and resets (no spurious flash) when a different
+        race's marketId loads even if that new race is already in
+        play.
+      - Verified in the local static-preview harness: rendered a mock
+        race not in play (Edge% visible, e.g. +8.1%/-10.2%, panel
+        class empty) → flipped `bookieMarketClosed` true and
+        re-rendered (panel class became `flash-in-play`, computed
+        `animation-name: race-in-play-flash`, background rendering the
+        red flash color, every Edge% figure gone from the table, Market
+        % footer unaffected) → waited out the 1s timeout (class cleared)
+        → re-rendered again while still in play (did not re-flash) →
+        loaded a fresh, different-marketId race that's not in play
+        (state reset with no spurious flash, Edge% figures reappeared).
+        No console errors.

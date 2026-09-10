@@ -159,6 +159,27 @@ function bestBookmakerPrices(runner) {
 
 let currentRace = null;
 
+// Tracks the loaded race's own in-play state across renders (auto-refresh/
+// live updates call renderRace repeatedly for the same race, not just
+// once) so the flash-on-suspend effect (see renderRace's own comment)
+// fires exactly once — the moment it flips from not-in-play to in-play —
+// instead of on every re-render for as long as the race stays in play.
+// Reset whenever a different race's marketId loads, so switching races
+// never spuriously flashes just because the new one happens to already
+// be in play.
+let lastRenderedMarketId = null;
+let lastRenderedInPlay = false;
+
+// True for as long as the currently loaded race is in play (see
+// renderRace) — read by formatMetric to blank every Edge%/Ret%/EV%
+// figure on screen while it's set, since a suspended bookmaker market's
+// prices are no longer tradeable and a figure computed against them
+// would be misleading. Independent of Settings > Display's own
+// metricDisplay ("off" is a persistent user choice; this is a temporary,
+// race-driven state that reverts the moment the market's no longer
+// suspended).
+let metricsSuspended = false;
+
 // "number" (by runner number, ascending) or "edge" (by edge %, lowest to
 // highest first, best value on top). Persists across re-renders of the
 // same popup session so auto-refresh/live updates don't keep resetting it
@@ -471,7 +492,7 @@ function edgeMetricHtml(metric) {
 // entirely ("off", cells show just the price above it). Shared by every
 // cell that shows this figure so they never drift apart on formatting.
 function formatMetric(metric) {
-  if (currentSettings.metricDisplay === "off") return "";
+  if (metricsSuspended || currentSettings.metricDisplay === "off") return "";
   if (metric == null) return "—";
   if (currentSettings.metricDisplay === "dollar") {
     const dollars = stakeAmount * (metric / 100);
@@ -573,9 +594,43 @@ function formatJumpTime(startTimeIso) {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+// One-shot highlight flash on #main-panel (CSS animation, see popup.css)
+// for the moment a race goes in-play — removing then re-adding the class
+// (rather than just adding it, in case a caller ever needs to re-trigger
+// before the previous flash finished) forces the browser to restart the
+// animation from its own 0% keyframe instead of a no-op re-add being
+// ignored. The timeout only needs to match the CSS animation's own
+// duration closely enough to clean up the class name; it doesn't drive
+// the animation itself.
+function flashMainPanel() {
+  const panel = document.getElementById("main-panel");
+  panel.classList.remove("flash-in-play");
+  void panel.offsetWidth; // force reflow so the removal above actually takes effect before re-adding
+  panel.classList.add("flash-in-play");
+  setTimeout(() => panel.classList.remove("flash-in-play"), 1000);
+}
+
 function renderRace(race) {
   currentRace = race;
   if (race.marketId) selectedMarketId = race.marketId;
+
+  // Same "gone in-play" rule tickCountdowns/formatCountdown use for this
+  // race's own countdown (bookieMarketClosed primary, Betfair's own
+  // status a rougher fallback — see isBetfairMarketClosed's own
+  // comment) — reused here to (a) blank every Edge%/Ret%/EV% figure for
+  // as long as it's true (metricsSuspended, read by formatMetric — a
+  // suspended bookmaker market's prices are no longer tradeable) and
+  // (b) flash the panel once, exactly on the moment it flips from false
+  // to true, so switching Mode/Stake/Hedge or an ordinary auto-refresh
+  // while already in play doesn't keep re-triggering it. A different
+  // race loading (marketId change) resets the tracked state first, so
+  // opening a race that's already in play never spuriously flashes.
+  const raceInPlay = Boolean(race.bookieMarketClosed) || isBetfairMarketClosed(race.marketStatus);
+  if (race.marketId !== lastRenderedMarketId) lastRenderedInPlay = false;
+  if (raceInPlay && !lastRenderedInPlay) flashMainPanel();
+  lastRenderedMarketId = race.marketId;
+  lastRenderedInPlay = raceInPlay;
+  metricsSuspended = raceInPlay;
 
   // Race Result / Display > Betfair commission discount — percentage
   // points off whatever the track/sport would otherwise charge, floored

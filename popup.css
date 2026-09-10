@@ -376,6 +376,24 @@ h1 {
   flex-direction: column;
 }
 
+/* One-shot highlight the instant the loaded race goes in-play (see
+   renderRace's own comment, popup.js) — draws the eye to the same
+   moment every Edge%/Ret%/EV% figure on screen disappears, since a
+   suspended bookmaker market's prices are no longer tradeable.
+   --accent-neg (the same red already used for a negative Edge%) reads
+   as "stopped/suspended" here, not as an error. */
+#main-panel.flash-in-play {
+  animation: race-in-play-flash 1s ease-out;
+}
+@keyframes race-in-play-flash {
+  0% {
+    background: var(--accent-neg);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
 /* A compact two-line info bar (live-connection dot + race title + Comms
    badge on top, "Jumps at HH:MM · in Xm Ys" underneath — matching a
    reference screenshot), with the Mode/Stake/Hedge controls
