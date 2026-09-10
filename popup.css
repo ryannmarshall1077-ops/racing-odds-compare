@@ -745,25 +745,24 @@ th.col-best-price {
   gap: 4px;
 }
 
+/* Icon-only now (the logo itself identifies the bookie — see
+   .bookie-logo's own comment) — the bookmaker's name is still reachable
+   via this same element's title attribute (popup.js) on hover. */
 .bookie-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  padding: 3px 9px 3px 4px;
+  justify-content: center;
+  padding: 3px;
   border-radius: 999px;
   background: rgba(47, 111, 235, 0.15);
   border: 1px solid rgba(47, 111, 235, 0.4);
-  color: var(--accent);
-  white-space: nowrap;
 }
 
 /* Each bookmaker's own real logo (bookies.js's BOOKIE_LIST.logo) — a
-   small rounded square, same treatment wherever a bookie's name is
-   shown (a column header, or the Best Price cell's own "which bookie(s)
-   won" badge) rather than plain text alone. */
+   small rounded square, shown alone (no adjacent text label — the logo
+   itself is the identification) wherever a bookie's name used to be:
+   a column header, or the Best Price cell's own "which bookie(s) won"
+   badge. */
 .bookie-logo {
   width: 14px;
   height: 14px;
@@ -775,7 +774,6 @@ th.col-best-price {
 .bookie-th {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
 }
 
 /* Whichever bookie(s) tie for the best (highest) price for a runner — the
