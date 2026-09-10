@@ -840,6 +840,19 @@ async function listUpcomingRacesInner() {
   const bookieMarketClosedMarketId =
     liveRace?.marketId && liveRace.bookieMarketClosed === true ? liveRace.marketId : null;
 
+  // Same inherent limitation again — whether ANY bookie has gone "live"
+  // for this race (liveRace.bookmakerSources) only ever exists for the
+  // currently-selected race, so only its own sidebar row can carry this.
+  // Threaded through so that row's own countdown stops trusting
+  // Betfair's own status as a fallback the instant a live tab is
+  // actually open and confirming the market's still tradeable — see
+  // popup.js's isBetfairMarketClosed for why that fallback needs
+  // scoping at all.
+  const hasLiveBookieMarketId =
+    liveRace?.marketId && Object.values(liveRace.bookmakerSources || {}).includes("live")
+      ? liveRace.marketId
+      : null;
+
   // Same idea again for the winner itself (see applyBetfairOdds's own
   // winnerName handling) — lets the sidebar's own countdown switch
   // straight to "RESULTED" for the selected race the instant the top
@@ -897,6 +910,7 @@ async function listUpcomingRacesInner() {
         marketId: market.marketId,
         marketStatus: marketStatusByMarketId.get(market.marketId) ?? null,
         bookieMarketClosed: market.marketId === bookieMarketClosedMarketId,
+        hasLiveBookie: market.marketId === hasLiveBookieMarketId,
         winner: winnerByMarketId.get(market.marketId) ?? null,
         betfairUrl: `https://www.betfair.com.au/exchange/plus/${sport.betfairUrlSegment}/market/${market.marketId}`,
         sportsbetUrl: sbMatch ? buildSportsbetRaceUrl(sbMatch) : null,
