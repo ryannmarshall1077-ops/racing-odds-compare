@@ -432,33 +432,41 @@ async function refreshRaceInner(marketId) {
     market.runners.map((r) => [r.selectionId, r.runnerName])
   );
 
-  // Run 2nd 3rd mode's own EV needs Pr(place) from the event's separate
-  // PLACE market — same selectionIds, different market/price entirely.
-  // Only trusted when it actually pays exactly 3 places (numberOfWinners
-  // — Betfair's own PLACE markets pay 2/3/4 depending on field size): a
-  // smaller field's "Top 2 Finish" market implies Pr(1st or 2nd), and
-  // subtracting Pr(win) from that gives Pr(2nd only), not Pr(2nd or
-  // 3rd) — silently wrong for exactly the races this promo cares about
-  // most (small fields), so left null there rather than approximated.
-  // Best-effort: a missing/failed place-market lookup shouldn't block
-  // the rest of the refresh, same reasoning as the bookmaker scan
-  // fallbacks elsewhere in this function.
-  //
-  // Deliberately real market data here, not the Harville model
-  // (popup.js's harvillePlaceProbs, still used for Run 2nd mode) —
-  // user-verified live against a real matched-betting tool: Harville's
-  // own Pr(2nd or 3rd) estimate came out roughly 2x the real market's
-  // own implied figure for an actual runner in a small field. Run 2nd
-  // mode still needs Harville since the place market alone can never
-  // isolate Pr(2nd) from Pr(2nd or 3rd) — but Run 2nd 3rd doesn't have
-  // that problem, so real market data wins here instead.
+  // Run 2nd/Run 2nd 3rd modes' own EV needs Pr(place) from the event's
+  // separate PLACE market — same selectionIds, different market/price
+  // entirely. Betfair's own PLACE markets pay 2/3/4 places depending on
+  // field size (numberOfWinners) — only 2 and 3 are usable here, and
+  // popup.js's own promoPlaceProb needs to know which:
+  //   numberOfWinners === 3 ("Top 3 Finish"): Pr(place)−Pr(win) IS
+  //     Pr(2nd or 3rd) combined — exactly what Run 2nd 3rd needs
+  //     directly. Run 2nd can't use this figure as its own Pr(2nd)
+  //     outright (it's 2nd-or-3rd, not 2nd alone) — see
+  //     promoPlaceProb's own comment for how it's still put to use
+  //     there (split by Harville's own relative 2nd:3rd ratio, so Run
+  //     2nd's number can never end up higher than Run 2nd 3rd's for
+  //     the same runner, real data unlike an earlier version of this
+  //     that used Harville's absolute figure for both and had exactly
+  //     that inconsistency — user-reported).
+  //   numberOfWinners === 2 ("Top 2 Finish"): Pr(place)−Pr(win) IS
+  //     Pr(2nd) alone this time (only two placings exist at all, so
+  //     "placed but didn't win" only ever means 2nd) — usable by Run
+  //     2nd directly, real data, no Harville involved. Run 2nd 3rd has
+  //     no 3rd-place information at all in this case, so stays null.
+  //   Anything else (4, or no place market at all): left null:
+  //     numberOfWinners 4 doesn't correspond to either promo's own
+  //     definition, and there's nothing to isolate at all without a
+  //     market. Best-effort throughout — a missing/failed place-market
+  //     lookup shouldn't block the rest of the refresh, same reasoning
+  //     as the bookmaker scan fallbacks elsewhere in this function.
   let placeBookRunners = null;
+  let placeMarketWinners = null;
   try {
     const [placeMarket] = await listPlaceMarket(appKey, sessionToken, market.event.id);
     if (placeMarket) {
       const [placeBook] = await getMarketBook(appKey, sessionToken, [placeMarket.marketId]);
-      if (placeBook?.numberOfWinners === 3) {
+      if (placeBook?.numberOfWinners === 2 || placeBook?.numberOfWinners === 3) {
         placeBookRunners = new Map(placeBook.runners.map((r) => [String(r.selectionId), r]));
+        placeMarketWinners = placeBook.numberOfWinners;
       }
     }
   } catch (err) {
@@ -576,13 +584,16 @@ async function refreshRaceInner(marketId) {
             : null;
       }
 
-      // Pr(place) for Run 2nd 3rd mode's own EV — REST-only (no DOM
-      // watcher for this, unlike the WIN market's own Lay price above);
-      // a place-market price doesn't need anywhere near the same
-      // freshness for this purpose. null whenever the place market
-      // wasn't found/didn't pay exactly 3 places (placeBookRunners
-      // itself null in that case), or this specific runner isn't in it
-      // (e.g. scratched after the place market's own snapshot).
+      // Pr(place) for Run 2nd/Run 2nd 3rd modes' own EV — REST-only (no
+      // DOM watcher for this, unlike the WIN market's own Lay price
+      // above); a place-market price doesn't need anywhere near the
+      // same freshness for this purpose. null whenever the place
+      // market wasn't found/didn't pay 2 or 3 places (placeBookRunners
+      // itself null in that case — see this function's own comment for
+      // why 4 isn't usable either), or this specific runner isn't in it
+      // (e.g. scratched after the place market's own snapshot). See
+      // race.placeMarketWinners (also set above) and popup.js's own
+      // promoPlaceProb for what this actually means per mode.
       const placeBetfair = placeBookRunners?.get(selectionId)?.ex?.availableToLay?.[0]?.price ?? null;
 
       return {
@@ -713,6 +724,13 @@ async function refreshRaceInner(marketId) {
     sportLabel: sport.label,
     runners,
     winner,
+    // How many places the event's own PLACE market actually pays (2 or
+    // 3), or null if there wasn't one usable — see this same function's
+    // own placeBookRunners comment for what each runner's placeBetfair
+    // means depending on this. Race-level (one place market per event,
+    // shared by every runner), unlike placeBetfair itself which is
+    // per-runner.
+    placeMarketWinners,
     // OPEN/SUSPENDED/CLOSED — Betfair's own status. Display-only now (see
     // bookieMarketClosed below for what actually drives "IN PLAY");
     // kept around in case Betfair's own status is ever worth showing
