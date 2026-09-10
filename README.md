@@ -2167,3 +2167,47 @@ https://developer.betfair.com/.
         just visually present. `formatJumpTime` checked directly for
         midnight (`12:05 am`) and noon (`12:00 pm`), not just a
         daytime example. No console errors.
+
+- [x] Best Price cell's own highlight corrected again, and both
+      bookie-grid highlights made independently toggleable — user:
+      "change the best price colum to match the best price box shown
+      (green text and shded green box) not green highlighted border",
+      then "can we add it to seetings to be able to toggle on and off
+      like as seen in the photo" (the same bet337 Settings screenshot
+      from before).
+      - **Best Price cell** — the accent-outline box-shadow added two
+        commits ago (itself a fix for a different, earlier
+        misunderstanding) removed outright. It now just relies on the
+        same EV-tier tint every bookie cell already had — which
+        already reads as "green text and a shaded green box" whenever
+        the price is genuinely good, no separate signal needed. That
+        tint's own opacity bumped from 0.14 to 0.2 across the board
+        (`edgeMetricHtml`, popup.js) so it reads as a real shaded box
+        rather than a faint wash — the same change makes ordinary
+        bookie cells' own EV-tier tint a little more visible too.
+        `has-price`, the class this outline needed, removed along with
+        it — no longer used by anything.
+      - **Two new Settings > Colours toggles** —
+        `highlightBestBookiePerRunner`/`highlightBestRunnerPerBookie`
+        (settings.js, both default on — unchanged behaviour for
+        anyone who doesn't touch them), with matching checkboxes in
+        both popup.html's modal and options.html's standalone page
+        (the two already share every other Colours field the same
+        way). `renderRace`'s own `rowBest`/`colBest` computation
+        (popup.js) now short-circuits on the matching setting before
+        even checking the underlying condition, so a disabled
+        highlight is never computed as true, not just hidden by CSS.
+      - Verified in the harness: Best Price cell's computed
+        `box-shadow` confirmed `none` and its background confirmed an
+        exact rgba tint matching its own text colour (not just visibly
+        similar). Toggled each new setting off independently through
+        the actual Settings UI (not by editing `currentSettings`
+        directly) and confirmed `.row-best`/`.col-best` cell counts
+        dropped to 0 only for the disabled one, then restored both and
+        confirmed counts matched the pre-toggle baseline exactly —
+        caught a save-order race condition in testing itself (firing
+        two setting changes with no wait between them lost one
+        update, a pre-existing characteristic of `saveSettings`'s own
+        read-then-write pattern, not a bug in either new checkbox) and
+        redid the check with realistic timing between changes. No
+        console errors.

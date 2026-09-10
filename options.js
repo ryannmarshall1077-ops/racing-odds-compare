@@ -84,6 +84,8 @@ const settingFields = {
   autoRefresh: document.getElementById("setting-auto-refresh"),
   accentColor: document.getElementById("setting-accent-color"),
   compactRows: document.getElementById("setting-compact-rows"),
+  highlightBestBookiePerRunner: document.getElementById("setting-highlight-best-bookie"),
+  highlightBestRunnerPerBookie: document.getElementById("setting-highlight-best-runner"),
 };
 
 // maxResults/maxLiability are the only "blank = unlimited" fields — an
@@ -186,6 +188,8 @@ function applySettingsToForm(settings) {
   settingFields.autoRefresh.checked = settings.autoRefresh;
   settingFields.accentColor.value = settings.accentColor;
   settingFields.compactRows.checked = settings.compactRows;
+  settingFields.highlightBestBookiePerRunner.checked = settings.highlightBestBookiePerRunner;
+  settingFields.highlightBestRunnerPerBookie.checked = settings.highlightBestRunnerPerBookie;
 
   for (const [type, checkbox] of Object.entries(raceTypeCheckboxes)) {
     checkbox.checked = settings.defaultRaceTypes.includes(type);

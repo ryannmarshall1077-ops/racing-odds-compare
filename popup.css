@@ -713,14 +713,6 @@ th.col-best-price {
   color: var(--accent);
 }
 
-/* Same accent-outline highlight as a winning bookie's own cell
-   (.col-bookie.best-price, further down) — this cell IS the best
-   price by definition, so it gets the same boxed treatment whenever
-   there's a real price to show (has-price, set in renderRace). */
-td.col-best-price.has-price {
-  box-shadow: inset 0 0 0 1.5px var(--accent);
-}
-
 .best-price-cell {
   display: flex;
   align-items: center;

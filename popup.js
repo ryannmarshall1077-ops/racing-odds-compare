@@ -559,8 +559,12 @@ function edgeMetricHtml(metric) {
   // A full, bolder cell-background tint of the same colour (not just
   // coloured text) — matches the denser, more saturated feel of a
   // reference terminal the user pointed at, using our own EV tier
-  // colours rather than adopting that reference's own palette.
-  return { className: "edge-tier", styleAttr: ` style="color:${color}"`, bg: `rgba(${hexToRgb(color)}, 0.14)` };
+  // colours rather than adopting that reference's own palette. 0.2
+  // (not the original 0.14) reads as an actual shaded box rather than
+  // a faint wash — user-reported wanting the Best Price cell to look
+  // like "green text and a shaded green box", which this same tint
+  // also drives.
+  return { className: "edge-tier", styleAttr: ` style="color:${color}"`, bg: `rgba(${hexToRgb(color)}, 0.2)` };
 }
 
 // Settings > Display: the same Edge%/Ret%/EV% figure (whichever Mode is
@@ -840,8 +844,16 @@ function renderRace(race) {
       // whatever background is already there; can coincide with the
       // green tint above for the same cell (both conditions are just
       // independently true), same as the reference this matches.
-      const rowBest = bestBookieIds.includes(b.id);
-      const colBest = price != null && bookieMetric != null && bookieMetric === bestBookieMetricByBookie.get(b.id);
+      // Settings > Colours — each highlight is independently toggle-
+      // able (matching a reference terminal's own two separate
+      // settings), so a disabled one is never even computed as true.
+      const rowBest =
+        currentSettings.highlightBestBookiePerRunner && bestBookieIds.includes(b.id);
+      const colBest =
+        currentSettings.highlightBestRunnerPerBookie &&
+        price != null &&
+        bookieMetric != null &&
+        bookieMetric === bestBookieMetricByBookie.get(b.id);
       const cellClass = `col-bookie${rowBest ? " row-best" : ""}${colBest ? " col-best" : ""}`;
       const bg = rowBest ? "rgba(61, 220, 151, 0.22)" : edgeMetricHtml(price == null ? null : bookieMetric).bg;
       return `<td class="${cellClass}"${hiddenAttr} style="background:${bg}">${bookieCellHtml(price, bookieMetric)}</td>`;
@@ -859,23 +871,21 @@ function renderRace(race) {
 
     const bestPriceMetric = bestPrice != null ? bestMetric : null;
     const bestPriceBg = edgeMetricHtml(bestPriceMetric).bg;
-    // Only overrides .col-best-price's own subtle default tint (popup.css)
-    // when there's an actual metric-driven colour to show — otherwise the
-    // style attribute is left off entirely so that class-level fallback
-    // still applies, same as before this cell had a per-metric tint at all.
+    // Matches the same tint-based "shaded box" treatment a bookie's
+    // own cell gets (edgeMetricHtml's own EV-tier colour), not a
+    // separate border — user-reported an earlier accent-outline
+    // version of this highlight didn't match. Only overrides
+    // .col-best-price's own subtle default tint (popup.css) when
+    // there's an actual metric-driven colour to show — otherwise the
+    // style attribute is left off entirely so that class-level
+    // fallback still applies, same as before this cell had a
+    // per-metric tint at all.
     const bestPriceBgAttr = bestPriceBg !== "transparent" ? ` style="background:${bestPriceBg}"` : "";
-    // Same accent-outline highlight a winning bookie's own cell gets
-    // (.col-bookie.best-price) — user-reported the Best Price cell
-    // itself didn't carry the same boxed highlight as the bookie
-    // column it's summarizing. Only when there's a real price to
-    // highlight — never on a scratched row's "—" (see the other
-    // col-best-price call sites, which stay plain "col-best-price").
-    const bestPriceClass = bestPrice != null ? " has-price" : "";
     const { html: runnerNumberBadge, label: runnerLabel } = runnerNumberHtml(runner.name);
 
     row.innerHTML = `
       <td>${runnerNumberBadge}${runnerLabel}${winnerTag}</td>
-      <td class="col-best-price${bestPriceClass}"${bestPriceBgAttr}>${bestPriceCellHtml(bestPrice, bestPriceBadges, bestPriceMetric)}</td>
+      <td class="col-best-price"${bestPriceBgAttr}>${bestPriceCellHtml(bestPrice, bestPriceBadges, bestPriceMetric)}</td>
       <td class="col-backlay">${backLayCellHtml(
         runner.betfairBack,
         runner.betfairBackLiquidity,
