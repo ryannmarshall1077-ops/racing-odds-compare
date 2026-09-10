@@ -9,10 +9,15 @@
     <div id="app-layout">
       <aside id="sidebar">
         <div class="sidebar-header">
-          <h1>Racing Odds Compare</h1>
+          <div class="brand">
+            <img class="brand-mark" id="brand-mark" src="icons/icon128.png" alt="Betting Blueprint" />
+            <h1>Racing Odds Compare</h1>
+          </div>
           <span class="sidebar-header-actions">
             <button id="theme-toggle-btn" title="Toggle light/dark mode"></button>
-            <button id="settings-btn" title="Settings">&#9881;</button>
+            <button id="settings-btn" title="Settings">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+            </button>
           </span>
         </div>
 
@@ -32,7 +37,10 @@
           </button>
         </div>
 
-        <input type="search" id="track-search" placeholder="🔍 Search track..." />
+        <div class="search-field">
+          <svg class="search-field-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="search" id="track-search" placeholder="Search track..." />
+        </div>
 
         <div class="races-group">
           <p class="races-group-header races-group-header-static">
@@ -53,11 +61,11 @@
               <span
                 class="comms-badge"
                 title="Betfair commission for this track/sport (Settings > Betfair commission discount applied)"
-              >&#128202; Comms: <span id="race-comms-value">&mdash;</span></span>
+              ><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M18.7 8 13 13.7l-3-3L6 14.7"/></svg> Comms: <span id="race-comms-value">&mdash;</span></span>
               <span
                 class="comms-badge"
                 title="Total AUD matched on this market so far on Betfair"
-              >&#128176; Matched: <span id="race-matched-value">&mdash;</span></span>
+              ><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 15.5c0 1 1 1.5 2.5 1.5s2.5-.6 2.5-1.7c0-2.3-5-1-5-3.3 0-1.1 1-1.7 2.5-1.7s2.5.5 2.5 1.5M12 7.5v1M12 15.5v1"/></svg> Matched: <span id="race-matched-value">&mdash;</span></span>
             </div>
             <div class="race-info-bottom">
               Jumps at <span id="race-jump-time">&mdash;</span> &middot;
@@ -103,9 +111,9 @@
                     <span class="bl-cell bl-lay">Lay</span>
                   </span>
                 </th>
-                <th data-bookie="sportsbet" title="Sportsbet's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it">Sportsbet</th>
-                <th data-bookie="tab" title="TAB's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it">TAB</th>
-                <th data-bookie="ladbrokes" title="Ladbrokes' own price, with Edge%/Ret% (whichever Mode is active) shown beneath it">Ladbrokes</th>
+                <th data-bookie="sportsbet" title="Sportsbet's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it"><span class="bookie-th"><img class="bookie-logo" src="icons/bookies/sportsbet.png" alt="" />Sportsbet</span></th>
+                <th data-bookie="tab" title="TAB's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it"><span class="bookie-th"><img class="bookie-logo" src="icons/bookies/tab.png" alt="" />TAB</span></th>
+                <th data-bookie="ladbrokes" title="Ladbrokes' own price, with Edge%/Ret% (whichever Mode is active) shown beneath it"><span class="bookie-th"><img class="bookie-logo" src="icons/bookies/ladbrokes.png" alt="" />Ladbrokes</span></th>
                 <th>Lay $</th>
                 <th class="col-liability" title="What you'd owe if the lay bet loses: Lay $ × (Betfair odds − 1)">Liability</th>
               </tr>

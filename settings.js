@@ -73,8 +73,12 @@ const DEFAULT_SETTINGS = {
   // Other Behaviour and Functionality
   autoRefresh: true,
 
-  // Colours and Layout
-  accentColor: "#3ddc97",
+  // Colours and Layout — brand blue (Betting Blueprint's own logo
+  // colour), not the old teal-green. See THEME_DEFAULT_ACCENT (popup.js)
+  // for its light-mode counterpart — the two must always match, since
+  // applyDisplaySettings() only treats accentColor as "untouched" (and
+  // so free to swap per-theme) by comparing it against this exact value.
+  accentColor: "#2f6feb",
   compactRows: false,
   // "dark" (default, unchanged existing look) or "light" — toggled via
   // the sidebar's sun/moon button next to Settings, not this settings
