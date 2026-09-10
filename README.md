@@ -1871,3 +1871,26 @@ https://developer.betfair.com/.
         still wins outright regardless of `hasLiveBookie` (a genuinely
         closed bookmaker market always shows "IN PLAY"). No console
         errors.
+
+- [x] Same PR, second bug found immediately after by the user testing
+      it live: `renderRace`'s own `raceInPlay` (driving
+      `metricsSuspended`/`flashMainPanel`, from the flash/hide-metrics
+      feature above) hand-rolled a second, incomplete copy of the
+      "gone in-play" rule that dropped `isShowingStatusWord`'s own
+      `isPastJumpTime` gate entirely — any benign/temporary Betfair
+      `marketStatus !== "OPEN"` (unrelated to the race actually being
+      in-play) blanked every Edge%/EV% figure regardless of how much
+      time was left before the jump. User-reported/screenshotted: a
+      race 4m 42s from its jump, Mug mode, every Edge% figure gone
+      entirely. Fixed by calling `isShowingStatusWord` directly instead
+      of re-deriving its rule a third time, so this can't drift out of
+      sync with what the countdown itself displays again — exactly the
+      failure mode its own comment already warned about ("so this
+      can't drift out of sync"), just not followed the first time.
+      Verified in the local static-preview harness: a mock race 4m 36s
+      from its jump with `marketStatus: "SUSPENDED"` and no live bookie
+      now correctly renders with Edge% figures visible and
+      `metricsSuspended: false` (previously blanked); confirmed the
+      genuinely-in-play case (past jump time, suspended, no live
+      bookie) still correctly sets `metricsSuspended: true` and flashes
+      the panel — no regression on the fix above it.
