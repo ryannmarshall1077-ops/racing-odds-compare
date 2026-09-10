@@ -2000,3 +2000,11 @@ https://developer.betfair.com/.
         (`naturalWidth`/`complete` checked on every `.bookie-logo`),
         and the layout holding up cleanly from a wide (1600px) down to
         a narrow (500px) viewport. No console errors.
+      - Follow-up, same session: dropped each bookie's own text label
+        next to its logo (both the column header and the Best Price
+        cell's badge) — user-requested, once the real logos made the
+        text redundant. `.bookie-th`/`.bookie-badge` go icon-only; the
+        bookmaker's name is still reachable via `alt` text and (for the
+        badge, which has no visible label of its own left at all) a new
+        `title` attribute on hover. `.bookie-badge` shrank from a
+        pill sized for icon+text to a small circular icon-only badge.

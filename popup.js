@@ -720,7 +720,7 @@ function renderRace(race) {
     const bestPriceBadges = bestBookieIds
       .map((id) => {
         const bookie = BOOKIE_LIST.find((b) => b.id === id);
-        return `<span class="bookie-badge"><img class="bookie-logo" src="${bookie.logo}" alt="" />${bookie.label}</span>`;
+        return `<span class="bookie-badge" title="${bookie.label}"><img class="bookie-logo" src="${bookie.logo}" alt="${bookie.label}" /></span>`;
       })
       .join(" ");
     const bestMetric = metricPercent(runner, commission, hedge);
