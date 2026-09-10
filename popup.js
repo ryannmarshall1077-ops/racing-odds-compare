@@ -291,6 +291,37 @@ function parseRunnerNumber(name) {
   return match ? Number(match[1]) : Infinity;
 }
 
+// A fixed, saturated colour per barrier/box number — 12 distinct hues,
+// cycling past that (rare in racing) — for the small square badge every
+// runner row now leads with, matching a reference terminal's own bolder
+// per-runner colour identity instead of a plain "1." in front of the
+// name. Deliberately our own palette, not a copy of any real bookmaker's
+// silk colours, and independent of the brand accent (a runner's own
+// identity, not a UI/chrome colour) — all 12 are dark/saturated enough
+// to stay readable with plain white text, so no per-colour text-colour
+// pairing is needed the way some of the EV tier colours would.
+const RUNNER_NUMBER_COLORS = [
+  "#e63946", "#1d3557", "#2a9d8f", "#e76f51", "#6a4c93", "#264653",
+  "#8338ec", "#ff006e", "#3a86ff", "#588157", "#7f5539", "#495057",
+];
+
+// Splits "N. Horse Name" into the coloured number badge (below) and the
+// bare name text — the badge now carries the number, so it's no longer
+// repeated in the name itself the way it always used to be. Runners
+// without a leading "N." (shouldn't happen in real data, but mock/test
+// data doesn't always bother) get no badge at all rather than a
+// misleading one, and the full original string as their label.
+function runnerNumberHtml(name) {
+  const match = name.match(/^(\d+)\.\s*(.*)$/);
+  if (!match) return { html: "", label: name };
+  const number = Number(match[1]);
+  const color = RUNNER_NUMBER_COLORS[(number - 1) % RUNNER_NUMBER_COLORS.length];
+  return {
+    html: `<span class="runner-number" style="background:${color}">${number}</span>`,
+    label: match[2],
+  };
+}
+
 // Pr(trigger placing) for whichever promo mode is active — real Betfair
 // place-market data only, no theoretical model. Depends on how many
 // places the event's separate PLACE market actually pays
@@ -484,13 +515,35 @@ function edgeTierColor(metric, mode) {
 // rendered with no colour while a genuinely bad negative Mug Edge% still
 // went red. Both cases are just "didn't clear the lowest tier" now, one
 // single configured colour either way.
+// #rgb/#rrggbb -> "r, g, b" for building an rgba() string — needed
+// because the EV tier colours are arbitrary user-configured hex
+// (Settings > EV Colours), not one of this file's own fixed CSS
+// variables, so there's no existing token to reuse the way every other
+// rgba() tint in popup.css does. Malformed input (a mid-edit hex field)
+// falls back to a neutral grey rather than producing an invalid rgba().
+function hexToRgb(hex) {
+  const clean = (hex || "").replace("#", "");
+  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
+  const n = Number.parseInt(full, 16);
+  if (full.length !== 6 || Number.isNaN(n)) return "128, 128, 128";
+  return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+}
+
 function edgeMetricHtml(metric) {
-  if (metric == null) return { className: "", styleAttr: "" };
+  // metricsSuspended (a race in play — see renderRace) already blanks
+  // the text via formatMetric; treating the metric as absent here too
+  // keeps the new cell-background tint from being the only thing left
+  // showing a colour with no figure to justify it.
+  if (metric == null || metricsSuspended) return { className: "", styleAttr: "", bg: "transparent" };
   const color =
     edgeTierColor(metric, currentMode) ??
     currentSettings.edgeBelowThresholdColor ??
     DEFAULT_SETTINGS.edgeBelowThresholdColor;
-  return { className: "edge-tier", styleAttr: ` style="color:${color}"` };
+  // A full, bolder cell-background tint of the same colour (not just
+  // coloured text) — matches the denser, more saturated feel of a
+  // reference terminal the user pointed at, using our own EV tier
+  // colours rather than adopting that reference's own palette.
+  return { className: "edge-tier", styleAttr: ` style="color:${color}"`, bg: `rgba(${hexToRgb(color)}, 0.14)` };
 }
 
 // Settings > Display: the same Edge%/Ret%/EV% figure (whichever Mode is
@@ -733,7 +786,8 @@ function renderRace(race) {
       const bestClass = bestBookieIds.includes(b.id) ? " best-price" : "";
       const bookieMetric = bookieMetricPercent(runner, price, commission, hedge);
       const hiddenAttr = currentSettings.enabledBookies.includes(b.id) ? "" : " hidden";
-      return `<td class="col-bookie${bestClass}"${hiddenAttr}>${bookieCellHtml(price, bookieMetric)}</td>`;
+      const { bg } = edgeMetricHtml(price == null ? null : bookieMetric);
+      return `<td class="col-bookie${bestClass}"${hiddenAttr} style="background:${bg}">${bookieCellHtml(price, bookieMetric)}</td>`;
     }).join("");
 
     // Betfair settling the market and marking a runner WINNER (see
@@ -746,9 +800,18 @@ function renderRace(race) {
         ? ` <em class="winner-tag">${WINNER_ICON} Winner</em>`
         : "";
 
+    const bestPriceMetric = bestPrice != null ? bestMetric : null;
+    const bestPriceBg = edgeMetricHtml(bestPriceMetric).bg;
+    // Only overrides .col-best-price's own subtle default tint (popup.css)
+    // when there's an actual metric-driven colour to show — otherwise the
+    // style attribute is left off entirely so that class-level fallback
+    // still applies, same as before this cell had a per-metric tint at all.
+    const bestPriceBgAttr = bestPriceBg !== "transparent" ? ` style="background:${bestPriceBg}"` : "";
+    const { html: runnerNumberBadge, label: runnerLabel } = runnerNumberHtml(runner.name);
+
     row.innerHTML = `
-      <td>${runner.name}${winnerTag}</td>
-      <td class="col-best-price">${bestPriceCellHtml(bestPrice, bestPriceBadges, bestPrice != null ? bestMetric : null)}</td>
+      <td>${runnerNumberBadge}${runnerLabel}${winnerTag}</td>
+      <td class="col-best-price"${bestPriceBgAttr}>${bestPriceCellHtml(bestPrice, bestPriceBadges, bestPriceMetric)}</td>
       <td class="col-backlay">${backLayCellHtml(
         runner.betfairBack,
         runner.betfairBackLiquidity,
@@ -852,10 +915,25 @@ stakeInput.addEventListener("input", () => {
   if (currentRace) renderRace(currentRace);
 });
 
-const modeSelect = document.getElementById("mode-select");
+// Segmented pill buttons (a reference terminal's own Win/Place/Bonus/
+// Promo tab treatment) instead of the plain <select> this used to be —
+// setMode is the one place that actually changes currentMode, so
+// Settings > Display's own defaultMode seeding (further down) and this
+// click handler both go through it rather than each keeping their own
+// copy of "set currentMode, sync the active button, re-render."
+const modeTabsEl = document.getElementById("mode-tabs");
 
-modeSelect.addEventListener("change", () => {
-  currentMode = modeSelect.value;
+function setMode(mode) {
+  currentMode = mode;
+  for (const btn of modeTabsEl.querySelectorAll(".mode-tab-btn")) {
+    btn.classList.toggle("active", btn.dataset.mode === mode);
+  }
+}
+
+modeTabsEl.addEventListener("click", (event) => {
+  const btn = event.target.closest(".mode-tab-btn");
+  if (!btn) return;
+  setMode(btn.dataset.mode);
   if (currentRace) renderRace(currentRace);
 });
 
@@ -1469,13 +1547,12 @@ themeToggleBtn.addEventListener("click", () => {
 loadSettings().then((settings) => {
   applyDisplaySettings(settings);
 
-  currentMode = settings.defaultMode;
+  setMode(settings.defaultMode);
   sortMode = settings.defaultSort;
   hedgePercent = settings.defaultHedge;
   stakeAmount = settings.defaultStake;
   selectedRaceTypes = new Set(settings.defaultRaceTypes);
 
-  modeSelect.value = currentMode;
   hedgeInput.value = hedgePercent;
   stakeInput.value = stakeAmount;
   sortToggleBtn.textContent = sortMode === "number" ? "Sort: Number" : "Sort: Edge";

@@ -79,13 +79,12 @@
           </div>
 
           <div id="hedge-control">
-            <label for="mode-select">Mode</label>
-            <select id="mode-select">
-              <option value="mug">Mug</option>
-              <option value="bonus">Bonus</option>
-              <option value="run2nd3rd">Run 2nd 3rd</option>
-              <option value="run2nd">Run 2nd</option>
-            </select>
+            <div class="mode-tabs" id="mode-tabs" role="group" aria-label="Mode">
+              <button type="button" class="mode-tab-btn" data-mode="mug">Mug</button>
+              <button type="button" class="mode-tab-btn" data-mode="bonus">Bonus</button>
+              <button type="button" class="mode-tab-btn" data-mode="run2nd3rd">Run 2nd 3rd</button>
+              <button type="button" class="mode-tab-btn" data-mode="run2nd">Run 2nd</button>
+            </div>
             <label for="stake-input">Stake</label>
             <span>$</span>
             <input type="number" id="stake-input" min="0" step="1" value="50" />

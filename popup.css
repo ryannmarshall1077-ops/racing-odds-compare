@@ -777,10 +777,16 @@ th.col-best-price {
 }
 
 /* Whichever bookie(s) tie for the best (highest) price for a runner — the
-   one Edge%/Ret%/Lay $/Liability are actually computed from. */
+   one Edge%/Ret%/Lay $/Liability are actually computed from. An inset
+   outline (not a real border — avoids fighting border-collapse/the
+   inline per-metric background this cell also carries, see renderRace's
+   own comment) boxes the cell, same "here's the winner" boldness as a
+   reference terminal's own highlight, in the brand accent rather than
+   its colour. */
 .col-bookie.best-price {
   color: var(--accent);
   font-weight: 600;
+  box-shadow: inset 0 0 0 1.5px var(--accent);
 }
 
 th, td {
@@ -870,6 +876,24 @@ body.show-liability .col-liability {
 th:first-child, td:first-child {
   text-align: left;
   white-space: normal;
+}
+
+/* The coloured barrier/box-number badge every runner row now leads with
+   (runnerNumberHtml, popup.js — RUNNER_NUMBER_COLORS) instead of a
+   plain "1." folded into the name text. */
+.runner-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  margin-right: 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  vertical-align: middle;
 }
 
 th {
@@ -973,8 +997,7 @@ th:first-child {
 }
 
 #hedge-input,
-#stake-input,
-#mode-select {
+#stake-input {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -994,11 +1017,46 @@ th:first-child {
 }
 
 #hedge-input:focus,
-#stake-input:focus,
-#mode-select:focus {
+#stake-input:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* Mode — a segmented pill-button group (setMode, popup.js) instead of a
+   plain <select>, matching a reference terminal's own Win/Place/Bonus/
+   Promo tab treatment: a recessed track holding evenly-sized buttons,
+   the active one lifted onto a solid brand-accent pill. Only this live
+   toolbar control changed — Settings > Display's own "Default Mode"
+   stays a plain <select>, a normal fit for a settings form. */
+.mode-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.mode-tab-btn {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mode-tab-btn:hover {
+  color: var(--text);
+}
+
+.mode-tab-btn.active {
+  background: var(--accent);
+  color: #ffffff;
 }
 
 .hedge-hint {

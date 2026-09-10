@@ -2008,3 +2008,69 @@ https://developer.betfair.com/.
         badge, which has no visible label of its own left at all) a new
         `title` attribute on hover. `.bookie-badge` shrank from a
         pill sized for icon+text to a small circular icon-only badge.
+
+- [x] Matched the odds table's own density/boldness to bet337 Terminal
+      specifically — user sent a screenshot and asked to "aim to match
+      the visual feel of bet337's while keeping the colour scheme the
+      same" (i.e. our own brand blue/positive-green, not a copy of
+      their palette). This PR also had to re-apply the previous PR's
+      own bookie-text-removal commit (`0172798`) — that branch got
+      merged into `main` one push before it landed, so it never
+      actually shipped; brought back in here via cherry-pick.
+      - **Coloured runner badges** — `runnerNumberHtml`/
+        `RUNNER_NUMBER_COLORS` (popup.js): a small solid-colour square
+        badge (12 distinct hues, cycling past that) now leads every
+        runner row instead of a plain "1." folded into the name text —
+        our own palette, not any bookmaker's real silk colours, and
+        independent of the brand accent (a runner's own identity, not
+        UI chrome). Scratched rows deliberately kept plain (no badge)
+        — a bold colour there would fight the existing muted/italic
+        "this runner is out" treatment.
+      - **Bolder full-cell EV tint** — `edgeMetricHtml` (popup.js) now
+        also returns a `bg` (the same EV tier colour as a ~14%-opacity
+        `rgba()`, via a new `hexToRgb` helper — needed because these
+        are arbitrary user-configured hex values from Settings > EV
+        Colours, not one of popup.css's own fixed tokens), applied as
+        an inline `style="background:…"` on the Best Price and each
+        bookie's own `<td>` directly — a real coloured cell background
+        next to the coloured text, not text-colour alone, matching the
+        reference's own denser look. Respects `metricsSuspended` (an
+        in-play race) the same way the text already does, so a
+        suspended market's cells don't show a bold colour with no
+        figure behind it. The Best Price cell's own existing default
+        tint (`.col-best-price`'s flat class-level background) is left
+        alone when there's no real metric to show — the inline style is
+        only added when there's an actual colour to override it with.
+      - **Best-price cell outline** — `.col-bookie.best-price` gained
+        an inset `box-shadow` outline in the brand accent, boxing
+        whichever bookie(s) tie for the best price on that row, on top
+        of its existing bold-blue text — the reference's own "here's
+        the winner" boxed highlight, in our colour instead of theirs.
+      - **Mode as segmented pills, not a `<select>`** — `#mode-tabs`/
+        `.mode-tab-btn` (popup.html/css) replace the live toolbar's
+        `<select>` with 4 buttons in a recessed track, the active one a
+        solid accent pill — the reference's own Win/Place/Bonus/Promo
+        tab treatment. `setMode(mode)` (popup.js) is now the one place
+        that changes `currentMode` — both the click handler and
+        Settings > Display's own defaultMode seeding go through it, so
+        the active pill can never drift out of sync with the real mode
+        the way two separate copies of "set currentMode + sync the UI"
+        risked. Settings > Display's own "Default Mode" field
+        deliberately stayed a plain `<select>` — a normal fit for a
+        settings form, not the live control the reference's own
+        tab-styled toggle was actually replacing.
+      - Deliberately NOT attempted: the reference's own "FLUCTS"
+        sparkline column (a live price-history mini-chart per runner).
+        That's a real feature needing price-history tracking we don't
+        currently store, not a styling change — flagged rather than
+        faked with placeholder data.
+      - Verified in the local static-preview harness, both themes:
+        runner badges render distinct/readable; Mug → Bonus mode switch
+        via the new pills updates `currentMode`, the active pill, and
+        every cell's figures correctly (confirmed via DOM state, not
+        just visually, after initially misreading a compressed
+        screenshot); Settings > Display's "Default Mode" `<select>`
+        confirmed untouched; a marked WINNER row's own per-cell tints
+        and the winner-row's own tint coexist without conflict; the
+        flash-on-in-play animation (an unrelated, pre-existing feature)
+        still fires correctly. No console errors.
