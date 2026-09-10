@@ -1820,3 +1820,97 @@ https://developer.betfair.com/.
         loaded a fresh, different-marketId race that's not in play
         (state reset with no spurious flash, Edge% figures reappeared).
         No console errors.
+
+- [x] Fixed a real bug in the "gone in-play" fallback added by the
+      sidebar IN PLAY fix above: user-reported/live-confirmed (a
+      Sportsbet screenshot showing its own race clock still at "-13s" —
+      a live duration, betting genuinely still open — right next to our
+      own top bar already showing "IN PLAY") that Betfair routinely
+      auto-suspends its own market right at its scheduled start time
+      even when the real jump is running late, and `isBetfairMarketClosed`
+      was treating that routine, temporary suspension as if the race
+      had actually gone in-play — for the currently-loaded race too,
+      not just the tab-less sidebar rows it was actually meant for. That
+      also meant the flash/hide-metrics feature above fired on the same
+      false signal, blanking every Edge%/EV% figure while the
+      bookmaker market was still genuinely tradeable.
+      - `hasLiveBookie` — true whenever any bookie has ever gone "live"
+        for a race (`race.bookmakerSources` having a "live" entry,
+        background.js) — i.e. there's a real DOM scrape actively
+        confirming its state, so `bookieMarketClosed` alone (still
+        false) can be trusted outright and Betfair's own routine early-
+        suspend ignored entirely. `isBetfairMarketClosed` (popup.js)
+        now takes this as a 2nd parameter and short-circuits to `false`
+        whenever it's true; `isShowingStatusWord`/`formatCountdown`
+        thread it through as a 5th parameter the same way
+        `betfairMarketStatus` already is.
+      - background.js's `listUpcomingRacesInner` — added
+        `hasLiveBookieMarketId` (mirroring the existing
+        `bookieMarketClosedMarketId`'s own "only the currently-selected
+        race can ever carry this" limitation) and threaded
+        `hasLiveBookie` onto that one race's own object in the sidebar
+        list, so its row doesn't disagree with the top bar. `renderRace`
+        (popup.js) computes the same value from `race.bookmakerSources`
+        directly and writes it to `#race-countdown-main`'s own dataset
+        (`data-has-live-bookie`), and the `chrome.storage.onChanged`
+        listener that instant-syncs bookieMarketClosed/marketStatus/
+        winner into the sidebar's cached race now syncs this too, for
+        the same "shouldn't lag a minute behind the top bar" reason
+        those already do.
+      - Verified in the local static-preview harness: a mock race 13s
+        past its scheduled start, Betfair `marketStatus: "SUSPENDED"`,
+        `bookieMarketClosed: false`, `bookmakerSources: { sportsbet:
+        "live" }` (reproducing the screenshot exactly) rendered as
+        `in -0m 20s` (a duration, not "IN PLAY"), Edge% figures still
+        visible (-7.8%/-8.6%), no flash, `metricsSuspended` false.
+        Called `formatCountdown` directly for the 3 cases side by side:
+        no live bookie + Betfair SUSPENDED → "IN PLAY" (sidebar-row
+        fallback still works, unchanged); live bookie + Betfair
+        SUSPENDED → real duration (the fix); no live bookie + Betfair
+        OPEN → real duration. Confirmed `bookieMarketClosed: "true"`
+        still wins outright regardless of `hasLiveBookie` (a genuinely
+        closed bookmaker market always shows "IN PLAY"). No console
+        errors.
+
+- [x] Same PR, second bug found immediately after by the user testing
+      it live: `renderRace`'s own `raceInPlay` (driving
+      `metricsSuspended`/`flashMainPanel`, from the flash/hide-metrics
+      feature above) hand-rolled a second, incomplete copy of the
+      "gone in-play" rule that dropped `isShowingStatusWord`'s own
+      `isPastJumpTime` gate entirely — any benign/temporary Betfair
+      `marketStatus !== "OPEN"` (unrelated to the race actually being
+      in-play) blanked every Edge%/EV% figure regardless of how much
+      time was left before the jump. User-reported/screenshotted: a
+      race 4m 42s from its jump, Mug mode, every Edge% figure gone
+      entirely. Fixed by calling `isShowingStatusWord` directly instead
+      of re-deriving its rule a third time, so this can't drift out of
+      sync with what the countdown itself displays again — exactly the
+      failure mode its own comment already warned about ("so this
+      can't drift out of sync"), just not followed the first time.
+      Verified in the local static-preview harness: a mock race 4m 36s
+      from its jump with `marketStatus: "SUSPENDED"` and no live bookie
+      now correctly renders with Edge% figures visible and
+      `metricsSuspended: false` (previously blanked); confirmed the
+      genuinely-in-play case (past jump time, suspended, no live
+      bookie) still correctly sets `metricsSuspended: true` and flashes
+      the panel — no regression on the fix above it.
+
+- [x] Same PR, third bug: user-reported the panel flashing every time
+      they opened a race that happened to already be in play — e.g.
+      clicking a different race card whose market had already jumped.
+      `renderRace`'s own transition tracking reset `lastRenderedInPlay`
+      to `false` on a marketId change and then treated that reset as a
+      transition, flashing exactly backwards from what its own comment
+      claimed ("opening a race that's already in play never spuriously
+      flashes" — the code did the opposite). Added `isNewMarket` and
+      skip the flash outright whenever it's true, regardless of the
+      newly-loaded race's own in-play state — only a genuine false→true
+      transition *while already viewing the same race* still flashes.
+      Verified in the harness: opening a different, already-in-play
+      race no longer flashes (still correctly sets
+      `metricsSuspended: true`, just silently); the same race
+      transitioning to in-play while being watched continuously still
+      flashes and blanks its figures, unchanged.
+      - Also changed the flash's own colour from `--accent-neg` (red)
+        to plain white per user request — a deliberate, non-themed
+        colour, same regardless of dark/light mode.

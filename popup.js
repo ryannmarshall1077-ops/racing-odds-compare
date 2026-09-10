@@ -614,20 +614,47 @@ function renderRace(race) {
   currentRace = race;
   if (race.marketId) selectedMarketId = race.marketId;
 
-  // Same "gone in-play" rule tickCountdowns/formatCountdown use for this
-  // race's own countdown (bookieMarketClosed primary, Betfair's own
-  // status a rougher fallback — see isBetfairMarketClosed's own
-  // comment) — reused here to (a) blank every Edge%/Ret%/EV% figure for
-  // as long as it's true (metricsSuspended, read by formatMetric — a
-  // suspended bookmaker market's prices are no longer tradeable) and
-  // (b) flash the panel once, exactly on the moment it flips from false
-  // to true, so switching Mode/Stake/Hedge or an ordinary auto-refresh
-  // while already in play doesn't keep re-triggering it. A different
-  // race loading (marketId change) resets the tracked state first, so
-  // opening a race that's already in play never spuriously flashes.
-  const raceInPlay = Boolean(race.bookieMarketClosed) || isBetfairMarketClosed(race.marketStatus);
-  if (race.marketId !== lastRenderedMarketId) lastRenderedInPlay = false;
-  if (raceInPlay && !lastRenderedInPlay) flashMainPanel();
+  // Whether a real bookie tab has ever gone live for this specific race
+  // — see isBetfairMarketClosed's own comment for why this is what
+  // keeps its fallback scoped to only the races that genuinely have no
+  // better signal, instead of overriding this one's own confirmed
+  // "still open" scrape the moment Betfair routinely (and only
+  // temporarily) suspends its own market right at its scheduled start.
+  const hasLiveBookie = Object.values(race.bookmakerSources || {}).some((s) => s === "live");
+
+  // The exact same "is the countdown currently showing IN PLAY/
+  // RESULTED" check tickCountdowns/formatCountdown use — calling
+  // isShowingStatusWord directly here (not a hand-rolled second copy of
+  // its rule) so this can never drift out of sync with what the
+  // countdown itself displays. An earlier version re-derived this
+  // inline from just bookieMarketClosed/marketStatus and dropped
+  // isShowingStatusWord's own isPastJumpTime gate entirely — user-
+  // reported: every Edge%/EV% figure vanishing minutes before the jump
+  // (a benign, temporary Betfair status blip unrelated to actually
+  // being in-play, since nothing was gating on the jump time at all).
+  // Reused here to (a) blank every Edge%/Ret%/EV% figure for as long as
+  // it's true (metricsSuspended, read by formatMetric — a suspended
+  // bookmaker market's prices are no longer tradeable) and (b) flash
+  // the panel once, exactly on the moment it flips from false to true
+  // *while already viewing this same race* — switching Mode/Stake/
+  // Hedge or an ordinary auto-refresh while already in play doesn't
+  // keep re-triggering it. isNewMarket (a different race loading —
+  // marketId change) skips the flash outright regardless of that new
+  // race's own in-play state — user-reported: opening a race that
+  // happened to already be in play flashed immediately, since nothing
+  // actually just transitioned, that's simply the race's existing
+  // state; an earlier version reset lastRenderedInPlay to false first
+  // and then treated that as a transition, flashing exactly backwards
+  // from what its own comment claimed.
+  const raceInPlay = isShowingStatusWord(
+    race.startTime,
+    race.bookieMarketClosed ? "true" : "",
+    race.winner ? "true" : "",
+    race.marketStatus,
+    hasLiveBookie ? "true" : ""
+  );
+  const isNewMarket = race.marketId !== lastRenderedMarketId;
+  if (raceInPlay && !lastRenderedInPlay && !isNewMarket) flashMainPanel();
   lastRenderedMarketId = race.marketId;
   lastRenderedInPlay = raceInPlay;
   metricsSuspended = raceInPlay;
@@ -779,6 +806,7 @@ function renderRace(race) {
   countdownMainEl.dataset.bookieMarketClosed = race.bookieMarketClosed ? "true" : "";
   countdownMainEl.dataset.hasWinner = race.winner ? "true" : "";
   countdownMainEl.dataset.marketStatus = race.marketStatus || "";
+  countdownMainEl.dataset.hasLiveBookie = hasLiveBookie ? "true" : "";
 
   document.getElementById("data-source-note").textContent = noteFor(race);
 }
@@ -900,15 +928,24 @@ chrome.storage.onChanged.addListener((changes, area) => {
     // reported: wanted both to flip together).
     if (race?.marketId) {
       const cached = latestRaces.find((r) => r.marketId === race.marketId);
+      // hasLiveBookie mirrors listUpcomingRacesInner's own
+      // hasLiveBookieMarketId (background.js) — same instant-sync
+      // reasoning as bookieMarketClosed/marketStatus/winner below, so
+      // the sidebar row for this race stops trusting Betfair's own
+      // routine early-suspend the same moment the top bar does, not up
+      // to a minute later on the next loadUpcomingRaces() poll.
+      const hasLiveBookie = Object.values(race.bookmakerSources || {}).includes("live");
       if (
         cached &&
         (cached.bookieMarketClosed !== race.bookieMarketClosed ||
           cached.marketStatus !== race.marketStatus ||
-          cached.winner !== race.winner)
+          cached.winner !== race.winner ||
+          cached.hasLiveBookie !== hasLiveBookie)
       ) {
         cached.bookieMarketClosed = race.bookieMarketClosed;
         cached.marketStatus = race.marketStatus;
         cached.winner = race.winner;
+        cached.hasLiveBookie = hasLiveBookie;
         renderFilteredRacesList();
       }
     }
@@ -1017,7 +1054,7 @@ function raceCardHtml(race) {
         race.bookieMarketClosed ? "true" : ""
       }" data-has-winner="${race.winner ? "true" : ""}" data-market-status="${
         race.marketStatus || ""
-      }"></span>`
+      }" data-has-live-bookie="${race.hasLiveBookie ? "true" : ""}"></span>`
     : "";
 
   return `
@@ -1142,28 +1179,48 @@ function formatDuration(totalSeconds) {
 // — already fetched there for the winner check, no new API cost) is a
 // rougher, sometimes-later signal than bookieMarketClosed, but it's real
 // data instead of nothing: once it's no longer "OPEN", betting there has
-// genuinely stopped. The displayed clock itself is untouched by any of
-// this — still just Betfair's own scheduled startTime counting down,
-// then on into negative, same as always; only what triggers the switch
-// to "IN PLAY" changed.
+// genuinely stopped.
+//
+// hasLiveBookie (below) is what keeps that fallback scoped to ONLY those
+// tab-less races — user-reported/live-confirmed that Betfair routinely
+// suspends its own market right at its scheduled start time even when
+// the real jump is running late (a live Sportsbet tab's own clock still
+// counting down, e.g. "-13s", well past our own scheduled startTime),
+// so isBetfairMarketClosed used unconditionally would flip the loaded
+// race to "IN PLAY" — and metricsSuspended's figures blank along with
+// it — while the bookmaker market it's actually being compared against
+// is still genuinely open. true whenever any bookie has ever gone
+// "live" for this race (race.bookmakerSources, background.js) — i.e.
+// there's a real DOM scrape actively confirming the state, so
+// bookieMarketClosed alone (still false/absent) is trusted outright and
+// Betfair's own routine early-suspend is ignored entirely for that one
+// race. Every other sidebar row never has a live bookie tab at all
+// (background.js's own comment on bookieMarketClosedMarketId — only the
+// currently-selected race can ever carry one), so hasLiveBookie is
+// always false there and the fallback still applies exactly as before.
+// The displayed clock itself is untouched by any of this — still just
+// Betfair's own scheduled startTime counting down, then on into
+// negative, same as always; only what triggers the switch to "IN PLAY"
+// changed.
 // Exported as its own check (not just inlined in formatCountdown) so
 // the race-info bar's "in" prefix (only makes sense before a duration,
 // not in front of the word "IN PLAY") can key off the exact same rule
 // instead of a second copy of it drifting out of sync.
-// "true" (string), not a boolean, for bookieMarketClosed/hasWinner below
-// — every real caller sources these from DOM dataset attributes
-// (renderRace/raceCardHtml both write race.bookieMarketClosed/race.winner
-// through a `? "true" : ""` ternary), and dataset values are always
-// strings. betfairMarketStatus is instead whatever raw string
-// race.marketStatus already is ("OPEN"/"SUSPENDED"/"CLOSED"/"" for
-// unknown) — no ternary needed, "OPEN" and "" both mean "not closed yet"
-// so both fall through the same way.
+// "true" (string), not a boolean, for bookieMarketClosed/hasWinner/
+// hasLiveBookie below — every real caller sources these from DOM
+// dataset attributes (renderRace/raceCardHtml both write
+// race.bookieMarketClosed/race.winner/hasLiveBookie through a `?
+// "true" : ""` ternary), and dataset values are always strings.
+// betfairMarketStatus is instead whatever raw string race.marketStatus
+// already is ("OPEN"/"SUSPENDED"/"CLOSED"/"" for unknown) — no ternary
+// needed, "OPEN" and "" both mean "not closed yet" so both fall through
+// the same way.
 function isPastJumpTime(startTimeIso) {
   return new Date(startTimeIso).getTime() - Date.now() <= 0;
 }
 
-function isBetfairMarketClosed(betfairMarketStatus) {
-  return Boolean(betfairMarketStatus) && betfairMarketStatus !== "OPEN";
+function isBetfairMarketClosed(betfairMarketStatus, hasLiveBookie) {
+  return !hasLiveBookie && Boolean(betfairMarketStatus) && betfairMarketStatus !== "OPEN";
 }
 
 // Whether the countdown is currently showing a status word ("IN PLAY"/
@@ -1171,14 +1228,16 @@ function isBetfairMarketClosed(betfairMarketStatus) {
 // just inlined in formatCountdown) so the race-info bar's "in" prefix
 // (only makes sense before a duration) can key off the exact same rule
 // instead of a second copy of it drifting out of sync.
-function isShowingStatusWord(startTimeIso, bookieMarketClosed, hasWinner, betfairMarketStatus) {
+function isShowingStatusWord(startTimeIso, bookieMarketClosed, hasWinner, betfairMarketStatus, hasLiveBookie) {
   return (
     isPastJumpTime(startTimeIso) &&
-    (hasWinner === "true" || bookieMarketClosed === "true" || isBetfairMarketClosed(betfairMarketStatus))
+    (hasWinner === "true" ||
+      bookieMarketClosed === "true" ||
+      isBetfairMarketClosed(betfairMarketStatus, hasLiveBookie === "true"))
   );
 }
 
-function formatCountdown(startTimeIso, bookieMarketClosed, hasWinner, betfairMarketStatus) {
+function formatCountdown(startTimeIso, bookieMarketClosed, hasWinner, betfairMarketStatus, hasLiveBookie) {
   const diffMs = new Date(startTimeIso).getTime() - Date.now();
   if (diffMs > 0) return formatDuration(Math.floor(diffMs / 1000));
   // RESULTED takes priority over IN PLAY — a winner being known means
@@ -1186,7 +1245,10 @@ function formatCountdown(startTimeIso, bookieMarketClosed, hasWinner, betfairMar
   // betfairMarketStatus (which only track betting having closed, not
   // the actual result) say by this point.
   if (hasWinner === "true") return "RESULTED";
-  if (isPastJumpTime(startTimeIso) && (bookieMarketClosed === "true" || isBetfairMarketClosed(betfairMarketStatus)))
+  if (
+    isPastJumpTime(startTimeIso) &&
+    (bookieMarketClosed === "true" || isBetfairMarketClosed(betfairMarketStatus, hasLiveBookie === "true"))
+  )
     return "IN PLAY";
   return `-${formatDuration(Math.floor(-diffMs / 1000))}`;
 }
@@ -1201,7 +1263,8 @@ function tickCountdowns() {
       el.dataset.start,
       el.dataset.bookieMarketClosed,
       el.dataset.hasWinner,
-      el.dataset.marketStatus
+      el.dataset.marketStatus,
+      el.dataset.hasLiveBookie
     );
   }
 
@@ -1211,7 +1274,8 @@ function tickCountdowns() {
         countdownMainEl.dataset.start,
         countdownMainEl.dataset.bookieMarketClosed,
         countdownMainEl.dataset.hasWinner,
-        countdownMainEl.dataset.marketStatus
+        countdownMainEl.dataset.marketStatus,
+        countdownMainEl.dataset.hasLiveBookie
       )
     : "";
   // "Jumps at HH:MM · in -1m 02s" reads fine; "Jumps at HH:MM · in IN
@@ -1223,7 +1287,8 @@ function tickCountdowns() {
         countdownMainEl.dataset.start,
         countdownMainEl.dataset.bookieMarketClosed,
         countdownMainEl.dataset.hasWinner,
-        countdownMainEl.dataset.marketStatus
+        countdownMainEl.dataset.marketStatus,
+        countdownMainEl.dataset.hasLiveBookie
       )
   );
 }
