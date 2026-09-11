@@ -817,15 +817,13 @@ th.col-best-price {
 
 /* Icon-only now (the logo itself identifies the bookie — see
    .bookie-logo's own comment) — the bookmaker's name is still reachable
-   via this same element's title attribute (popup.js) on hover. */
+   via this same element's title attribute (popup.js) on hover. No
+   background/border pill any more (user request) — just the plain logo,
+   same as it appears in the column header. */
 .bookie-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 3px;
-  border-radius: 999px;
-  background: rgba(47, 111, 235, 0.15);
-  border: 1px solid rgba(47, 111, 235, 0.4);
 }
 
 /* Each bookmaker's own real logo (bookies.js's BOOKIE_LIST.logo) — a

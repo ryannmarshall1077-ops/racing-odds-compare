@@ -2410,3 +2410,25 @@ https://developer.betfair.com/.
         re-render) and called `tickCountdowns()` alone — confirmed it
         still flips the dot to closed in step with the countdown text
         itself switching to "IN PLAY." No console errors.
+
+- [x] Fixed two real bugs, both user-reported/screenshotted: the
+      Sportsbet logo appearing cropped/circular next to TAB and
+      Ladbrokes' full-square ones, and a decorative blue circular
+      background/border around every bookie logo in the Best Price
+      cell's own badge.
+      - **Sportsbet logo** — `icons/bookies/sportsbet.png` replaced
+        with the logo the user supplied directly (saved to their own
+        Pictures folder), a full-bleed square "sb" mark, same treatment
+        as TAB/Ladbrokes' own icons rather than a padded/circular
+        emblem.
+      - **Best Price badge** — `.bookie-badge` (popup.css) had its own
+        `background`/`border`/`border-radius`/`padding` (a blue-tinted
+        pill wrapping the logo) removed entirely, so the cell now shows
+        just the plain logo, same as the column header.
+      - Verified in the harness: read the new icon file directly to
+        confirm it's the full square logo, not a re-crop of the old
+        one; checked every `.bookie-logo`'s own `getBoundingClientRect()`
+        (still a uniform 22px everywhere) and `.bookie-badge`'s computed
+        style (`background: transparent`, no border, `border-radius: 0`,
+        no padding) directly rather than just visually. No console
+        errors.
