@@ -63,6 +63,7 @@
     "https://api.betfair.com/*",
     "https://*.sportsbet.com.au/*",
     "https://www.tab.com.au/*",
-    "https://www.ladbrokes.com.au/*"
+    "https://www.ladbrokes.com.au/*",
+    "https://api.ladbrokes.com.au/*"
   ]
 }
