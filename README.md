@@ -2228,3 +2228,16 @@ https://developer.betfair.com/.
         on the Lay $ cell (`center`) and the Runner cell (`left`, still
         unaffected); logo `offsetWidth`/`offsetHeight` confirmed 22.
         No console errors.
+
+- [x] Moved the two bookie-grid highlight toggles from Settings >
+      Colours to Settings > Display (user request) — same checkboxes,
+      same ids, just relocated markup (right after the Display Edge
+      %/EV $/Off toggle, before Default Race Types) in both
+      popup.html's modal and options.html's standalone page. No JS
+      changes needed — `settingFields`/`applySettingsToForm` (options.js)
+      already look these up by id, not DOM position.
+      - Verified in the harness: the two checkboxes' elements confirmed
+        contained by `.modal-tab-panel[data-tab="display"]` and NOT by
+        `[data-tab="colours"]` (via `.contains()`, not just visually),
+        both still correctly checked after the move. No console
+        errors.
