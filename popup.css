@@ -606,21 +606,24 @@ h1 {
   gap: 8px;
 }
 
+/* Same "green=open, red=closed" market-status meaning as the sidebar's
+   own .race-live-dot (raceCardHtml) — renderRace/tickCountdowns (popup.js)
+   both drive this from the identical isShowingStatusWord result the
+   sidebar dot uses, so the two can never disagree, and tickCountdowns
+   refreshes this one every second so it changes the moment the sidebar's
+   would too rather than lagging behind it. */
 .live-dot {
   width: 8px;
   height: 8px;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: var(--muted);
-}
-
-/* Green + a soft glow once this race's data actually came from a live
-   Betfair fetch (race.source === "live-betfair") — grey/dim for mock or
-   placeholder data, so the dot means something rather than being purely
-   decorative. */
-.live-dot.live {
   background: var(--positive);
   box-shadow: 0 0 0 3px rgba(61, 220, 151, 0.15);
+}
+
+.live-dot.closed {
+  background: var(--accent-neg);
+  box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.15);
 }
 
 .subtitle {
