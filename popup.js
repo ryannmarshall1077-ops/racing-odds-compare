@@ -1231,12 +1231,28 @@ function raceCardHtml(race) {
       }" data-has-live-bookie="${race.hasLiveBookie ? "true" : ""}"></span>`
     : "";
 
+  // The dot's own real meaning (user-clarified): green means the
+  // bookmaker market's still open, red means it's closed (in-play or
+  // resulted) — not just decorative. The exact same "gone in-play"
+  // check this race's own countdown already shows IN PLAY/RESULTED
+  // for (isShowingStatusWord), so the dot and the countdown word can
+  // never disagree with each other.
+  const marketClosed = isShowingStatusWord(
+    race.startTime,
+    race.bookieMarketClosed ? "true" : "",
+    race.winner ? "true" : "",
+    race.marketStatus,
+    race.hasLiveBookie ? "true" : ""
+  );
+
   return `
     <li class="race-card sport-${race.raceType}${selected}" data-market-id="${race.marketId}">
       <span class="race-sport-badge">${code}</span>
       <span class="race-card-body">
         <span class="race-card-title-row">
-          <span class="race-live-dot"></span>
+          <span class="race-live-dot${marketClosed ? " closed" : ""}" title="${
+    marketClosed ? "Market closed" : "Market open"
+  }"></span>
           <span class="race-card-title">R${race.raceNumber} ${race.track}</span>
         </span>
         <span class="race-card-sub">${time}${

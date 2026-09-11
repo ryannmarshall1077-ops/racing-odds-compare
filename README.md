@@ -2324,3 +2324,28 @@ https://developer.betfair.com/.
         console to confirm whether that's actually happening before
         changing anything further — not fixed yet, still open pending
         that.
+
+- [x] Sidebar's own `.race-live-dot` given a real meaning — user
+      clarified (in passing, re: a different site's own dot): "the
+      green circle is the race status. green=markets opened
+      red=markets closed." Ours was purely decorative before this —
+      always the same colour on every card, never toggled by
+      anything.
+      - `raceCardHtml` (popup.js) now computes `marketClosed` via
+        `isShowingStatusWord` — the exact same "gone in-play or
+        resulted" check that race's own countdown already shows IN
+        PLAY/RESULTED for, not a second copy of that logic, so the
+        dot and the countdown word can never disagree. `.closed`
+        swaps the dot from green (`--positive`) to red (`--accent-neg`)
+        — the same colour roles `.live-dot.live`'s own "connected"
+        signal and the EV tiers' own bad-value red already use, not
+        new one-off colours. A `title` attribute ("Market open"/
+        "Market closed") added alongside, since the colour alone
+        isn't very discoverable.
+      - Verified in the harness with three mock races covering every
+        state `isShowingStatusWord` distinguishes: a genuinely open
+        race (green, "Market open"), one flagged `bookieMarketClosed:
+        true` — in-play (red, "Market closed"), and one with a
+        `winner` set — resulted (red, "Market closed") — checked each
+        dot's own computed class and title directly, not just visually.
+        No console errors.
