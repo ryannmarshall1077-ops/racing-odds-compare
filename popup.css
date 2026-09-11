@@ -763,9 +763,9 @@ th.col-best-price {
    a column header, or the Best Price cell's own "which bookie(s) won"
    badge. */
 .bookie-logo {
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
   flex: 0 0 auto;
   display: block;
 }
@@ -799,7 +799,7 @@ th.col-best-price {
 
 th, td {
   padding: 8px 10px;
-  text-align: right;
+  text-align: center;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
@@ -976,7 +976,7 @@ th:first-child {
 .stacked-cell {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   line-height: 1.3;
 }
 
