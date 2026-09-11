@@ -2266,3 +2266,38 @@ https://developer.betfair.com/.
         $2.80, live-fluctuated from the user's own $2.90 screenshot)
         alongside every other runner's own price, unchanged from
         before the fix.
+
+- [x] Added an AU/NZ country filter to the sidebar's Upcoming Races,
+      per a user screenshot of a similar toggle (a Ladbrokes AU/AU&NZ/
+      International control) — same idea, but a plain independent
+      on/off pair rather than a combined radio-style control, matching
+      how Race Types already works right above it.
+      - `race.country` (background.js's `listUpcomingRacesInner`) —
+        Betfair's own EVENT projection already returns this on every
+        market (the same projection `listWinMarkets` already
+        requests), no extra API cost. Every race this extension ever
+        lists is already AU or NZ (`listWinMarkets`'s own
+        `marketCountries` filter), so there's no third value to
+        account for.
+      - `selectedCountries` (popup.js) — both on by default, same
+        toggle/persist pattern as `selectedRaceTypes`, applied
+        alongside it in `renderFilteredRacesList`'s own
+        `matchesFilter`. A race with no `country` at all (shouldn't
+        happen for a real Betfair market, but placeholder/mock data
+        doesn't always set one) is never filtered out by this, rather
+        than silently disappearing from Today for an unrelated reason.
+      - `#country-filter`/`.country-btn` (popup.html/css) — same pill
+        shape/hover/toggle behaviour as the Race Type buttons, but one
+        shared accent tint rather than a colour per item, since AU vs
+        NZ isn't a distinct "identity" the same way horse/harness/
+        greyhound are.
+      - Deliberately scoped to just the live sidebar toggle, not also
+        a Settings > Display "Default Countries" the way Race Types
+        has one — not asked for, and easy to add later if wanted.
+      - Verified in the harness: 3 mock races (2 AU, 1 NZ) all shown
+        with both toggles on; toggling NZ off dropped exactly the NZ
+        race (checked the actual visible race list, not just the
+        toggle's own state) and left both AU races; toggling back on
+        restored it. A 4th race with no `country` field at all stayed
+        visible through the same NZ-off toggle, confirming the
+        fallback. No console errors.

@@ -215,6 +215,15 @@ let currentMode = "mug";
 // happens client-side against the last-fetched list (see latestRaces)
 // rather than re-querying background.js, so toggling is instant.
 let selectedRaceTypes = new Set(["horse", "harness", "greyhound"]);
+
+// "AU"/"NZ" — same on/off toggle pattern as selectedRaceTypes above,
+// applied together in renderFilteredRacesList's own matchesFilter.
+// Both on by default. race.country comes straight from Betfair's own
+// EVENT projection (listUpcomingRacesInner, background.js) — every
+// race this extension ever lists is already AU or NZ (listWinMarkets'
+// own marketCountries filter), so there's no third value to account
+// for here.
+let selectedCountries = new Set(["AU", "NZ"]);
 let latestRaces = [];
 
 // Free-text filter over the Upcoming Races list, matched against track
@@ -1494,7 +1503,15 @@ function loadUpcomingRaces() {
 function renderFilteredRacesList() {
   const query = trackSearchQuery.trim().toLowerCase();
   const matchesFilter = (race) =>
-    selectedRaceTypes.has(race.raceType) && (query === "" || race.track.toLowerCase().includes(query));
+    selectedRaceTypes.has(race.raceType) &&
+    // A race with no country at all (shouldn't happen for a real
+    // Betfair market, but mock/placeholder data doesn't always set
+    // one) is never filtered out by this — same "don't hide what we
+    // don't actually know" reasoning the sportsbetUrl "!" marker uses,
+    // rather than silently disappearing from Today for an unrelated
+    // reason.
+    (!race.country || selectedCountries.has(race.country)) &&
+    (query === "" || race.track.toLowerCase().includes(query));
 
   renderRacesList(latestRaces.filter(matchesFilter));
 }
@@ -1530,6 +1547,19 @@ for (const btn of document.querySelectorAll(".race-type-btn")) {
       selectedRaceTypes.add(raceType);
     }
     btn.classList.toggle("active", selectedRaceTypes.has(raceType));
+    renderFilteredRacesList();
+  });
+}
+
+for (const btn of document.querySelectorAll(".country-btn")) {
+  btn.addEventListener("click", () => {
+    const country = btn.dataset.country;
+    if (selectedCountries.has(country)) {
+      selectedCountries.delete(country);
+    } else {
+      selectedCountries.add(country);
+    }
+    btn.classList.toggle("active", selectedCountries.has(country));
     renderFilteredRacesList();
   });
 }
