@@ -2434,10 +2434,9 @@ https://developer.betfair.com/.
         errors.
 
 - [x] Betfair's own Back/Lay price and liquidity now freeze the moment a
-      race actually jumps, and a new CLV (Closing Line Value) column
-      shows the value locked in against that frozen price — both user-
-      requested together.
-      - **The freeze** (`refreshRaceInner`, background.js) — once
+      race actually jumps, instead of continuing to follow Betfair's own
+      in-play trading.
+      - `refreshRaceInner` (background.js) — once
         `bookieMarketClosedConfirmed` (the same "has this race actually
         gone in-play" signal popup.js's own countdown/market-status dot
         already rely on, hoisted earlier in the function so the runner
@@ -2448,49 +2447,17 @@ https://developer.betfair.com/.
         wildly once running and no longer reflects a meaningful "closing"
         line, so this is deliberately permanent for the rest of that
         race's selection, not a freshness window that could later thaw.
-      - **CLV** (popup.js/popup.html/popup.css) — a new column between
-        Betfair Back/Lay and the bookie columns (empty until the race
-        jumps). Once it has, it shows the exact same Edge%/Ret% figure
-        Best Price's own sub-line already computes (`bestPriceMetric`) —
-        now a genuine "value vs the closing line" number since the price
-        it's computed against is frozen — via its own
-        `clvMetricHtml`/`formatClvMetric`/`clvCellHtml` trio that
-        deliberately does NOT consult `metricsSuspended` the way every
-        other Edge%/Ret%/EV% cell still correctly does: this is the one
-        figure that's actually more meaningful once the race is in-play,
-        not less. Best Price's own sub-line still blanks as before
-        (unchanged) — CLV is the only place this figure appears post-jump,
-        not a second copy of it.
       - Verified: a standalone freeze-logic check run across three
         simulated refresh cycles (open → just-jumped → still-jumped, each
         with a different synthetic REST price/liquidity) confirmed the
         frozen value stays exactly what it was the moment it first froze,
-        ignoring every later "fresh" value. In the harness: CLV read as
-        "—" for every row before jump; after simulating
-        `bookieMarketClosed: true`, CLV populated with the same coloured
-        percentage Best Price's own edge would have shown (tier colours
-        confirmed via each cell's own computed `style.color`), while
-        Best Price's sub-line itself stayed blank, matching the intended
-        split. No console errors.
-
-- [x] CLV column now hidden entirely until the race actually jumps,
-      rather than sitting there as an empty "—" column the rest of the
-      time — user-requested follow-up to the above.
-      - The column's `<th>` (static markup, popup.html) gets its
-        `hidden` toggled in `renderRace` itself, right next to where
-        `raceInPlay` is computed — same idea as the per-bookie `<th
-        data-bookie>` toggle in `applyDisplaySettings`, just driven by
-        `raceInPlay` instead of a Settings toggle. Every `<td
-        class="col-clv">` (each runner row, the scratched-runner rows,
-        and the Market % footer row) gets the same `hidden` attribute
-        in lockstep, the same pattern the per-bookie columns already
-        use for their own Settings toggle, so the header and every row
-        always agree on whether the column exists at all.
-      - Verified in the harness: before jump, both the header and every
-        `<td class="col-clv">`'s own `.hidden` read `true`; after
-        simulating `bookieMarketClosed: true`, all of them flipped to
-        `false` together and the column visibly appeared (screenshot);
-        re-rendering the same still-open race afterward flipped them
-        all back to `true` and the column disappeared again — checked
-        both directions, not just the one transition. No console
-        errors.
+        ignoring every later "fresh" value. No console errors.
+      - A CLV (Closing Line Value) column briefly existed alongside this
+        — a new column showing Best Price's own Edge%/Ret% against the
+        now-frozen price, hidden until the race jumped — but was removed
+        again outright per a direct follow-up user request ("remove the
+        clv column entirely"), rather than kept around disabled. The
+        freeze above is unaffected; only the CLV-specific code (the
+        `clvMetricHtml`/`formatClvMetric`/`clvCellHtml` trio, its
+        `<th class="col-clv">`, and every `<td class="col-clv">`) came
+        back out.

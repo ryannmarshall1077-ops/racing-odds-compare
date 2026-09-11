@@ -543,11 +543,11 @@ async function refreshRaceInner(marketId) {
       // Frozen once the race has actually jumped (bookieMarketClosedConfirmed)
       // — user-requested: Betfair's own in-play price/liquidity swings
       // wildly once trading resumes in-running and no longer reflects the
-      // pre-jump "closing" line CLV is meant to compare against, so this
-      // just keeps whatever was last known the moment the market closed
-      // rather than letting it drift afterward. Every cycle after that
-      // first frozen one carries the same frozen value forward unchanged,
-      // since existingRunner.betfair IS that frozen value by then.
+      // pre-jump "closing" line, so this just keeps whatever was last
+      // known the moment the market closed rather than letting it drift
+      // afterward. Every cycle after that first frozen one carries the
+      // same frozen value forward unchanged, since existingRunner.betfair
+      // IS that frozen value by then.
       const betfairPrice = bookieMarketClosedConfirmed
         ? existingRunner?.betfair ?? null
         : domIsFresh

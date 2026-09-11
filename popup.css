@@ -896,15 +896,6 @@ td.col-backlay {
   overflow: hidden;
 }
 
-/* Closing Line Value — user-requested alongside freezing Betfair's own
-   Back/Lay/liquidity at jump (see .col-backlay's own title text,
-   popup.html, and background.js's refreshRaceInner). Plain centered
-   text like every other non-stacked column — no sub-line/badge layout
-   of its own to build, unlike Best Price next to it, since there's only
-   ever the one figure here. Bold weight/colour both come from the same
-   .edge-tier class + inline colour every other Edge%/Ret% figure
-   already uses (clvMetricHtml, popup.js) — nothing extra needed here. */
-
 .bl-cell {
   flex: 1;
   min-width: 48px;
