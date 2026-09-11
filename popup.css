@@ -521,6 +521,21 @@ h1 {
   margin-left: 4px;
 }
 
+/* AU/NZ next to a race card's own start time (raceCardHtml, popup.js —
+   race.country) — a small muted badge, same treatment as the "!"
+   warning marker beside it rather than a full country-filter-style
+   coloured pill, since this is just a label here, not a toggle. */
+.race-country {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--panel-raised);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
 .races-status {
   padding: 6px 14px;
   font-size: 11px;

@@ -2301,3 +2301,26 @@ https://developer.betfair.com/.
         restored it. A 4th race with no `country` field at all stayed
         visible through the same NZ-off toggle, confirming the
         fallback. No console errors.
+
+- [x] Added an AU/NZ label next to each race card's own start time
+      (`raceCardHtml`, popup.js — `race.country`, same field the
+      filter above already added) — user-requested follow-up, small
+      muted badge next to the time text rather than a full pill,
+      since this is just a label here, not a toggle.
+      - User also reported the country filter itself "not working —
+        it's supposed to remove races from the list if it's not
+        selected." Re-verified the filter logic itself in the harness
+        with real `country` values present on mock races — toggling
+        NZ off correctly dropped exactly the NZ race, same result as
+        before — so `renderFilteredRacesList`'s own matching logic is
+        confirmed still correct. The `!race.country` fallback this
+        filter has (never hides a race with no country at all, so a
+        real bug elsewhere can't look like "silently disappeared for
+        no reason") means if every real race's own `country` field is
+        coming back empty from Betfair's own API for some reason not
+        yet confirmed, every race would show regardless of which
+        toggle is on — exactly matching what was reported. Asked the
+        user to check `latestRaces[0]` in the popup's own DevTools
+        console to confirm whether that's actually happening before
+        changing anything further — not fixed yet, still open pending
+        that.
