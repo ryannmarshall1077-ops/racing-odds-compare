@@ -11,16 +11,28 @@
 // Selectors verified against real live Ladbrokes race pages — runner
 // rows carry data-testid="runner-row", the runner name
 // data-testid="runner-name", and the Fixed Win price is the first of
-// five same-named data-testid="price-button" elements per row (Fixed
-// Win, Fixed Place, Starting Price, Best Tote/SP, Mid Tote Place, always
-// in that order — no per-column testid to key off instead).
+// several same-named data-testid="price-button" elements per row (Fixed
+// Win, Fixed Place, Starting Price, Mid Tote Win, sometimes Best Tote/
+// SP, always in that order — no per-column testid to key off instead).
+// The price text itself comes from the NESTED data-testid=
+// "price-button-racing" element, not the outer price-button's own
+// textContent — user-reported/live-confirmed the favourite runner's
+// price was missing entirely: its price-button also holds a "FAV"
+// badge <div> as a sibling of the actual price <button>, so the outer
+// element's textContent reads "FAV2.90" (parseFloat of that is NaN)
+// while every non-favourite runner's plain price text parsed fine.
+// price-button-racing is the inner element holding only the number,
+// on every runner, favourite or not (see ladbrokesWatcher.js's own
+// copy of this same fix for the full story).
 (() => {
   const rows = document.querySelectorAll('[data-testid="runner-row"]');
   const runners = [];
 
   for (const row of rows) {
     const nameEl = row.querySelector('[data-testid="runner-name"]');
-    const priceEl = row.querySelectorAll('[data-testid="price-button"]')[0];
+    const priceEl = row
+      .querySelectorAll('[data-testid="price-button"]')[0]
+      ?.querySelector('[data-testid="price-button-racing"]');
 
     const name = nameEl?.textContent.trim();
     const price = parseFloat(priceEl?.textContent.trim());

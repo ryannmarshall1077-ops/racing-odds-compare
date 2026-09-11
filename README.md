@@ -2241,3 +2241,28 @@ https://developer.betfair.com/.
         `[data-tab="colours"]` (via `.contains()`, not just visually),
         both still correctly checked after the move. No console
         errors.
+
+- [x] Fixed a real bug: user-reported/screenshotted that a race's
+      favourite runner never got a Ladbrokes price at all, cross-
+      referencing Ladbrokes' own real page (clearly showing a live
+      Fixed Win price, "FAV" badge and all, for that exact runner).
+      Live-inspected the real DOM (`js/contentScripts/ladbrokes.js`/
+      `ladbrokesWatcher.js`'s own target page) to find why: the
+      favourite's own `[data-testid="price-button"]` element carries
+      an extra "FAV" badge `<div>` as a sibling of the actual price
+      `<button>`, so that element's own `textContent` reads
+      `"FAV2.90"` — `parseFloat("FAV2.90")` is `NaN`, so the price got
+      silently dropped (the exact same "no reliable number" path a
+      genuinely missing price takes) for every favourite, in every
+      race, while every non-favourite runner's plain price text
+      parsed fine. Confirmed live (not just theorised) that a nested
+      `[data-testid="price-button-racing"]` element holds only the
+      number, on every runner regardless of favourite status — both
+      files switched to read that instead of the outer element's own
+      text.
+      - Verified directly against a real, current Ladbrokes race page
+        (Healesville R2): the exact fixed scraping logic run live
+        returned a real price for the favourite ("Mum's Energy",
+        $2.80, live-fluctuated from the user's own $2.90 screenshot)
+        alongside every other runner's own price, unchanged from
+        before the fix.
