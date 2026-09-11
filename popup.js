@@ -624,6 +624,53 @@ function bestPriceCellHtml(price, badgesHtml, metric) {
   )}</span>${subHtml}</span><span class="best-price-badges">${badgesHtml}</span></span>`;
 }
 
+// CLV ("closing line value") — user-requested alongside freezing
+// Betfair's own back/lay price and liquidity at jump (background.js's own
+// comment has the full reasoning): once frozen, runner.betfair no longer
+// drifts once the race is in-play, so the exact same edgePercent formula
+// Best Price's own Edge%/Ret% already uses against it — bestMetric,
+// computed once above in renderRace — becomes a genuine "value vs the
+// closing line" figure instead of a live-fluctuating one. Deliberately a
+// second, parallel set of helpers (not a reuse of edgeMetricHtml/
+// formatMetric) rather than just letting metricsSuspended stop blanking
+// those: this is the one figure that's actually MORE meaningful once
+// raceInPlay is true, the opposite of every other Edge%/Ret%/EV% cell
+// metricsSuspended still correctly blanks (a suspended market's own
+// bookmaker prices aren't tradeable any more, but the frozen closing
+// price they're being compared against here is the whole point).
+function clvMetricHtml(metric) {
+  if (metric == null) return { className: "", styleAttr: "", bg: "transparent" };
+  const color =
+    edgeTierColor(metric, currentMode) ??
+    currentSettings.edgeBelowThresholdColor ??
+    DEFAULT_SETTINGS.edgeBelowThresholdColor;
+  return { className: "edge-tier", styleAttr: ` style="color:${color}"`, bg: `rgba(${hexToRgb(color)}, 0.2)` };
+}
+
+// Same percent/dollar/off formatting as formatMetric, minus the
+// metricsSuspended blank (see clvMetricHtml's own comment for why).
+function formatClvMetric(metric) {
+  if (currentSettings.metricDisplay === "off") return "";
+  if (metric == null) return "—";
+  if (currentSettings.metricDisplay === "dollar") {
+    const dollars = stakeAmount * (metric / 100);
+    return `${dollars >= 0 ? "+" : "-"}$${Math.abs(dollars).toFixed(2)}`;
+  }
+  return `${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%`;
+}
+
+// CLV only ever has a real value once raceInPlay (renderRace passes null
+// beforehand) — before that, Best Price's own Edge% cell is already
+// showing this exact figure live, so a second copy would just be a
+// redundant, always-identical column rather than an actually "closing"
+// one.
+function clvCellHtml(metric) {
+  if (metric == null) return "—";
+  const { className, styleAttr } = clvMetricHtml(metric);
+  const metricText = formatClvMetric(metric);
+  return metricText ? `<span class="clv-value ${className}"${styleAttr}>${metricText}</span>` : "—";
+}
+
 // What you'd owe if the lay bet loses (the backed selection wins) — the
 // standard exchange lay-liability formula, stake × (odds - 1). Unlike
 // Liquidity this is always computable from data already on the row (no
@@ -898,6 +945,13 @@ function renderRace(race) {
     const bestPriceBgAttr = bestPriceBg !== "transparent" ? ` style="background:${bestPriceBg}"` : "";
     const { html: runnerNumberBadge, label: runnerLabel } = runnerNumberHtml(runner.name);
 
+    // CLV only once the race has actually jumped (raceInPlay, set above)
+    // — see clvCellHtml's own comment for why it's null, not bestMetric,
+    // before that.
+    const clvMetric = raceInPlay ? bestPriceMetric : null;
+    const clvBg = clvMetricHtml(clvMetric).bg;
+    const clvBgAttr = clvBg !== "transparent" ? ` style="background:${clvBg}"` : "";
+
     row.innerHTML = `
       <td>${runnerNumberBadge}${runnerLabel}${winnerTag}</td>
       <td class="col-best-price"${bestPriceBgAttr}>${bestPriceCellHtml(bestPrice, bestPriceBadges, bestPriceMetric)}</td>
@@ -907,6 +961,7 @@ function renderRace(race) {
         runner.betfair,
         runner.betfairLiquidity
       )}</td>
+      <td class="col-clv"${clvBgAttr}>${clvCellHtml(clvMetric)}</td>
       ${bookieCells}
       <td class="lay-dollars" title="Click to copy">${layDollars.toFixed(2)}</td>
       <td class="col-liability">${liability.toFixed(2)}</td>
@@ -932,6 +987,7 @@ function renderRace(race) {
       <td>${runner.name} <em class="scratched-tag">Scratched</em></td>
       <td class="col-best-price">—</td>
       <td class="col-backlay">${backLayCellHtml(null, null, null, null)}</td>
+      <td class="col-clv">—</td>
       ${BOOKIE_LIST.map(
         (b) => `<td${currentSettings.enabledBookies.includes(b.id) ? "" : " hidden"}>—</td>`
       ).join("")}
@@ -951,6 +1007,7 @@ function renderRace(race) {
     )}</span><span class="bl-cell bl-lay">${formatMarketPct(
       marketPercentFor(race.runners, (r) => r.betfair)
     )}</span></span></td>`,
+    `<td class="col-clv"></td>`,
     ...BOOKIE_LIST.map(
       (b) =>
         `<td${currentSettings.enabledBookies.includes(b.id) ? "" : " hidden"}>${formatMarketPct(

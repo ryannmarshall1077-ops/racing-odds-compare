@@ -498,6 +498,20 @@ async function refreshRaceInner(marketId) {
     (stored.liveRace?.runners || []).map((r) => [r.selectionId, r])
   );
 
+  // The race's actual "gone in-play" trigger (see popup.js's isRaceInPlay/
+  // isShowingStatusWord) — the bookmaker (Sportsbet/TAB) actually closing
+  // its own market, not Betfair's own book.status below (Betfair itself
+  // commonly stays tradeable well past the real jump). Set by
+  // applyBookieOdds() from sportsbetWatcher.js/tabWatcher.js's live DOM
+  // scrape, carried forward sticky once true (storage.local.set would
+  // otherwise silently erase it on this REST refresh's next write). Hoisted
+  // up here (rather than declared down near the race object, where an
+  // earlier version of this had it) so the runner-freeze logic just below
+  // can use the exact same signal the race-level "IN PLAY" state already
+  // does — one flag, not two copies that could disagree.
+  const bookieMarketClosedConfirmed =
+    stored.liveRace?.marketId === market.marketId && stored.liveRace?.bookieMarketClosed === true;
+
   // Once a race settles, Betfair marks every runner WINNER or LOSER (never
   // ACTIVE again) and the REST call stops returning fresh prices for any
   // of them — filtering to ACTIVE-only would empty the whole table out
@@ -525,13 +539,28 @@ async function refreshRaceInner(marketId) {
       // covers a plain transient gap in the REST response. Without this,
       // a runner with a momentary null here would previously vanish
       // entirely (the old filter below dropped anything betfair===null).
-      const betfairPrice = domIsFresh
+      //
+      // Frozen once the race has actually jumped (bookieMarketClosedConfirmed)
+      // — user-requested: Betfair's own in-play price/liquidity swings
+      // wildly once trading resumes in-running and no longer reflects the
+      // pre-jump "closing" line CLV is meant to compare against, so this
+      // just keeps whatever was last known the moment the market closed
+      // rather than letting it drift afterward. Every cycle after that
+      // first frozen one carries the same frozen value forward unchanged,
+      // since existingRunner.betfair IS that frozen value by then.
+      const betfairPrice = bookieMarketClosedConfirmed
+        ? existingRunner?.betfair ?? null
+        : domIsFresh
         ? existingRunner.betfair
         : restBetfairPrice ?? existingRunner?.betfair ?? null;
-      // Liquidity travels with price under the same freshness flag — both
-      // come from whichever source (DOM watcher or this REST call) actually
-      // supplied betfairPrice, so they're never mismatched between sources.
-      const betfairLiquidity = domIsFresh
+      // Liquidity travels with price under the same freshness flag (and the
+      // same freeze) — both come from whichever source (DOM watcher or this
+      // REST call) actually supplied betfairPrice, so they're never
+      // mismatched between sources, and never mismatched between "frozen"
+      // and "still live" either.
+      const betfairLiquidity = bookieMarketClosedConfirmed
+        ? existingRunner?.betfairLiquidity ?? null
+        : domIsFresh
         ? existingRunner.betfairLiquidity ?? null
         : restBetfairLiquidity ?? (restBetfairPrice === null ? existingRunner?.betfairLiquidity ?? null : null);
 
@@ -558,10 +587,15 @@ async function refreshRaceInner(marketId) {
         Date.now() - existingRunner.betfairBackPricedAt < 90 * 1000;
       const restBetfairBackPrice = r.ex?.availableToBack?.[0]?.price ?? null;
       const restBetfairBackLiquidity = r.ex?.availableToBack?.[0]?.size ?? null;
-      const betfairBack = backDomIsFresh
+      // Same freeze as the Lay price/liquidity above, once jumped.
+      const betfairBack = bookieMarketClosedConfirmed
+        ? existingRunner?.betfairBack ?? null
+        : backDomIsFresh
         ? existingRunner.betfairBack
         : restBetfairBackPrice ?? existingRunner?.betfairBack ?? null;
-      const betfairBackLiquidity = backDomIsFresh
+      const betfairBackLiquidity = bookieMarketClosedConfirmed
+        ? existingRunner?.betfairBackLiquidity ?? null
+        : backDomIsFresh
         ? existingRunner.betfairBackLiquidity ?? null
         : restBetfairBackLiquidity ??
           (restBetfairBackPrice === null ? existingRunner?.betfairBackLiquidity ?? null : null);
@@ -700,20 +734,10 @@ async function refreshRaceInner(marketId) {
     stored.liveRace?.marketStatus &&
     stored.liveRace.marketStatus !== "OPEN";
 
-  // The race timer's actual "gone in-play" trigger (see popup.js's
-  // isRaceInPlay) — Betfair's own marketStatus above plays no part in
-  // that any more, kept only for potential display. User-reported:
-  // Betfair itself commonly stays tradeable well past the real jump, so
-  // its status was never a reliable signal for this; the bookmaker
-  // (Sportsbet/TAB) actually closing its own market is. Set by
-  // applyBookieOdds() from sportsbetWatcher.js/tabWatcher.js's live DOM
-  // scrape — carried forward here the same sticky way as
-  // alreadyConfirmedNonOpen, since this REST refresh would otherwise
-  // silently overwrite (not just fail to update — genuinely erase, since
-  // storage.local.set replaces the whole liveRace object) whatever
-  // applyBookieOdds last wrote, the next time it runs.
-  const bookieMarketClosedConfirmed =
-    stored.liveRace?.marketId === market.marketId && stored.liveRace?.bookieMarketClosed === true;
+  // bookieMarketClosedConfirmed itself is hoisted above, next to
+  // existingRunnerById — the runner price-freeze logic needs it earlier
+  // in this function than this race object does, and there's no reason
+  // for the two to be two separate copies of the same check.
 
   const race = {
     race: `${track} — ${market.marketName}`,
