@@ -2522,3 +2522,25 @@ https://developer.betfair.com/.
         computed style) while every other runner still rendered the
         original flat-colour badge, both in the same table. No console
         errors.
+
+- [x] Fixed a real bug in the Betfair back/lay/liquidity freeze itself
+      (the earlier entry above added it, but user-reported it wasn't
+      actually taking effect once bookie markets closed).
+      - Root cause: `refreshRaceInner`'s own freeze only covers the
+        ~60s REST refresh. `applyBetfairOdds` — the separate, far more
+        frequent handler that applies betfairWatcher.js's near-real-time
+        DOM-scraped price/liquidity the instant Betfair's own page
+        changes — had no freeze check at all, so it kept overwriting the
+        frozen value with whatever Betfair's own in-play page showed on
+        every single scrape, undoing the freeze within moments of it
+        taking effect.
+      - Fixed by gating `applyBetfairOdds`'s own price/liquidity/back/
+        backLiquidity merge on the same `liveRace.bookieMarketClosed`
+        flag `refreshRaceInner` already checks — once true, this handler
+        now leaves those fields untouched entirely (silks stay
+        independent of this, still merged either way).
+      - Verified: a standalone simulation of the real function across
+        three calls (open → bookie market closes → two more simulated
+        Betfair in-play swings) confirmed the price/liquidity stayed
+        exactly what they were the moment the market closed, both times
+        a later "fresh" in-play value tried to come through.
