@@ -896,15 +896,6 @@ td.col-backlay {
   overflow: hidden;
 }
 
-/* Closing Line Value — user-requested alongside freezing Betfair's own
-   Back/Lay/liquidity at jump (see .col-backlay's own title text,
-   popup.html, and background.js's refreshRaceInner). Plain centered
-   text like every other non-stacked column — no sub-line/badge layout
-   of its own to build, unlike Best Price next to it, since there's only
-   ever the one figure here. Bold weight/colour both come from the same
-   .edge-tier class + inline colour every other Edge%/Ret% figure
-   already uses (clvMetricHtml, popup.js) — nothing extra needed here. */
-
 .bl-cell {
   flex: 1;
   min-width: 48px;
@@ -1004,6 +995,27 @@ th:first-child, td:first-child {
   background-color: #ffffff;
   border: 1px solid #9aa3ad;
   text-shadow: 0 0 2px #000000, 0 0 3px #000000;
+}
+
+/* This horse/harness runner's own real silks thumbnail (runnerNumberHtml,
+   popup.js — runner.silkUrl, scraped live off the tracked Betfair tab by
+   betfairWatcher.js) in place of .runner-number above — same treatment
+   as .bookie-logo (no background/border of its own, just the plain
+   image — user-reported an earlier version's white background/border
+   box around it didn't match), plus the margin-right .runner-number
+   already had so swapping between the two never shifts the row layout.
+   object-fit: contain rather than cover — Betfair's own silk images
+   aren't all the same aspect ratio, and cropping one would misrepresent
+   the actual colours/pattern this exists to show accurately. */
+.runner-silk {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  flex: 0 0 auto;
+  display: inline-block;
+  margin-right: 8px;
+  vertical-align: middle;
+  object-fit: contain;
 }
 
 th {

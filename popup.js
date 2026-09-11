@@ -325,16 +325,41 @@ const RUNNER_NUMBER_COLORS = [
   { bg: "#8a5a2b", text: "#ffffff" }, // 12 brown
 ];
 
-// Splits "N. Horse Name" into the coloured number badge (below) and the
-// bare name text — the badge now carries the number, so it's no longer
-// repeated in the name itself the way it always used to be. Runners
-// without a leading "N." (shouldn't happen in real data, but mock/test
-// data doesn't always bother) get no badge at all rather than a
-// misleading one, and the full original string as their label.
-function runnerNumberHtml(name) {
-  const match = name.match(/^(\d+)\.\s*(.*)$/);
-  if (!match) return { html: "", label: name };
+// Splits "N. Horse Name" into a number badge (below) and the bare name
+// text — the badge now carries the number, so it's no longer repeated in
+// the name itself the way it always used to be. Runners without a
+// leading "N." (shouldn't happen in real data, but mock/test data
+// doesn't always bother) get no badge at all rather than a misleading
+// one, and the full original string as their label.
+//
+// Two different badges depending on what's actually known about this
+// runner:
+//   - silkUrl present (betfairWatcher.js's own scrapeSilks, background.js
+//     — horse/harness only, see that function's own comment for why
+//     greyhounds never have one) — this horse's own real silks thumbnail,
+//     the same image Betfair itself shows, with the number put back as
+//     plain text in front of the name (matching a reference screenshot:
+//     icon, then "N. Name" as one line) rather than repeated a second
+//     time on the image itself.
+//   - otherwise — the existing flat AU saddlecloth-colour-by-number
+//     convention (RUNNER_NUMBER_COLORS), unchanged. This is still the
+//     right fallback for greyhounds (which don't have real "silks" at
+//     all — dogs don't wear jockey colours) and for a horse/harness
+//     runner whose silk hasn't been scraped yet (nothing to show until
+//     the tracked Betfair tab actually renders one).
+function runnerNumberHtml(runner) {
+  const match = runner.name.match(/^(\d+)\.\s*(.*)$/);
+  if (!match) return { html: "", label: runner.name };
   const number = Number(match[1]);
+  const name = match[2];
+
+  if (runner.silkUrl) {
+    return {
+      html: `<img class="runner-silk" src="${runner.silkUrl}" alt="" title="Silks" />`,
+      label: `${number}. ${name}`,
+    };
+  }
+
   const swatch = RUNNER_NUMBER_COLORS[(number - 1) % RUNNER_NUMBER_COLORS.length];
   const classes = ["runner-number", swatch.checkered && "runner-number-check", swatch.border && "runner-number-bordered"]
     .filter(Boolean)
@@ -344,7 +369,7 @@ function runnerNumberHtml(name) {
     : `background:${swatch.bg};color:${swatch.text}`;
   return {
     html: `<span class="${classes}" style="${style}">${number}</span>`,
-    label: match[2],
+    label: name,
   };
 }
 
@@ -624,53 +649,6 @@ function bestPriceCellHtml(price, badgesHtml, metric) {
   )}</span>${subHtml}</span><span class="best-price-badges">${badgesHtml}</span></span>`;
 }
 
-// CLV ("closing line value") — user-requested alongside freezing
-// Betfair's own back/lay price and liquidity at jump (background.js's own
-// comment has the full reasoning): once frozen, runner.betfair no longer
-// drifts once the race is in-play, so the exact same edgePercent formula
-// Best Price's own Edge%/Ret% already uses against it — bestMetric,
-// computed once above in renderRace — becomes a genuine "value vs the
-// closing line" figure instead of a live-fluctuating one. Deliberately a
-// second, parallel set of helpers (not a reuse of edgeMetricHtml/
-// formatMetric) rather than just letting metricsSuspended stop blanking
-// those: this is the one figure that's actually MORE meaningful once
-// raceInPlay is true, the opposite of every other Edge%/Ret%/EV% cell
-// metricsSuspended still correctly blanks (a suspended market's own
-// bookmaker prices aren't tradeable any more, but the frozen closing
-// price they're being compared against here is the whole point).
-function clvMetricHtml(metric) {
-  if (metric == null) return { className: "", styleAttr: "", bg: "transparent" };
-  const color =
-    edgeTierColor(metric, currentMode) ??
-    currentSettings.edgeBelowThresholdColor ??
-    DEFAULT_SETTINGS.edgeBelowThresholdColor;
-  return { className: "edge-tier", styleAttr: ` style="color:${color}"`, bg: `rgba(${hexToRgb(color)}, 0.2)` };
-}
-
-// Same percent/dollar/off formatting as formatMetric, minus the
-// metricsSuspended blank (see clvMetricHtml's own comment for why).
-function formatClvMetric(metric) {
-  if (currentSettings.metricDisplay === "off") return "";
-  if (metric == null) return "—";
-  if (currentSettings.metricDisplay === "dollar") {
-    const dollars = stakeAmount * (metric / 100);
-    return `${dollars >= 0 ? "+" : "-"}$${Math.abs(dollars).toFixed(2)}`;
-  }
-  return `${metric >= 0 ? "+" : ""}${metric.toFixed(1)}%`;
-}
-
-// CLV only ever has a real value once raceInPlay (renderRace passes null
-// beforehand) — before that, Best Price's own Edge% cell is already
-// showing this exact figure live, so a second copy would just be a
-// redundant, always-identical column rather than an actually "closing"
-// one.
-function clvCellHtml(metric) {
-  if (metric == null) return "—";
-  const { className, styleAttr } = clvMetricHtml(metric);
-  const metricText = formatClvMetric(metric);
-  return metricText ? `<span class="clv-value ${className}"${styleAttr}>${metricText}</span>` : "—";
-}
-
 // What you'd owe if the lay bet loses (the backed selection wins) — the
 // standard exchange lay-liability formula, stake × (odds - 1). Unlike
 // Liquidity this is always computable from data already on the row (no
@@ -943,14 +921,7 @@ function renderRace(race) {
     // fallback still applies, same as before this cell had a
     // per-metric tint at all.
     const bestPriceBgAttr = bestPriceBg !== "transparent" ? ` style="background:${bestPriceBg}"` : "";
-    const { html: runnerNumberBadge, label: runnerLabel } = runnerNumberHtml(runner.name);
-
-    // CLV only once the race has actually jumped (raceInPlay, set above)
-    // — see clvCellHtml's own comment for why it's null, not bestMetric,
-    // before that.
-    const clvMetric = raceInPlay ? bestPriceMetric : null;
-    const clvBg = clvMetricHtml(clvMetric).bg;
-    const clvBgAttr = clvBg !== "transparent" ? ` style="background:${clvBg}"` : "";
+    const { html: runnerNumberBadge, label: runnerLabel } = runnerNumberHtml(runner);
 
     row.innerHTML = `
       <td>${runnerNumberBadge}${runnerLabel}${winnerTag}</td>
@@ -961,7 +932,6 @@ function renderRace(race) {
         runner.betfair,
         runner.betfairLiquidity
       )}</td>
-      <td class="col-clv"${clvBgAttr}>${clvCellHtml(clvMetric)}</td>
       ${bookieCells}
       <td class="lay-dollars" title="Click to copy">${layDollars.toFixed(2)}</td>
       <td class="col-liability">${liability.toFixed(2)}</td>
@@ -987,7 +957,6 @@ function renderRace(race) {
       <td>${runner.name} <em class="scratched-tag">Scratched</em></td>
       <td class="col-best-price">—</td>
       <td class="col-backlay">${backLayCellHtml(null, null, null, null)}</td>
-      <td class="col-clv">—</td>
       ${BOOKIE_LIST.map(
         (b) => `<td${currentSettings.enabledBookies.includes(b.id) ? "" : " hidden"}>—</td>`
       ).join("")}
@@ -1007,7 +976,6 @@ function renderRace(race) {
     )}</span><span class="bl-cell bl-lay">${formatMarketPct(
       marketPercentFor(race.runners, (r) => r.betfair)
     )}</span></span></td>`,
-    `<td class="col-clv"></td>`,
     ...BOOKIE_LIST.map(
       (b) =>
         `<td${currentSettings.enabledBookies.includes(b.id) ? "" : " hidden"}>${formatMarketPct(

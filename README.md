@@ -2434,10 +2434,9 @@ https://developer.betfair.com/.
         errors.
 
 - [x] Betfair's own Back/Lay price and liquidity now freeze the moment a
-      race actually jumps, and a new CLV (Closing Line Value) column
-      shows the value locked in against that frozen price — both user-
-      requested together.
-      - **The freeze** (`refreshRaceInner`, background.js) — once
+      race actually jumps, instead of continuing to follow Betfair's own
+      in-play trading.
+      - `refreshRaceInner` (background.js) — once
         `bookieMarketClosedConfirmed` (the same "has this race actually
         gone in-play" signal popup.js's own countdown/market-status dot
         already rely on, hoisted earlier in the function so the runner
@@ -2448,27 +2447,78 @@ https://developer.betfair.com/.
         wildly once running and no longer reflects a meaningful "closing"
         line, so this is deliberately permanent for the rest of that
         race's selection, not a freshness window that could later thaw.
-      - **CLV** (popup.js/popup.html/popup.css) — a new column between
-        Betfair Back/Lay and the bookie columns (empty until the race
-        jumps). Once it has, it shows the exact same Edge%/Ret% figure
-        Best Price's own sub-line already computes (`bestPriceMetric`) —
-        now a genuine "value vs the closing line" number since the price
-        it's computed against is frozen — via its own
-        `clvMetricHtml`/`formatClvMetric`/`clvCellHtml` trio that
-        deliberately does NOT consult `metricsSuspended` the way every
-        other Edge%/Ret%/EV% cell still correctly does: this is the one
-        figure that's actually more meaningful once the race is in-play,
-        not less. Best Price's own sub-line still blanks as before
-        (unchanged) — CLV is the only place this figure appears post-jump,
-        not a second copy of it.
       - Verified: a standalone freeze-logic check run across three
         simulated refresh cycles (open → just-jumped → still-jumped, each
         with a different synthetic REST price/liquidity) confirmed the
         frozen value stays exactly what it was the moment it first froze,
-        ignoring every later "fresh" value. In the harness: CLV read as
-        "—" for every row before jump; after simulating
-        `bookieMarketClosed: true`, CLV populated with the same coloured
-        percentage Best Price's own edge would have shown (tier colours
-        confirmed via each cell's own computed `style.color`), while
-        Best Price's sub-line itself stayed blank, matching the intended
-        split. No console errors.
+        ignoring every later "fresh" value. No console errors.
+      - A CLV (Closing Line Value) column briefly existed alongside this
+        — a new column showing Best Price's own Edge%/Ret% against the
+        now-frozen price, hidden until the race jumped — but was removed
+        again outright per a direct follow-up user request ("remove the
+        clv column entirely"), rather than kept around disabled. The
+        freeze above is unaffected; only the CLV-specific code (the
+        `clvMetricHtml`/`formatClvMetric`/`clvCellHtml` trio, its
+        `<th class="col-clv">`, and every `<td class="col-clv">`) came
+        back out.
+      - Housekeeping note: PR #120 auto-merged right after its first
+        commit landed, before the two follow-up commits above (hide,
+        then remove CLV) had been pushed to that same branch — so they
+        never actually reached `main` despite being reported as done.
+        [PR #121](https://github.com/ryannmarshall1077-ops/racing-odds-compare/pull/121)
+        (opened straight from that same branch) brings main in line with
+        what was actually asked for.
+
+- [x] The runner-number badge for horse/harness runners now shows that
+      horse's own real "silks" — the actual small colour thumbnail
+      Betfair itself displays — instead of a generic AU saddlecloth-
+      colour-by-number convention that doesn't represent real horses.
+      User-reported ("horse racing is different to dog racing... can we
+      get the horses colour in the list to match up whats displayed on
+      betfair"), confirmed directly against Betfair's own live site:
+      the exact race the user screenshotted (Mildura, "Calf Pen"/"Shes
+      Poppy"/etc.) really does show a distinct per-horse silk image next
+      to each runner — number-by-number flat colours (1=red, 2=black/
+      white check, ...) agree with real silks on nothing. Dog racing has
+      no such image at all (confirmed against a live greyhound market's
+      own DOM: zero `img.horse-racing-silk` elements there), so
+      greyhounds keep today's flat-colour badge unchanged, and a horse/
+      harness runner whose silk hasn't been scraped yet just falls back
+      to it too.
+      - **Where it actually comes from** — the silk image's own filename
+        turned out to be some Betfair-internal horse id, NOT this
+        runner's own selectionId (confirmed live: they don't match at
+        all for the same runner, e.g. selectionId 102633199 vs a silk
+        filename like 2391692.png) — so it can't be constructed from our
+        own REST catalogue call the way everything else here is keyed.
+        It only exists in the market page's own DOM, so `betfairWatcher.js`
+        (the existing content script already scraping Back/Lay prices
+        live off the tracked Betfair tab) now also reads each
+        `img.horse-racing-silk`'s own `src`, keyed by whichever
+        `bet-selection-id` its enclosing runner row already carries —
+        the exact same id every price cell already keys off.
+      - `applyBetfairOdds` (background.js) merges `silkUrl` onto the
+        matching runner, sticky once known (a later scrape that doesn't
+        happen to re-read it should never erase an already-known one) —
+        and `refreshRaceInner`'s own runner-rebuild (which reconstructs
+        the whole runner object from scratch every REST cycle, not a
+        spread of the old one) now explicitly carries it forward too,
+        since nothing else there would have.
+      - `runnerNumberHtml` (popup.js) renders the real silk `<img>` (no
+        background/border of its own — same plain treatment as
+        `.bookie-logo`, user-reported an earlier white-boxed version
+        didn't match) with the number put back as plain "N. Name" text
+        in front of it (matching a reference screenshot) when `silkUrl`
+        is known, falling back to the existing coloured number badge
+        otherwise.
+      - Verified: read the actual live DOM of the exact race the user
+        screenshotted (via the user's own logged-in Chrome) to confirm
+        `img.horse-racing-silk` is real, confirm the selectionId/silk-id
+        mismatch directly (ruling out constructing the URL from REST
+        data), and confirm a live greyhound market has none. In the
+        harness: assigned real, live-fetched Betfair silk URLs to two
+        mock runners and confirmed exactly those two rendered the real
+        image (no background/border, matching `.bookie-logo`'s own
+        computed style) while every other runner still rendered the
+        original flat-colour badge, both in the same table. No console
+        errors.

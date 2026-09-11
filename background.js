@@ -543,11 +543,11 @@ async function refreshRaceInner(marketId) {
       // Frozen once the race has actually jumped (bookieMarketClosedConfirmed)
       // — user-requested: Betfair's own in-play price/liquidity swings
       // wildly once trading resumes in-running and no longer reflects the
-      // pre-jump "closing" line CLV is meant to compare against, so this
-      // just keeps whatever was last known the moment the market closed
-      // rather than letting it drift afterward. Every cycle after that
-      // first frozen one carries the same frozen value forward unchanged,
-      // since existingRunner.betfair IS that frozen value by then.
+      // pre-jump "closing" line, so this just keeps whatever was last
+      // known the moment the market closed rather than letting it drift
+      // afterward. Every cycle after that first frozen one carries the
+      // same frozen value forward unchanged, since existingRunner.betfair
+      // IS that frozen value by then.
       const betfairPrice = bookieMarketClosedConfirmed
         ? existingRunner?.betfair ?? null
         : domIsFresh
@@ -651,6 +651,13 @@ async function refreshRaceInner(marketId) {
         result: existingRunner?.result === "WINNER" ? "WINNER" : r.status,
         ...(domIsFresh && { betfairPricedAt: existingRunner.betfairPricedAt }),
         ...(backDomIsFresh && { betfairBackPricedAt: existingRunner.betfairBackPricedAt }),
+        // Real per-horse silks (applyBetfairOdds/betfairWatcher.js) —
+        // this whole runner object is rebuilt from scratch every REST
+        // cycle (nothing here spreads ...existingRunner), so without
+        // this a silk applyBetfairOdds already found would get silently
+        // wiped the next time this function runs. Nothing re-scrapes it
+        // via REST, so once known it just carries forward unchanged.
+        ...(existingRunner?.silkUrl && { silkUrl: existingRunner.silkUrl }),
         bookmakers,
       };
     })
@@ -1247,6 +1254,12 @@ async function applyBetfairOdds(odds) {
           betfairBackLiquidity: fresh.backLiquidity ?? null,
           betfairBackPricedAt: Date.now(),
         }),
+        // Real per-horse silks (betfairWatcher.js's own scrapeSilks) —
+        // sticky once known, same reasoning as everything else here:
+        // silks don't change mid-race, so a later update that happened
+        // not to carry one (nothing forces every scrape to re-read it)
+        // should never erase an already-known one.
+        ...(fresh.silkUrl !== undefined && { silkUrl: fresh.silkUrl }),
       };
     }
     return runner;
