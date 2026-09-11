@@ -2472,3 +2472,25 @@ https://developer.betfair.com/.
         confirmed via each cell's own computed `style.color`), while
         Best Price's sub-line itself stayed blank, matching the intended
         split. No console errors.
+
+- [x] CLV column now hidden entirely until the race actually jumps,
+      rather than sitting there as an empty "—" column the rest of the
+      time — user-requested follow-up to the above.
+      - The column's `<th>` (static markup, popup.html) gets its
+        `hidden` toggled in `renderRace` itself, right next to where
+        `raceInPlay` is computed — same idea as the per-bookie `<th
+        data-bookie>` toggle in `applyDisplaySettings`, just driven by
+        `raceInPlay` instead of a Settings toggle. Every `<td
+        class="col-clv">` (each runner row, the scratched-runner rows,
+        and the Market % footer row) gets the same `hidden` attribute
+        in lockstep, the same pattern the per-bookie columns already
+        use for their own Settings toggle, so the header and every row
+        always agree on whether the column exists at all.
+      - Verified in the harness: before jump, both the header and every
+        `<td class="col-clv">`'s own `.hidden` read `true`; after
+        simulating `bookieMarketClosed: true`, all of them flipped to
+        `false` together and the column visibly appeared (screenshot);
+        re-rendering the same still-open race afterward flipped them
+        all back to `true` and the column disappeared again — checked
+        both directions, not just the one transition. No console
+        errors.

@@ -801,6 +801,17 @@ function renderRace(race) {
   lastRenderedInPlay = raceInPlay;
   metricsSuspended = raceInPlay;
 
+  // The CLV column's own <th> is static markup (popup.html), never
+  // regenerated the way the table body/footer are further down — same
+  // reasoning as the per-bookie <th data-bookie> toggle in
+  // applyDisplaySettings, just driven by raceInPlay here instead of a
+  // Settings toggle. Pops the whole column into view only once there's
+  // actually something in it (user-reported wanting it hidden rather
+  // than sitting there empty the rest of the time), in lockstep with
+  // every col-clv <td> below being given the same `hidden` attribute.
+  const clvHeaderEl = document.querySelector("th.col-clv");
+  if (clvHeaderEl) clvHeaderEl.hidden = !raceInPlay;
+
   // Race Result / Display > Betfair commission discount — percentage
   // points off whatever the track/sport would otherwise charge, floored
   // at 0% so a discount larger than the base rate can't go negative.
@@ -947,10 +958,15 @@ function renderRace(race) {
 
     // CLV only once the race has actually jumped (raceInPlay, set above)
     // — see clvCellHtml's own comment for why it's null, not bestMetric,
-    // before that.
+    // before that. The whole column stays hidden (clvHiddenAttr, same
+    // `hidden` pattern the per-bookie columns already use for their own
+    // Settings toggle) until then too — user-reported wanting it to only
+    // "pop up" once there's actually something to show, rather than
+    // sitting there as an empty "—" column the rest of the time.
     const clvMetric = raceInPlay ? bestPriceMetric : null;
     const clvBg = clvMetricHtml(clvMetric).bg;
     const clvBgAttr = clvBg !== "transparent" ? ` style="background:${clvBg}"` : "";
+    const clvHiddenAttr = raceInPlay ? "" : " hidden";
 
     row.innerHTML = `
       <td>${runnerNumberBadge}${runnerLabel}${winnerTag}</td>
@@ -961,7 +977,7 @@ function renderRace(race) {
         runner.betfair,
         runner.betfairLiquidity
       )}</td>
-      <td class="col-clv"${clvBgAttr}>${clvCellHtml(clvMetric)}</td>
+      <td class="col-clv"${clvHiddenAttr}${clvBgAttr}>${clvCellHtml(clvMetric)}</td>
       ${bookieCells}
       <td class="lay-dollars" title="Click to copy">${layDollars.toFixed(2)}</td>
       <td class="col-liability">${liability.toFixed(2)}</td>
@@ -987,7 +1003,7 @@ function renderRace(race) {
       <td>${runner.name} <em class="scratched-tag">Scratched</em></td>
       <td class="col-best-price">—</td>
       <td class="col-backlay">${backLayCellHtml(null, null, null, null)}</td>
-      <td class="col-clv">—</td>
+      <td class="col-clv"${raceInPlay ? "" : " hidden"}>—</td>
       ${BOOKIE_LIST.map(
         (b) => `<td${currentSettings.enabledBookies.includes(b.id) ? "" : " hidden"}>—</td>`
       ).join("")}
@@ -1007,7 +1023,7 @@ function renderRace(race) {
     )}</span><span class="bl-cell bl-lay">${formatMarketPct(
       marketPercentFor(race.runners, (r) => r.betfair)
     )}</span></span></td>`,
-    `<td class="col-clv"></td>`,
+    `<td class="col-clv"${raceInPlay ? "" : " hidden"}></td>`,
     ...BOOKIE_LIST.map(
       (b) =>
         `<td${currentSettings.enabledBookies.includes(b.id) ? "" : " hidden"}>${formatMarketPct(
