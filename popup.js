@@ -325,16 +325,41 @@ const RUNNER_NUMBER_COLORS = [
   { bg: "#8a5a2b", text: "#ffffff" }, // 12 brown
 ];
 
-// Splits "N. Horse Name" into the coloured number badge (below) and the
-// bare name text — the badge now carries the number, so it's no longer
-// repeated in the name itself the way it always used to be. Runners
-// without a leading "N." (shouldn't happen in real data, but mock/test
-// data doesn't always bother) get no badge at all rather than a
-// misleading one, and the full original string as their label.
-function runnerNumberHtml(name) {
-  const match = name.match(/^(\d+)\.\s*(.*)$/);
-  if (!match) return { html: "", label: name };
+// Splits "N. Horse Name" into a number badge (below) and the bare name
+// text — the badge now carries the number, so it's no longer repeated in
+// the name itself the way it always used to be. Runners without a
+// leading "N." (shouldn't happen in real data, but mock/test data
+// doesn't always bother) get no badge at all rather than a misleading
+// one, and the full original string as their label.
+//
+// Two different badges depending on what's actually known about this
+// runner:
+//   - silkUrl present (betfairWatcher.js's own scrapeSilks, background.js
+//     — horse/harness only, see that function's own comment for why
+//     greyhounds never have one) — this horse's own real silks thumbnail,
+//     the same image Betfair itself shows, with the number put back as
+//     plain text in front of the name (matching a reference screenshot:
+//     icon, then "N. Name" as one line) rather than repeated a second
+//     time on the image itself.
+//   - otherwise — the existing flat AU saddlecloth-colour-by-number
+//     convention (RUNNER_NUMBER_COLORS), unchanged. This is still the
+//     right fallback for greyhounds (which don't have real "silks" at
+//     all — dogs don't wear jockey colours) and for a horse/harness
+//     runner whose silk hasn't been scraped yet (nothing to show until
+//     the tracked Betfair tab actually renders one).
+function runnerNumberHtml(runner) {
+  const match = runner.name.match(/^(\d+)\.\s*(.*)$/);
+  if (!match) return { html: "", label: runner.name };
   const number = Number(match[1]);
+  const name = match[2];
+
+  if (runner.silkUrl) {
+    return {
+      html: `<img class="runner-silk" src="${runner.silkUrl}" alt="" title="Silks" />`,
+      label: `${number}. ${name}`,
+    };
+  }
+
   const swatch = RUNNER_NUMBER_COLORS[(number - 1) % RUNNER_NUMBER_COLORS.length];
   const classes = ["runner-number", swatch.checkered && "runner-number-check", swatch.border && "runner-number-bordered"]
     .filter(Boolean)
@@ -344,7 +369,7 @@ function runnerNumberHtml(name) {
     : `background:${swatch.bg};color:${swatch.text}`;
   return {
     html: `<span class="${classes}" style="${style}">${number}</span>`,
-    label: match[2],
+    label: name,
   };
 }
 
@@ -896,7 +921,7 @@ function renderRace(race) {
     // fallback still applies, same as before this cell had a
     // per-metric tint at all.
     const bestPriceBgAttr = bestPriceBg !== "transparent" ? ` style="background:${bestPriceBg}"` : "";
-    const { html: runnerNumberBadge, label: runnerLabel } = runnerNumberHtml(runner.name);
+    const { html: runnerNumberBadge, label: runnerLabel } = runnerNumberHtml(runner);
 
     row.innerHTML = `
       <td>${runnerNumberBadge}${runnerLabel}${winnerTag}</td>

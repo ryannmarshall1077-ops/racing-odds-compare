@@ -651,6 +651,13 @@ async function refreshRaceInner(marketId) {
         result: existingRunner?.result === "WINNER" ? "WINNER" : r.status,
         ...(domIsFresh && { betfairPricedAt: existingRunner.betfairPricedAt }),
         ...(backDomIsFresh && { betfairBackPricedAt: existingRunner.betfairBackPricedAt }),
+        // Real per-horse silks (applyBetfairOdds/betfairWatcher.js) —
+        // this whole runner object is rebuilt from scratch every REST
+        // cycle (nothing here spreads ...existingRunner), so without
+        // this a silk applyBetfairOdds already found would get silently
+        // wiped the next time this function runs. Nothing re-scrapes it
+        // via REST, so once known it just carries forward unchanged.
+        ...(existingRunner?.silkUrl && { silkUrl: existingRunner.silkUrl }),
         bookmakers,
       };
     })
@@ -1247,6 +1254,12 @@ async function applyBetfairOdds(odds) {
           betfairBackLiquidity: fresh.backLiquidity ?? null,
           betfairBackPricedAt: Date.now(),
         }),
+        // Real per-horse silks (betfairWatcher.js's own scrapeSilks) —
+        // sticky once known, same reasoning as everything else here:
+        // silks don't change mid-race, so a later update that happened
+        // not to carry one (nothing forces every scrape to re-read it)
+        // should never erase an already-known one.
+        ...(fresh.silkUrl !== undefined && { silkUrl: fresh.silkUrl }),
       };
     }
     return runner;

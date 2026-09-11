@@ -39,6 +39,36 @@
     return bySelectionId;
   }
 
+  // Each horse/harness runner's own real "silks" thumbnail, keyed by the
+  // same selection id every price cell already carries — user asked for
+  // our own runner badge to actually match what Betfair itself shows
+  // instead of a generic AU saddlecloth-colour convention that doesn't
+  // represent real horses (confirmed live: our number-1-is-always-red
+  // etc. convention and this horse's own actual silks agree on nothing).
+  // Dog racing has no such image at all — confirmed directly against a
+  // live greyhound market's own DOM, zero img.horse-racing-silk elements
+  // there, only horse/harness pages ever have them — so this map is
+  // simply empty on a greyhound page and nothing downstream needs its
+  // own sport check for that reason.
+  //
+  // The image's own filename is some Betfair-internal horse id, not this
+  // runner's selectionId (confirmed live: they don't match at all for
+  // the same runner, e.g. selectionId 102633199 vs a silk filename like
+  // 2391692.png) — so this can only ever come from the page's own DOM,
+  // never constructed from our REST catalogue call the way everything
+  // else here is keyed. The <img> itself carries no selection id of its
+  // own, so this walks up to the enclosing runner row and reads whatever
+  // bet-selection-id any of that row's own price cells already has.
+  function scrapeSilks() {
+    const bySelectionId = new Map();
+    for (const img of document.querySelectorAll("img.horse-racing-silk")) {
+      const row = img.closest("tr, li, [class*='runner-line']");
+      const selectionId = row?.querySelector("[bet-selection-id]")?.getAttribute("bet-selection-id");
+      if (selectionId && img.src) bySelectionId.set(selectionId, img.src);
+    }
+    return bySelectionId;
+  }
+
   function scrapeRunners() {
     // Each runner's best (nearest-to-market) Lay price cell carries the
     // exact same selection id our REST API uses, so matching is exact —
@@ -57,6 +87,8 @@
     // "Back all" column exactly for every runner checked.
     const back = scrapeSide(".last-back-cell[bet-selection-id]");
 
+    const silks = scrapeSilks();
+
     const runners = [];
     for (const [selectionId, layEntry] of lay) {
       const backEntry = back.get(selectionId);
@@ -66,6 +98,7 @@
         ...(layEntry.liquidity !== undefined && { liquidity: layEntry.liquidity }),
         ...(backEntry && { backPrice: backEntry.price }),
         ...(backEntry?.liquidity !== undefined && { backLiquidity: backEntry.liquidity }),
+        ...(silks.has(selectionId) && { silkUrl: silks.get(selectionId) }),
       });
     }
 
