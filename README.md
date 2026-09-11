@@ -2600,3 +2600,56 @@ https://developer.betfair.com/.
         showed "RESULTED" (via `tickCountdowns`) once ticked, the
         winning runner's own "Winner" tag, and no liquidity figures
         (still correctly suspended).
+
+- [x] Ladbrokes now auto-opens into the exact selected race, same as
+      Sportsbet already did — user asked why TAB/Ladbrokes didn't do
+      this too. TAB turned out to already have the right mechanism
+      (`tabRaceUrlFromCodes`/`tabMeetings.js`, unchanged here — confirmed
+      live it's still working: TAB's own real race links still match
+      the exact URL pattern that scraper expects, and TAB genuinely has
+      no public feed to fetch directly instead, unlike what turned out
+      to be true for Ladbrokes). Ladbrokes had neither before this — its
+      own overview page has no real links to scrape (confirmed live,
+      just `cursor-pointer` divs with no href) and its race URLs are
+      opaque GUIDs with no derivable pattern from the URL alone.
+      - Found a way anyway: Ladbrokes' own frontend calls a public,
+        unauthenticated GraphQL endpoint
+        (`https://api.ladbrokes.com.au/gql/router`, a persisted-query
+        GET) to build its own race grid — discovered by monkey-patching
+        `window.fetch` on a real page load and reading what it actually
+        called. Confirmed live: calling that exact URL directly with no
+        session/cookies returns full horse/greyhound/harness data for
+        any date, already split into those three buckets. Each race's
+        own `id` there is exactly the GUID Ladbrokes' real race URLs
+        use — confirmed by clicking into a real race and comparing.
+      - Also confirmed live: the URL's slug segment (the bit before the
+        GUID) is purely cosmetic — navigating with an arbitrary
+        placeholder slug and the real GUID still loaded the correct
+        race, since Ladbrokes' own routing is entirely by id.
+      - New `js/ladbrokes/api.js` (`fetchLadbrokesNextEvents`/
+        `buildLadbrokesRaceUrl`) mirrors `js/sportsbet/api.js`'s own
+        shape. `listUpcomingRacesInner` (background.js) now matches each
+        Betfair market against it the same way it already does for
+        Sportsbet (`lbMatch`, alongside the existing `sbMatch`) — venue
+        name + race number + a 5-minute start-time tolerance — and sets
+        the new `ladbrokesUrl` field `openRaceTabs` (popup.js) already
+        knew how to open generically (it was always coded to treat any
+        `${bookie.id}Url` the same way; only Ladbrokes' own value was
+        ever missing).
+      - One real venue-naming quirk found and handled: Ladbrokes brands
+        some of its own feature meetings with a "Ladbrokes " prefix on
+        the venue name itself (confirmed live: "Ladbrokes Geelong" for
+        Betfair's own plain "Geelong", while an unbranded meeting the
+        same day needs no such handling at all) — stripped before
+        matching (`stripLadbrokesBrandPrefix`), since the existing
+        `namesMatch` prefix rule only handles a suffix difference
+        (Sportsbet's own case), not a sponsor prefix like this one.
+      - `manifest.json`'s `host_permissions` gained
+        `https://api.ladbrokes.com.au/*` (the site itself, `www.
+        ladbrokes.com.au`, was already listed) — needed for
+        background.js's own fetch to that API subdomain.
+      - Verified live end-to-end, not just in theory: fetched real
+        current data (271 races across all three sports), confirmed the
+        one branding-prefix case matches correctly and an unrelated
+        venue doesn't, and confirmed the exact resulting URL for a real
+        race actually loads that race on Ladbrokes' own site.

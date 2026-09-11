@@ -2,6 +2,7 @@ importScripts(
   "js/betfair/auth.js",
   "js/betfair/api.js",
   "js/sportsbet/api.js",
+  "js/ladbrokes/api.js",
   "settings.js",
   "bookies.js"
 );
@@ -58,17 +59,20 @@ function sportForMarket(market) {
 // Extends the shared id/label pairs from bookies.js with what only
 // background.js needs — each bookie's own scraper script and where its
 // tracked-tab id lives in storage. TAB has no public race-list API like
-// Sportsbet's (js/sportsbet/api.js), so its URLs are instead built from
-// codes learned by tabMeetings.js (see tabRaceUrlFromCodes below), simply
+// Sportsbet's (js/sportsbet/api.js) — confirmed live again while chasing
+// this same "auto-open the right race" request for Ladbrokes: its own
+// data requests still go through obfuscated, session-rotated paths, no
+// stable API to call directly — so its URLs are instead built from codes
+// learned by tabMeetings.js (see tabRaceUrlFromCodes below), simply
 // absent for a race until a code for that venue's been seen. Ladbrokes
-// has neither a public feed nor a learnable code scheme (every race
-// lives at an opaque per-race GUID with no derivable pattern, and the
-// overview page's race grid has no real link to scrape one from at all
-// — confirmed live) — its own URL field is never populated at all yet
-// (see ladbrokesWatcher.js), so scrapeBookieTab's periodic re-scan for
-// it currently never actually runs (nothing ever sets ladbrokesTabId).
-// Kept wired up the same as the other two anyway, ready for whenever a
-// way to populate ladbrokesUrl is found.
+// USED to be in the same boat (every race living at an opaque per-race
+// GUID with no derivable pattern and no real link on the page to scrape
+// one from), but does now have a genuine public feed of its own
+// (js/ladbrokes/api.js, discovered the same way sportsbet's/betfair's own
+// were — inspecting real network requests) — ladbrokesUrl gets populated
+// from that in listUpcomingRacesInner now, same as sportsbetUrl/tabUrl,
+// so scrapeBookieTab's periodic re-scan for it actually runs once
+// openRaceTabs opens a tab there.
 const BOOKIE_EXTRAS = {
   sportsbet: { scraperFile: "js/contentScripts/sportsbet.js", tabIdKey: "sportsbetTabId" },
   tab: { scraperFile: "js/contentScripts/tab.js", tabIdKey: "tabTabId" },
@@ -856,6 +860,17 @@ function normalizeVenue(name) {
   return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+// Ladbrokes brands several of its own feature/metro meetings with a
+// "Ladbrokes " prefix on the venue name itself (confirmed live: "Ladbrokes
+// Geelong" for Betfair's own plain "Geelong", while an unbranded meeting
+// the same day — "Sunshine Coast" — has no prefix at all and needs none of
+// this). namesMatch's own prefix rule only handles a SUFFIX difference
+// (Sportsbet's own case, e.g. an appended country code), not a sponsor
+// prefix like this one, so it's stripped separately before that check.
+function stripLadbrokesBrandPrefix(normalizedVenueName) {
+  return normalizedVenueName.replace(/^ladbrokes /, "");
+}
+
 // Lists upcoming AU/NZ races with a direct link to that exact race on both
 // Betfair (built from our own marketId — always exact) and Sportsbet (built
 // by matching venue name + race number + start time against Sportsbet's own
@@ -877,13 +892,22 @@ async function listUpcomingRacesInner() {
     sessionToken,
     RACING_SPORTS.map((s) => s.betfairEventType)
   );
-  const [markets, sportsbetEvents, { tabVenueCodes = {} }, { pendingResultChecks = [] }, { liveRace }] =
+  const [markets, sportsbetEvents, ladbrokesEvents, { tabVenueCodes = {} }, { pendingResultChecks = [] }, { liveRace }] =
     await Promise.all([
       // 20, not 15 — now split across every supported sport instead of just
       // horse racing, so the same-ish count needs a bit more headroom to
       // still show a reasonable spread of both.
       listWinMarkets(appKey, sessionToken, [...eventTypeIds.values()], 20),
       fetchSportsbetNextEvents(),
+      // Best-effort — a Ladbrokes-side hiccup (e.g. their persisted-query
+      // hash rotating on a frontend release) shouldn't take the whole
+      // sidebar down, same reasoning listUpcomingRacesInner already
+      // applies elsewhere; just means ladbrokesUrl stays null for this
+      // fetch, same as a venue tabRaceUrlFromCodes hasn't learned yet.
+      fetchLadbrokesNextEvents(new Date().toISOString().slice(0, 10)).catch((err) => {
+        console.warn("Ladbrokes RacingHomeScreenWeb skipped:", err.message);
+        return [];
+      }),
       chrome.storage.local.get(["tabVenueCodes"]),
       chrome.storage.local.get(["pendingResultChecks"]),
       chrome.storage.local.get(["liveRace"]),
@@ -1012,6 +1036,25 @@ async function listUpcomingRacesInner() {
       // anything the UI wasn't already flagging as uncertain.
       const raceType = sport.id === "horse" && sbMatch?.type === "harness" ? "harness" : sport.id;
 
+      // Ladbrokes' own feed (js/ladbrokes/api.js) already splits into
+      // horse/greyhound/harness buckets itself (unlike Sportsbet's flat
+      // list), so e.type === raceType is a direct check here, no separate
+      // membership list needed the way sportsbetTypes is above. Same
+      // whole-word-prefix venue matching (namesMatch, not ===) and 5-minute
+      // start-time tolerance as sbMatch, for the same reason — Ladbrokes'
+      // own meeting name isn't always Betfair's plain venue name either
+      // (e.g. "Ladbrokes Geelong" vs Betfair's plain "Geelong").
+      const lbMatch = ladbrokesEvents.find(
+        (e) =>
+          e.type === raceType &&
+          namesMatch(
+            stripLadbrokesBrandPrefix(normalizeVenue(e.meetingName)),
+            normalizeVenue(track)
+          ) &&
+          e.raceNumber === raceNumber &&
+          Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
+      );
+
       return {
         track,
         raceNumber,
@@ -1045,11 +1088,14 @@ async function listUpcomingRacesInner() {
         // searched under "horse" — user-reported as "TAB doesn't
         // auto-load harness races".
         tabUrl: tabRaceUrlFromCodes(tabVenueCodes, track, raceType, raceNumber, market.marketStartTime),
-        // No ladbrokesUrl field at all yet — see BOOKIE_EXTRAS' own
-        // comment for why. openRaceTabs (popup.js) already treats a
-        // missing bookie URL field as "nothing to open for this one",
-        // same as it would treat an explicit null, so leaving the key
-        // out entirely here needs no special-casing there.
+        // Ladbrokes now has a real feed too (js/ladbrokes/api.js,
+        // lbMatch above) — user asked for Ladbrokes/TAB to auto-open
+        // into the selected race the same way Sportsbet already does.
+        // null (same "nothing to open for this one" treatment
+        // openRaceTabs already gives a missing URL) whenever lbMatch
+        // itself is null — a real Ladbrokes-side hiccup, or just no
+        // Ladbrokes market for this particular race.
+        ladbrokesUrl: lbMatch ? buildLadbrokesRaceUrl(lbMatch) : null,
       };
     })
     .filter((r) => r.raceNumber !== null);
