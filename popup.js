@@ -1227,8 +1227,34 @@ async function openRaceTabs(race) {
   for (const bookie of visibleBookies()) {
     const urlKey = `${bookie.id}Url`;
     const tabIdKey = `${bookie.id}TabId`;
-    updates[tabIdKey] = race[urlKey]
-      ? await openOrNavigateTab(stored[tabIdKey], race[urlKey], {
+    let url = race[urlKey];
+
+    // TAB specifically: a missing URL here just means tabMeetings.js
+    // hasn't seen this venue/sport combo on a real TAB meetings page yet
+    // (see tabRaceUrlFromCodes, background.js) — normally resolved by
+    // once-a-day background visit, but user-reported TAB's tab then
+    // just sits there untouched below, indistinguishable from "TAB is
+    // broken." Learn it right now instead of waiting for that (a ~6s
+    // delay only the first time a given venue/sport is opened — see
+    // ensureTabUrlForRace, background.js — instant on every later click
+    // once it's known).
+    if (!url && bookie.id === "tab") {
+      url = await new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          {
+            type: "ENSURE_TAB_URL",
+            track: race.track,
+            raceType: race.raceType,
+            raceNumber: race.raceNumber,
+            startTime: race.startTime,
+          },
+          (response) => resolve(response?.tabUrl || null)
+        );
+      });
+    }
+
+    updates[tabIdKey] = url
+      ? await openOrNavigateTab(stored[tabIdKey], url, {
           pinned: currentSettings.pinRaceTabs,
         })
       : stored[tabIdKey];

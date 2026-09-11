@@ -2653,3 +2653,31 @@ https://developer.betfair.com/.
         one branding-prefix case matches correctly and an unrelated
         venue doesn't, and confirmed the exact resulting URL for a real
         race actually loads that race on Ladbrokes' own site.
+
+- [x] TAB now learns a venue's code on the spot the moment you click a
+      race it hasn't seen yet, instead of leaving TAB's tab untouched
+      until tomorrow's scheduled background visit — user-reported TAB
+      "just didn't work" for a race like this, which from the outside
+      looked identical to a real bug (a diagnostic console session
+      together confirmed the underlying `namesMatch`/regex machinery
+      itself was fine; the actual gap was purely "hasn't been learned
+      yet" with no on-demand fallback).
+      - New `ensureTabUrlForRace` (background.js) — checks
+        `tabVenueCodes` first (instant, the common case once a venue's
+        been seen at all this session or via today's background visit),
+        and only if that comes back empty does it call the exact same
+        `visitTabMeetingsPage` the once-a-day job already uses, then
+        re-checks. A new `ENSURE_TAB_URL` message exposes it to the
+        popup.
+      - `openRaceTabs` (popup.js) now calls this specifically for TAB
+        when `race.tabUrl` is missing, instead of just leaving that
+        bookie's tab alone — a ~6s delay only the very first time a
+        given venue/sport combo is opened; instant on every later click
+        once it's known.
+      - Verified: a standalone simulation of the real function (fake
+        storage + a fake page-visit that "learns" a venue) confirmed a
+        first click for an unknown venue triggers exactly one visit and
+        resolves to the real URL, a second race at the same venue
+        resolves instantly with zero further visits, and a genuinely
+        unmatchable venue falls back to `null` cleanly rather than
+        throwing.

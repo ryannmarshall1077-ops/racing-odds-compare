@@ -144,6 +144,41 @@ async function visitTabMeetingsPage(raceTypeCode) {
   }
 }
 
+// Called when the popup is about to open a race's tabs and this
+// particular venue/sport's TAB code isn't known yet — user-reported TAB
+// just never opening at all for such a race, since openRaceTabs
+// (popup.js) otherwise leaves that bookie's tab completely untouched
+// rather than erroring, indistinguishable from "TAB is broken" even
+// though it was really just "not learned yet, would work fine
+// tomorrow." Rather than wait for tomorrow's once-a-day background
+// visit (ensureTabVenueCodesLearnedToday), this learns that ONE sport's
+// codes right now — same visitTabMeetingsPage, just on demand — so the
+// very first click for a not-yet-seen venue actually works (after a
+// ~6s delay while that page loads) instead of silently doing nothing.
+// Checks what's already known first, so an already-learned venue (the
+// common case once a few races have been opened this session, or after
+// today's background visit has already run) resolves instantly with no
+// page visit at all.
+async function ensureTabUrlForRace(track, raceType, raceNumber, startTimeIso) {
+  const raceTypeCode = RACE_TYPE_TO_TAB_CODE[raceType];
+  if (!raceTypeCode) return null;
+
+  const known = await chrome.storage.local.get(["tabVenueCodes"]);
+  const existingUrl = tabRaceUrlFromCodes(
+    known.tabVenueCodes || {},
+    track,
+    raceType,
+    raceNumber,
+    startTimeIso
+  );
+  if (existingUrl) return existingUrl;
+
+  await visitTabMeetingsPage(raceTypeCode);
+
+  const fresh = await chrome.storage.local.get(["tabVenueCodes"]);
+  return tabRaceUrlFromCodes(fresh.tabVenueCodes || {}, track, raceType, raceNumber, startTimeIso);
+}
+
 async function ensureTabVenueCodesLearnedToday() {
   const today = new Date().toISOString().slice(0, 10);
   const { tabVenueCodesLearnedDate } = await chrome.storage.local.get([
@@ -1540,6 +1575,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "LIST_UPCOMING_RACES") {
     listUpcomingRaces()
       .then((races) => sendResponse({ ok: true, races }))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === "ENSURE_TAB_URL") {
+    ensureTabUrlForRace(message.track, message.raceType, message.raceNumber, message.startTime)
+      .then((tabUrl) => sendResponse({ ok: true, tabUrl }))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
