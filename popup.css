@@ -502,13 +502,24 @@ h1 {
   padding-top: 1px;
 }
 
+/* Real market status now (user-clarified: green = open, red =
+   closed), not brand-chrome decoration — green (--positive) is the
+   "good/live" status colour used elsewhere for exactly this reason
+   (see .live-dot.live's own comment), swapped to --accent-neg red via
+   .closed the moment isShowingStatusWord (raceCardHtml) says this
+   race has gone in-play or resulted. */
 .race-live-dot {
   flex: 0 0 auto;
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 2px rgba(47, 111, 235, 0.2);
+  background: var(--positive);
+  box-shadow: 0 0 0 2px rgba(61, 220, 151, 0.2);
+}
+
+.race-live-dot.closed {
+  background: var(--accent-neg);
+  box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.2);
 }
 
 .race-countdown {
