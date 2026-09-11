@@ -2349,3 +2349,33 @@ https://developer.betfair.com/.
         `winner` set — resulted (red, "Market closed") — checked each
         dot's own computed class and title directly, not just visually.
         No console errors.
+
+- [x] Fixed two real bugs in the odds table's own header row, both
+      user-reported/screenshotted: the Best Price header not lining up
+      vertically with Runner/Sort: Edge next to it, and its background
+      reading as a different colour from the rest of the header bar.
+      - **Background mismatch** — `.col-best-price`'s own class-level
+        tint (meant for the data cells below the header) was beating
+        the sticky header's shared `background: var(--panel)` on
+        specificity (a class beats `thead th`'s two-element
+        selector), so the Best Price *header* cell picked up a faint
+        blue tint none of its neighbours had. Added
+        `thead th.col-best-price { background: var(--panel); }` to
+        win that back — the data cells keep their own tint untouched.
+      - **Vertical misalignment** — measured it directly rather than
+        guessing: the Runner header's own box (`display: flex`
+        *and* `position: sticky` on the same `<th>`, from the sort
+        button's own layout) computed a shorter height (36px) than
+        its plain sticky sibling cells (41.5px) in this browser,
+        breaking the table's own equal-row-height guarantee and
+        visibly offsetting its content from Best Price next to it.
+        Moved the flex row onto a new inner `<span class=
+        "th-runner-inner">` (popup.html) instead of the `<th>` itself
+        — keeping the `<th>` a plain sticky table-cell (default
+        `vertical-align: middle`, same as every other header) sidesteps
+        the browser quirk entirely.
+      - Verified in the harness: both header cells' computed
+        `getBoundingClientRect()` heights confirmed identical (41.5px
+        each, not just visually close) and their computed
+        `backgroundColor` confirmed byte-for-byte identical, in both
+        dark and light mode. No console errors.

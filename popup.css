@@ -768,6 +768,15 @@ tbody tr:hover td {
   background: rgba(47, 111, 235, 0.06);
 }
 
+/* The header row's own uniform background (thead th, further down)
+   otherwise loses to .col-best-price's own class-level tint above on
+   specificity — user-reported the Best Price header reading as a
+   different colour from the rest of the bar. Only the data cells
+   below the header are meant to carry that tint. */
+thead th.col-best-price {
+  background: var(--panel);
+}
+
 th.col-best-price {
   color: var(--accent);
 }
@@ -994,11 +1003,21 @@ th {
   text-transform: uppercase;
 }
 
-th:first-child {
+/* The flex layout lives on an inner span (popup.html), not the <th>
+   itself — a <th> that's both `position: sticky` (thead th, further
+   up) and `display: flex` computes a shorter row height than its
+   plain sibling cells in this browser, breaking the table's own
+   equal-row-height guarantee and visibly misaligning this cell's
+   content against Best Price/Back/Lay next to it (user-reported).
+   Keeping the <th> itself a plain sticky table-cell (default
+   vertical-align: middle, same as every other header) and confining
+   the flex row to a child element sidesteps that entirely. */
+.th-runner-inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  width: 100%;
 }
 
 #sort-toggle-btn {
