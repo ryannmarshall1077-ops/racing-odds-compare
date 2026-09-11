@@ -1240,6 +1240,8 @@ function raceCardHtml(race) {
           <span class="race-card-title">R${race.raceNumber} ${race.track}</span>
         </span>
         <span class="race-card-sub">${time}${
+    race.country ? `<span class="race-country">${race.country}</span>` : ""
+  }${
     race.sportsbetUrl === null
       ? '<span class="race-warn" title="No matching Sportsbet race found">!</span>'
       : ""
