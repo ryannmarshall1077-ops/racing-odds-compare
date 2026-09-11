@@ -906,6 +906,12 @@ async function listUpcomingRacesInner() {
         raceNumber,
         sport: sport.id,
         raceType,
+        // "AU"/"NZ" — Betfair's own EVENT projection already returns
+        // this on every market (same one listWinMarkets already asks
+        // for), no extra API cost. Lets the sidebar's own country
+        // toggle (popup.js) filter Today's list without needing a
+        // second field just for that.
+        country: market.event.countryCode,
         startTime: market.marketStartTime,
         marketId: market.marketId,
         marketStatus: marketStatusByMarketId.get(market.marketId) ?? null,

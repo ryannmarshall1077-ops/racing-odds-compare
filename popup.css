@@ -314,6 +314,39 @@ h1 {
   color: #0f1720;
 }
 
+/* Country filter (AU/NZ) — same pill shape/behaviour as the race-type
+   buttons above (toggle on/off, plain neutral look when off), but one
+   shared accent tint rather than a colour per item — AU vs NZ isn't a
+   distinct "identity" the way horse/harness/greyhound are, just a
+   binary filter. */
+#country-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px 8px;
+}
+
+.country-btn {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.country-btn:hover {
+  border-color: var(--accent);
+}
+
+.country-btn.active {
+  border-color: var(--accent);
+  background: var(--focus-ring);
+  color: var(--accent);
+}
+
 .search-field {
   position: relative;
   margin: 0 14px 10px;
