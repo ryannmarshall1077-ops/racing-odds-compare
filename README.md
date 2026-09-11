@@ -2211,3 +2211,20 @@ https://developer.betfair.com/.
         read-then-write pattern, not a bug in either new checkbox) and
         redid the check with realistic timing between changes. No
         console errors.
+
+- [x] Odds table cells centred (were right-aligned) and bookie logos
+      enlarged, per a user screenshot and follow-up request.
+      - `th, td`'s own base `text-align` changed to `center` (was
+        `right`); `th:first-child`/`td:first-child`'s own separate
+        `text-align: left` (unchanged) still keeps the Runner column
+        reading left-to-right. `.stacked-cell` (the price+Edge%/Ret%
+        stack every bookie's own cell uses) had its `align-items`
+        changed from `flex-end` to `center` to match — the parent
+        `<td>`'s own `text-align` alone doesn't reach a flex child's
+        cross-axis alignment.
+      - `.bookie-logo` grown from 14px to 22px (`border-radius` 4px to
+        5px to match the larger size proportionally).
+      - Verified in the harness: computed `text-align` checked directly
+        on the Lay $ cell (`center`) and the Runner cell (`left`, still
+        unaffected); logo `offsetWidth`/`offsetHeight` confirmed 22.
+        No console errors.
