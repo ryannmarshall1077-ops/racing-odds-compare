@@ -2544,3 +2544,21 @@ https://developer.betfair.com/.
         Betfair in-play swings) confirmed the price/liquidity stayed
         exactly what they were the moment the market closed, both times
         a later "fresh" in-play value tried to come through.
+
+- [x] Liquidity in the Betfair Back/Lay boxes now disappears entirely
+      once the race goes in-play, alongside the price freeze above —
+      user-requested follow-up. The frozen price is still meaningful as
+      the closing line; a frozen liquidity figure is just a stale number
+      from the moment trading stopped, not real depth any more, so it
+      gets the same "gone, not shown as a dash" treatment every other
+      Edge%/Ret%/EV% figure `metricsSuspended` already gives.
+      - `priceCellInner` (popup.js, shared by both halves of every
+        Back/Lay box) now checks `metricsSuspended` and omits the
+        `<span class="cell-liquidity">` element outright rather than
+        rendering it empty — the box actually shrinks to just the price,
+        not a blank gap where the figure used to be.
+      - Verified in the harness: 10 `.cell-liquidity` elements present
+        on a still-open race, 0 after simulating `bookieMarketClosed:
+        true` (screenshot confirmed the boxes visibly shrank to price-
+        only), back to 10 again re-rendering the same still-open race
+        afterward — checked both directions. No console errors.

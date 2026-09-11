@@ -510,11 +510,19 @@ function formatLiquidity(liquidity) {
 // stacked beneath it (hidden via the hide-liquidity body class when
 // Settings > Show liquidity is off) — instead of liquidity living in its
 // own separate column.
+//
+// Liquidity disappears entirely once the race is in-play (metricsSuspended
+// — user request, alongside the price freeze itself): the frozen price
+// is still meaningful as the closing line, but a frozen liquidity figure
+// is just a stale number from the moment trading stopped, not real
+// available depth any more. Same "gone, not shown as a dash" treatment
+// as every other Edge%/Ret%/EV% figure metricsSuspended already blanks.
 function priceCellInner(price, liquidity) {
   if (price == null) return `<span class="cell-price">—</span>`;
-  return `<span class="cell-price">${price.toFixed(
-    2
-  )}</span><span class="cell-liquidity">${formatLiquidity(liquidity)}</span>`;
+  const liquidityHtml = metricsSuspended
+    ? ""
+    : `<span class="cell-liquidity">${formatLiquidity(liquidity)}</span>`;
+  return `<span class="cell-price">${price.toFixed(2)}</span>${liquidityHtml}`;
 }
 
 // Betfair Back and Lay grouped into a single box, side by side — matching
