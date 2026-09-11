@@ -29,11 +29,22 @@
       // rows for the scratched ones) — unlike TAB, no scratched-row
       // filter is needed here.
       const nameEl = row.querySelector('[data-testid="runner-name"]');
-      // 5 price columns per row (Fixed Win, Fixed Place, Starting Price,
-      // Best Tote/SP, Mid Tote Place), always in that order — Fixed Win
-      // is index 0. Confirmed live across every runner in two different
-      // real races; no per-column testid to key off instead.
-      const priceEl = row.querySelectorAll('[data-testid="price-button"]')[0];
+      // 4-5 price columns per row (Fixed Win, Fixed Place, Starting
+      // Price, Mid Tote Win, sometimes Best Tote/SP), always in that
+      // order — Fixed Win is index 0. Confirmed live across every
+      // runner in several real races; no per-column testid to key off
+      // instead. The nested price-button-racing (not the outer
+      // price-button itself) — user-reported/live-confirmed the
+      // favourite runner's own price was missing entirely: its
+      // price-button also holds a "FAV" badge <div> as a sibling of
+      // the actual price <button>, so the OUTER element's own
+      // textContent reads "FAV2.90" (parseFloat of that is NaN, price
+      // dropped) while every non-favourite runner's plain price text
+      // parsed fine. price-button-racing is the inner element that
+      // holds only the number, on every runner, favourite or not.
+      const priceEl = row
+        .querySelectorAll('[data-testid="price-button"]')[0]
+        ?.querySelector('[data-testid="price-button-racing"]');
 
       const name = nameEl?.textContent.trim();
       const price = parseFloat(priceEl?.textContent.trim());
