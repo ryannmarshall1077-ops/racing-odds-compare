@@ -2379,3 +2379,34 @@ https://developer.betfair.com/.
         each, not just visually close) and their computed
         `backgroundColor` confirmed byte-for-byte identical, in both
         dark and light mode. No console errors.
+
+- [x] Race-info bar's own dot (`#race-live-dot`, next to the track/race
+      title above the odds table) now shares the sidebar list's
+      "green=open, red=closed" market-status meaning instead of a
+      separate "live Betfair connection" signal it used to show — user
+      asked for it to "update the same time as the one in the upcoming
+      race list."
+      - `renderRace` (popup.js) now toggles it from `raceInPlay`, the
+        exact same `isShowingStatusWord` result already computed there
+        for the in-play flash/metrics-suspend logic just above it — not
+        a second copy of that check — so this dot and the sidebar's own
+        can never disagree.
+      - `tickCountdowns()` (the once-a-second interval already driving
+        the "Jumps at HH:MM · in ..." countdown) now re-derives this dot
+        too, from the same `isShowingStatusWord` call it already makes
+        for hiding the countdown's "in" prefix. That means it flips to
+        red the instant the countdown itself switches to IN PLAY/
+        RESULTED, every second, rather than only whenever a race is
+        first loaded or the next background poll happens to land —
+        actually "the same time," not just the same eventual value.
+      - `title` swaps between "Market open"/"Market closed" to match,
+        and `.live-dot`'s CSS was repointed from its old grey/green
+        "connected" colours to the sidebar dot's own green/red
+        (`--positive`/`--accent-neg`) tokens.
+      - Verified in the harness: called `renderRace` with a race flagged
+        `marketStatus: "CLOSED"` and confirmed the dot's own class,
+        title, and computed background all flipped to the closed state;
+        separately, mutated only the countdown element's dataset (no
+        re-render) and called `tickCountdowns()` alone — confirmed it
+        still flips the dot to closed in step with the countdown text
+        itself switching to "IN PLAY." No console errors.

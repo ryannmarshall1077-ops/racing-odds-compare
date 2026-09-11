@@ -770,9 +770,15 @@ function renderRace(race) {
   document.getElementById("race-subtitle").textContent =
     `${race.track || race.race}${raceLabel}${raceCode ? ` (${raceCode})` : ""}`;
 
-  document
-    .getElementById("race-live-dot")
-    .classList.toggle("live", race.source === "live-betfair");
+  // Same "green=open, red=closed" market-status meaning as the sidebar's
+  // own dot (raceCardHtml) rather than a separate "live Betfair
+  // connection" signal — reuses raceInPlay (computed just above from the
+  // exact same isShowingStatusWord call the sidebar dot uses) so the two
+  // dots can never disagree, and tickCountdowns() keeps this one fresh
+  // every second instead of only whenever renderRace happens to run.
+  const raceLiveDotEl = document.getElementById("race-live-dot");
+  raceLiveDotEl.classList.toggle("closed", raceInPlay);
+  raceLiveDotEl.title = raceInPlay ? "Market closed" : "Market open";
 
   document.getElementById("race-comms-value").textContent = formatPercentWhole(commission);
 
@@ -1473,7 +1479,7 @@ function tickCountdowns() {
   // "Jumps at HH:MM · in -1m 02s" reads fine; "Jumps at HH:MM · in IN
   // PLAY"/"in RESULTED" doesn't — hide the "in" the same moment the
   // countdown itself switches to a status word.
-  document.getElementById("race-countdown-prefix").hidden = Boolean(
+  const showingStatusWord = Boolean(
     countdownMainEl.dataset.start &&
       isShowingStatusWord(
         countdownMainEl.dataset.start,
@@ -1483,6 +1489,19 @@ function tickCountdowns() {
         countdownMainEl.dataset.hasLiveBookie
       )
   );
+  document.getElementById("race-countdown-prefix").hidden = showingStatusWord;
+
+  // Re-derive the race-info-bar dot every tick too (renderRace only sets
+  // it once, when a race first loads/reloads) — same isShowingStatusWord
+  // result as the line above, so this dot flips to red the instant the
+  // countdown itself switches to IN PLAY/RESULTED, staying in step with
+  // the sidebar list's own market-status dot instead of only updating on
+  // the next full render.
+  if (countdownMainEl.dataset.start) {
+    const raceLiveDotEl = document.getElementById("race-live-dot");
+    raceLiveDotEl.classList.toggle("closed", showingStatusWord);
+    raceLiveDotEl.title = showingStatusWord ? "Market closed" : "Market open";
+  }
 }
 tickCountdowns();
 setInterval(tickCountdowns, 1000);
