@@ -14,6 +14,14 @@ const BOOKMAKER_ODDS_MAX_AGE_MS = 10 * 60 * 1000;
 // actually settles, so pendingResultChecks doesn't grow forever.
 const RESULT_CHECK_MAX_AGE_MS = 20 * 60 * 1000;
 
+// How long to keep a race's cached runner names around (knownRaceRunners,
+// listUpcomingRacesInner/refreshRaceInner) after its own start time —
+// long enough for a user to notice a race resulted and click into it
+// well after the fact (user-reported exactly this), but not forever;
+// a race is thoroughly settled long before this, so there's no real
+// reason for the cache to keep growing past it.
+const KNOWN_RACE_RUNNERS_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
 // Racing sports this extension supports, and how each maps to Betfair's
 // event-type name / exchange URL path segment. Betfair doesn't split
 // harness ("trots") out from gallops — both come through its "Horse
@@ -360,6 +368,7 @@ async function refreshRaceInner(marketId) {
       "bookmakerOdds",
       "selectedMarketId",
       "liveRace",
+      "knownRaceRunners",
     ]),
   ]);
 
@@ -390,10 +399,53 @@ async function refreshRaceInner(marketId) {
       // silently switching to the next race before ever trying to
       // fetch that result. Only really "expired" (genuinely gone, not
       // just resulted) if this comes back empty too.
-      const winnerRace =
+      //
+      // stored.liveRace only ever has runner names for whichever race
+      // was actually loaded live at some point — user-reported clicking
+      // a sidebar race that had already jumped/resulted before they
+      // ever opened it, which this codepath couldn't do anything with
+      // (no cached names, nothing to build a result view from at all).
+      // knownRaceRunners (populated by listUpcomingRacesInner for every
+      // race the sidebar has ever shown, well before it jumps) is the
+      // fallback for exactly that case — same idea, just sourced from a
+      // wider net than "the one race someone happened to click into".
+      const cachedRunners = stored.knownRaceRunners?.[targetMarketId];
+      const previousRace =
         stored.liveRace?.marketId === targetMarketId
-          ? await settledRaceFromBook(appKey, sessionToken, targetMarketId, stored.liveRace)
+          ? stored.liveRace
+          : cachedRunners
+          ? {
+              race: `${cachedRunners.track} — R${cachedRunners.raceNumber}`,
+              track: cachedRunners.track,
+              raceNumber: cachedRunners.raceNumber,
+              sport: cachedRunners.sport,
+              sportLabel: cachedRunners.sportLabel,
+              marketId: targetMarketId,
+              startTime: cachedRunners.startTime,
+              placeMarketWinners: null,
+              bookmakerSources: {},
+              source: "live-betfair",
+              // No live prices were ever fetched for this one — every
+              // price-shaped field stays null/empty rather than
+              // undefined, so the same `== null` checks every price
+              // cell already has (bestPriceCellHtml, bookieCellHtml,
+              // etc.) render "—" instead of leaking a raw "undefined"
+              // or a NaN through Lay $/Liability's own arithmetic.
+              runners: cachedRunners.runners.map((r) => ({
+                ...r,
+                result: "ACTIVE",
+                betfair: null,
+                betfairLiquidity: null,
+                betfairBack: null,
+                betfairBackLiquidity: null,
+                placeBetfair: null,
+                bookmakers: {},
+              })),
+            }
           : null;
+      const winnerRace = previousRace
+        ? await settledRaceFromBook(appKey, sessionToken, targetMarketId, previousRace)
+        : null;
       if (winnerRace) {
         await chrome.storage.local.set({ liveRace: winnerRace });
         return winnerRace;
@@ -895,6 +947,19 @@ async function listUpcomingRacesInner() {
   const winnerByMarketId =
     liveRace?.marketId && liveRace.winner ? new Map([[liveRace.marketId, liveRace.winner]]) : new Map();
 
+  // Runner names/selectionIds for every race currently in this ~20-wide
+  // window — see the write further down (knownRaceRunners) for what
+  // this is actually for: rebuilding a result view later for a race
+  // that jumped and dropped out of Betfair's own catalogue before the
+  // user ever clicked into it, which refreshRaceInner's own
+  // stored.liveRace fallback can't do anything with (it only ever has
+  // names for whichever race someone happened to load live). Captured
+  // here rather than recomputed later since market.runners (this exact
+  // catalogue response's own RUNNER_DESCRIPTION data) won't exist any
+  // more once the market's dropped from catalogue — this is the one
+  // and only chance to grab it.
+  const runnerCacheEntries = [];
+
   const races = markets
     .map((market) => {
       const raceNumberMatch = market.marketName.match(/^R(\d+)/);
@@ -902,6 +967,21 @@ async function listUpcomingRacesInner() {
       const track = market.event.venue || market.event.name;
       const startTimeMs = new Date(market.marketStartTime).getTime();
       const sport = sportForMarket(market);
+
+      runnerCacheEntries.push([
+        market.marketId,
+        {
+          track,
+          raceNumber,
+          sport: sport.id,
+          sportLabel: sport.label,
+          startTime: market.marketStartTime,
+          runners: market.runners.map((r) => ({
+            selectionId: String(r.selectionId),
+            name: r.runnerName,
+          })),
+        },
+      ]);
 
       // Filtered by sportsbetTypes first — without it, a horse (or
       // harness) meeting and a greyhound meeting that happen to share a
@@ -976,7 +1056,30 @@ async function listUpcomingRacesInner() {
 
   await chrome.storage.local.set({ upcomingRaces: races });
   await seedPendingResultChecks(races);
+  await updateKnownRaceRunners(runnerCacheEntries);
   return races;
+}
+
+// Merges this fetch's runnerCacheEntries into the persisted
+// knownRaceRunners map (refreshRaceInner's own comment on
+// cachedRunners has the full reasoning for why this exists at all) and
+// prunes anything whose start time is more than
+// KNOWN_RACE_RUNNERS_MAX_AGE_MS in the past — a race is well and truly
+// settled long before then, so there's nothing left to ever look this
+// entry up for; keeping it forever would just grow this map without
+// bound as new races keep cycling through the ~20-wide upcoming
+// window.
+async function updateKnownRaceRunners(entries) {
+  const { knownRaceRunners = {} } = await chrome.storage.local.get(["knownRaceRunners"]);
+  const merged = { ...knownRaceRunners };
+  for (const [marketId, entry] of entries) merged[marketId] = entry;
+
+  const cutoff = Date.now() - KNOWN_RACE_RUNNERS_MAX_AGE_MS;
+  for (const [marketId, entry] of Object.entries(merged)) {
+    if (new Date(entry.startTime).getTime() < cutoff) delete merged[marketId];
+  }
+
+  await chrome.storage.local.set({ knownRaceRunners: merged });
 }
 
 // Every race currently "upcoming" (per listWinMarkets' own start-time

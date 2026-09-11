@@ -2562,3 +2562,41 @@ https://developer.betfair.com/.
         true` (screenshot confirmed the boxes visibly shrank to price-
         only), back to 10 again re-rendering the same still-open race
         afterward — checked both directions. No console errors.
+
+- [x] Clicking a sidebar race that had already jumped/resulted before
+      the user ever opened it now actually shows that race's result,
+      instead of silently redirecting to a different, unrelated
+      upcoming race — user-reported exactly this happening.
+      - Root cause: `refreshRaceInner`'s existing "market dropped out
+        of catalogue" fallback (`settledRaceFromBook`) could only ever
+        rebuild a result view from `stored.liveRace` — the one race,
+        if any, that happened to already be loaded live. A race the
+        user never actually clicked into before it jumped has no
+        cached runner names anywhere, and `listMarketBook` (the actual
+        result) never carries names, only selectionId/status — so
+        there was nothing to build a named result view from at all,
+        and the code fell straight through to "genuinely gone",
+        loading the next upcoming race instead.
+      - Fixed by widening the net: `listUpcomingRacesInner` now also
+        caches every race's own runner names/selectionIds (from the
+        same catalogue response the sidebar list already comes from,
+        well before any of them jump) into a new `knownRaceRunners`
+        map, pruned of anything more than `KNOWN_RACE_RUNNERS_MAX_AGE_MS`
+        (6h) past its own start time. `refreshRaceInner`'s fallback now
+        checks this cache too when `stored.liveRace` doesn't match,
+        building a placeholder `previousRace` (real names, every price
+        field explicitly `null`/`{}` rather than left `undefined`, so
+        the same `== null` checks every price cell already has render
+        "—" instead of a stray `NaN`) for `settledRaceFromBook` to
+        layer the real result onto.
+      - Verified: a standalone simulation of the cache's own
+        write/prune/lookup cycle confirmed a race's names survive being
+        cached before it jumps, survive falling out of the ~20-wide
+        upcoming window on a later fetch (still within the 6h cutoff),
+        and a genuinely stale unrelated entry past that cutoff gets
+        pruned. In the harness: fed `renderRace` the exact shape this
+        fallback would produce (real names, a winner, every price
+        field null) — rendered with no console errors, correctly
+        showed "RESULTED" (via `tickCountdowns`) once ticked, the
+        winning runner's own "Winner" tag, and no liquidity figures
+        (still correctly suspended).
