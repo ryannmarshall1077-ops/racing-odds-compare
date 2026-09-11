@@ -1224,6 +1224,19 @@ async function applyBetfairOdds(odds) {
   const { liveRace } = await chrome.storage.local.get(["liveRace"]);
   if (!liveRace || liveRace.source !== "live-betfair") return;
 
+  // The freeze (refreshRaceInner's own comment has the full reasoning)
+  // has to be enforced here too, not just there — user-reported it
+  // wasn't actually taking effect, and this near-real-time DOM-watcher
+  // path turned out to be why: it fires far more often than the ~60s
+  // REST refresh and was unconditionally overwriting price/liquidity
+  // with whatever Betfair's own in-play page showed, undoing
+  // refreshRaceInner's freeze the moment betfairWatcher.js next scraped
+  // a change. Once bookieMarketClosed is true, price/liquidity/back/
+  // backLiquidity just aren't touched at all any more — same "ignore
+  // every fresh value from here on" rule, applied to both update paths
+  // now instead of only one of them.
+  const frozen = liveRace.bookieMarketClosed === true;
+
   const bySelectionId = new Map(odds.runners.map((r) => [r.selectionId, r]));
 
   // Stamped per runner, not race-wide — a suspended runner (common
@@ -1237,6 +1250,17 @@ async function applyBetfairOdds(odds) {
   let matched = 0;
   const runners = liveRace.runners.map((runner) => {
     const fresh = bySelectionId.get(runner.selectionId);
+
+    // Real per-horse silks (betfairWatcher.js's own scrapeSilks) — kept
+    // independent of the price freeze below (silks don't change and
+    // aren't what "closing line" means here), sticky once known so a
+    // later update that happened not to carry one never erases an
+    // already-known one.
+    const withSilk = (r) =>
+      fresh?.silkUrl !== undefined ? { ...r, silkUrl: fresh.silkUrl } : r;
+
+    if (frozen) return withSilk(runner);
+
     if (fresh?.price !== undefined) {
       matched++;
       // Back side is optional — only present when betfairWatcher.js's
@@ -1244,7 +1268,7 @@ async function applyBetfairOdds(odds) {
       // matched. Absent, this runner's Back price/liquidity is simply left
       // as whatever it already was, so refreshRace()'s REST call is free
       // to keep supplying it instead.
-      return {
+      return withSilk({
         ...runner,
         betfair: fresh.price,
         betfairLiquidity: fresh.liquidity ?? null,
@@ -1254,15 +1278,9 @@ async function applyBetfairOdds(odds) {
           betfairBackLiquidity: fresh.backLiquidity ?? null,
           betfairBackPricedAt: Date.now(),
         }),
-        // Real per-horse silks (betfairWatcher.js's own scrapeSilks) —
-        // sticky once known, same reasoning as everything else here:
-        // silks don't change mid-race, so a later update that happened
-        // not to carry one (nothing forces every scrape to re-read it)
-        // should never erase an already-known one.
-        ...(fresh.silkUrl !== undefined && { silkUrl: fresh.silkUrl }),
-      };
+      });
     }
-    return runner;
+    return withSilk(runner);
   });
 
   // totalMatched (betfairWatcher.js's scrapeTotalMatched()) is race-wide,
