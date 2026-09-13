@@ -16,6 +16,7 @@ const MOCK_RACE = {
   runners: [
     {
       name: "1. Thunder Strike",
+      selectionId: "1001",
       betfair: 3.4,
       betfairLiquidity: 120,
       betfairBack: 3.35,
@@ -25,6 +26,7 @@ const MOCK_RACE = {
     },
     {
       name: "2. Silver Comet",
+      selectionId: "1002",
       betfair: 5.0,
       betfairLiquidity: 45,
       betfairBack: 4.9,
@@ -34,6 +36,7 @@ const MOCK_RACE = {
     },
     {
       name: "3. Northern Flame",
+      selectionId: "1003",
       betfair: 8.5,
       betfairLiquidity: 18,
       betfairBack: 8.2,
@@ -43,6 +46,7 @@ const MOCK_RACE = {
     },
     {
       name: "4. Coastal Run",
+      selectionId: "1004",
       betfair: 12.0,
       betfairLiquidity: 6,
       betfairBack: 11.5,
@@ -52,6 +56,7 @@ const MOCK_RACE = {
     },
     {
       name: "5. Midnight Rally",
+      selectionId: "1005",
       betfair: 21.0,
       betfairLiquidity: null,
       betfairBack: 19.5,
@@ -63,6 +68,7 @@ const MOCK_RACE = {
     // than being omitted, so the mock data exercises that path too.
     {
       name: "6. Lucky Number",
+      selectionId: "1006",
       betfair: null,
       betfairLiquidity: null,
       betfairBack: null,

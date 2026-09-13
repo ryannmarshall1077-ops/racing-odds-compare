@@ -187,6 +187,14 @@ let lastRenderedInPlay = false;
 // suspended).
 let metricsSuspended = false;
 
+// This race's own Harville place-probability model (computeHarvilleModel,
+// promoPlaceProb — Run 2nd/Run 2nd 3rd modes) — rebuilt fresh every
+// renderRace rather than only when the race first loads, same reasoning
+// as metricsSuspended above: the model depends on live prices
+// (normalizedWinProbs) and the real place market's own live
+// placeBetfair, both of which keep changing on every odds update.
+let currentHarvilleModel = null;
+
 // "number" (by runner number, ascending) or "edge" (by edge %, lowest to
 // highest first, best value on top). Persists across re-renders of the
 // same popup session so auto-refresh/live updates don't keep resetting it
@@ -373,40 +381,176 @@ function runnerNumberHtml(runner) {
   };
 }
 
-// Pr(trigger placing) for whichever promo mode is active — real Betfair
-// place-market data only, no theoretical model. Depends on how many
-// places the event's separate PLACE market actually pays
-// (currentRace.placeMarketWinners — see background.js's own comment for
-// the full breakdown):
+// --- Run 2nd / Run 2nd 3rd modes: Harville place-probability model ---
 //
-//   placeMarketWinners === 2 ("Top 2 Finish"): placeBetfair gives real
-//   Pr(2nd) directly — only two placings exist at all, so "placed but
-//   didn't win" only ever means 2nd. Run 2nd 3rd has no 3rd-place
-//   information at all in this case, so stays null.
+// User-requested full replacement of the previous "real Betfair
+// place-market data only, no theoretical model" approach (a prior
+// version's own comment explained dropping Harville entirely because
+// raw Harville disagreed with real market data by ~2x for an actual
+// runner — the model below is a deliberate, carefully re-derived
+// return to Harville, not that same attempt again unchanged). Always
+// produces a Pr(2nd)/Pr(3rd) for every priced, non-scratched runner —
+// including a genuine 3rd-place estimate even for a race whose real
+// place market only pays 2 (previously an unconditional null, "no
+// reliable number to show") — by calibrating itself against whatever
+// real place-market data this race actually has, rather than trusting
+// raw Harville outright the way the dropped version did.
 //
-//   placeMarketWinners === 3 ("Top 3 Finish"): placeBetfair gives real
-//   Pr(2nd or 3rd) combined — exactly what Run 2nd 3rd needs. Run 2nd
-//   can't isolate its own Pr(2nd) from that combined figure (there's no
-//   real data telling you the 2nd:3rd split), so it stays null rather
-//   than falling back to a theoretical estimate — a prior version used
-//   Harville's model here (and as the no-place-market fallback below),
-//   but real market data was user-verified to disagree with Harville's
-//   estimate by roughly 2x for an actual runner in a small field, so
-//   Harville was dropped entirely rather than trusted as a fallback.
-//
-//   Anything else (placeMarketWinners 4, or no place market at all —
-//   placeBetfair null): both modes stay null (same "no reliable number
-//   to show" convention as a missing bookmaker price).
-function promoPlaceProb(runner) {
-  const winners = currentRace?.placeMarketWinners;
-  if (runner.placeBetfair == null) return null;
+// Step 1 — fair win probabilities, normalized to sum to 100% across the
+// whole priced field. Deliberately NOT the same convention Mug mode's
+// own Edge%/edgePercent uses elsewhere in this file (raw 1/LayOdds,
+// left un-normalized — confirmed against a real tool's own output, see
+// edgePercent's own comment) — Harville's sequential-elimination
+// derivation assumes a field that actually sums to 100% at each
+// elimination step, so this one specific model needs the normalized
+// version even though the rest of the file deliberately doesn't.
+function normalizedWinProbs(runners) {
+  const raw = runners.map((r) => 1 / r.betfair);
+  const total = raw.reduce((sum, p) => sum + p, 0);
+  return raw.map((p) => p / total);
+}
 
-  if (currentMode === "run2nd3rd") {
-    return winners === 3 ? 1 / runner.placeBetfair - 1 / runner.betfair : null;
+// Step 2 — the power adjustment: raises every runner's normalized win
+// probability to the power lambda, then re-normalizes back to 100%.
+// lambda < 1 flattens the field (narrows the gap between favourites and
+// longshots) for every step below that models "who else already took
+// an earlier placing" — the standard correction for Harville's own
+// well-documented bias toward overestimating a favourite's placing
+// chances. lambda = 1 is a no-op — plain, unadjusted Harville.
+function powerAdjust(pNormalized, lambda) {
+  const raised = pNormalized.map((p) => Math.pow(p, lambda));
+  const total = raised.reduce((sum, p) => sum + p, 0);
+  return raised.map((p) => p / total);
+}
+
+// Harville's own sequential-elimination formulas — Pr(i finishes
+// exactly 2nd) and Pr(i finishes exactly 3rd), both from the same
+// adjusted field pAdj. O(n²) for 2nd, O(n³) for 3rd — trivial for a
+// racing field (n ≤ ~24).
+function harvillePlaceProbs(pAdj) {
+  const n = pAdj.length;
+  const p2 = new Array(n).fill(0);
+  const p3 = new Array(n).fill(0);
+
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      if (j === i) continue;
+      p2[i] += pAdj[j] * (pAdj[i] / (1 - pAdj[j]));
+
+      for (let k = 0; k < n; k++) {
+        if (k === i || k === j) continue;
+        const remAfterJ = 1 - pAdj[j];
+        const remAfterJK = 1 - pAdj[j] - pAdj[k];
+        p3[i] += pAdj[j] * (pAdj[k] / remAfterJ) * (pAdj[i] / remAfterJK);
+      }
+    }
+  }
+  return { p2, p3 };
+}
+
+// Step 4 — fits lambda by minimizing the sum of squared errors between
+// this model's own Top-K-per-runner prediction (pAdj[i] + p2[i][+p3[i]])
+// and the real market's own per-runner Top-K probability (realTargets;
+// a null entry — no real number for that runner — is skipped in the
+// sum, never treated as a zero-error match). topK is 2 or 3, matching
+// whichever real place market this race actually has (computeHarville
+// ModelBelow's own placeMarketWinners branch). Ternary search over a
+// wide bounded range: SSE(λ) is a smooth, single-dipped curve here (one
+// "sharpness" dial), so this converges tightly in a few dozen cheap
+// iterations — no external solver/library needed for a problem this
+// well-behaved.
+function fitHarvilleLambda(pNormalized, realTargets, topK) {
+  function sse(lambda) {
+    const pAdj = powerAdjust(pNormalized, lambda);
+    const { p2, p3 } = harvillePlaceProbs(pAdj);
+    let total = 0;
+    for (let i = 0; i < pAdj.length; i++) {
+      if (realTargets[i] == null) continue;
+      const modelTopK = topK === 2 ? pAdj[i] + p2[i] : pAdj[i] + p2[i] + p3[i];
+      total += (modelTopK - realTargets[i]) ** 2;
+    }
+    return total;
   }
 
-  // run2nd
-  return winners === 2 ? 1 / runner.placeBetfair - 1 / runner.betfair : null;
+  let lo = 0.3;
+  let hi = 1.5;
+  for (let iter = 0; iter < 60; iter++) {
+    const m1 = lo + (hi - lo) / 3;
+    const m2 = hi - (hi - lo) / 3;
+    if (sse(m1) < sse(m2)) hi = m2;
+    else lo = m1;
+  }
+  return (lo + hi) / 2;
+}
+
+// No real place-market data to calibrate against at all (place market
+// missing entirely, placeMarketWinners neither 2 nor 3, or every
+// runner's own placeBetfair happens to be null) — this stands in for a
+// fitted lambda instead of skipping the power adjustment outright
+// (lambda = 1, i.e. raw unadjusted Harville): the middle of the
+// literature's own commonly-cited correction range (0.8-0.95) is still
+// a better prior than trusting raw Harville's own confirmed
+// favourite-overestimation bias with no correction at all.
+const DEFAULT_HARVILLE_LAMBDA = 0.85;
+
+// Ties every step above together for one whole race — called once per
+// render (renderRace), not per runner: builds the adjusted field once,
+// fits lambda against whatever real place-market data this race
+// actually has, then returns every priced, non-scratched runner's own
+// Pr(2nd)/Pr(3rd)/the fitted lambda itself, keyed by selectionId so
+// promoPlaceProb can just look its own runner up rather than
+// recomputing the whole field on every call (this is O(n²)-O(n³) work,
+// wasteful to repeat once per runner per render the way the old
+// per-runner placeBetfair lookup could afford to). Returns null (nothing
+// to compute at all) for a field too small for "3rd place" to even mean
+// anything, or with no priced runners left.
+function computeHarvilleModel(race) {
+  const runners = (race?.runners || []).filter(
+    (r) => r.result !== "REMOVED" && r.betfair != null
+  );
+  if (runners.length < 3) return null;
+
+  const pNormalized = normalizedWinProbs(runners);
+
+  // realTargets, kept in the same order as `runners`/pNormalized —
+  // from whichever real place market this race has. placeMarketWinners
+  // 2 means placeBetfair already IS Pr(top 2) per runner directly; 3
+  // means it's Pr(top 3) instead — either way it's now purely a
+  // calibration target for lambda, not the final answer itself the way
+  // it used to be (see this whole section's own opening comment).
+  const winners = race.placeMarketWinners;
+  const realTargets = runners.map((r) => (r.placeBetfair != null ? 1 / r.placeBetfair : null));
+  const hasRealData = (winners === 2 || winners === 3) && realTargets.some((p) => p != null);
+
+  const lambda = hasRealData
+    ? fitHarvilleLambda(pNormalized, realTargets, winners)
+    : DEFAULT_HARVILLE_LAMBDA;
+
+  const pAdj = powerAdjust(pNormalized, lambda);
+  const { p2, p3 } = harvillePlaceProbs(pAdj);
+
+  // Keyed by selectionId, same as every other per-runner lookup already
+  // in this file (betfair price merging, silks, ...) — this depends on
+  // it being a real, unique value the same way those already do.
+  // Caught live in the harness: mock-data.js's own runners all had
+  // selectionId: null before it was fixed there, which collapsed every
+  // runner into this one shared map entry — a mock-data gap, not
+  // something real Betfair data ever does.
+  const model = new Map();
+  runners.forEach((r, i) => model.set(r.selectionId, { p2: p2[i], p3: p3[i], lambda }));
+  return model;
+}
+
+// Looked up from currentHarvilleModel (renderRace builds it fresh for
+// the loaded race — see that function's own comment) rather than
+// recomputed here. null for a runner the model above excluded (a
+// missing win price, or a field too small to model at all) — same "no
+// reliable number to show" convention a missing bookmaker price
+// already uses elsewhere.
+function promoPlaceProb(runner) {
+  const entry = currentHarvilleModel?.get(runner.selectionId);
+  if (!entry) return null;
+  return currentMode === "run2nd3rd" ? entry.p2 + entry.p3 : entry.p2;
 }
 
 // Mode-dispatching wrappers so the rest of the file doesn't need to know
@@ -786,6 +930,7 @@ function renderRace(race) {
   lastRenderedMarketId = race.marketId;
   lastRenderedInPlay = raceInPlay;
   metricsSuspended = raceInPlay;
+  currentHarvilleModel = computeHarvilleModel(race);
 
   // Race Result / Display > Betfair commission discount — percentage
   // points off whatever the track/sport would otherwise charge, floored
