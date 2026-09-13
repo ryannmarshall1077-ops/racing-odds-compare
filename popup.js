@@ -502,6 +502,15 @@ const DEFAULT_HARVILLE_LAMBDA = 0.85;
 // enough to reject one this far gone.
 const COHERENCE_TOLERANCE = 0.5;
 
+// User-requested deliberate conservative bias on every Pr(2nd)/Pr(3rd)
+// this model produces (see computeHarvilleModel's own comment on where
+// this gets applied and why) — a flat haircut, not a fix for any one
+// specific cause of overestimation. 0.7 = shows 70% of whatever the raw
+// (already lambda-adjusted) model computed. Lower = more conservative;
+// this is the one constant to change if a real-world comparison still
+// runs too high — or too low — in practice.
+const CONSERVATISM_FACTOR = 0.7;
+
 // Ties every step above together for one whole race — called once per
 // render (renderRace), not per runner: builds the adjusted field once,
 // fits lambda against whatever real place-market data this race
@@ -558,6 +567,25 @@ function computeHarvilleModel(race) {
   const pAdj = powerAdjust(pNormalized, lambda);
   const { p2, p3 } = harvillePlaceProbs(pAdj);
 
+  // User-requested deliberate conservative bias: a missed opportunity
+  // (the model understating a real edge) costs nothing; an inflated
+  // one (the model overstating it) costs real money on a bet that
+  // wasn't actually +EV. User-reported the model's own Pr(2nd)/Pr(3rd)
+  // still coming out well above a reference tool's for a race's own
+  // favourite even with a coherent real place market and a sane lambda
+  // — not something COHERENCE_TOLERANCE catches (that's specifically
+  // for an incoherent market, not this). Rather than chase every
+  // possible source of a Harville-vs-real-world gap (the exact
+  // rabbit hole that made a prior version drop Harville entirely —
+  // see this whole section's own opening comment), every runner's
+  // own Pr(2nd)/Pr(3rd) gets a flat haircut here instead: a
+  // deliberate, transparent lower bound rather than a best-guess
+  // central estimate. CONSERVATISM_FACTOR is one constant — ask to
+  // tune it (lower = more conservative) if the gap to a reference
+  // tool is still too wide, or too narrow, in practice.
+  const p2Shaded = p2.map((p) => p * CONSERVATISM_FACTOR);
+  const p3Shaded = p3.map((p) => p * CONSERVATISM_FACTOR);
+
   // Keyed by selectionId, same as every other per-runner lookup already
   // in this file (betfair price merging, silks, ...) — this depends on
   // it being a real, unique value the same way those already do.
@@ -566,7 +594,7 @@ function computeHarvilleModel(race) {
   // runner into this one shared map entry — a mock-data gap, not
   // something real Betfair data ever does.
   const model = new Map();
-  runners.forEach((r, i) => model.set(r.selectionId, { p2: p2[i], p3: p3[i], lambda }));
+  runners.forEach((r, i) => model.set(r.selectionId, { p2: p2Shaded[i], p3: p3Shaded[i], lambda }));
   return model;
 }
 

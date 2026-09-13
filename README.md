@@ -2777,3 +2777,34 @@ https://developer.betfair.com/.
         ~1.96, well within tolerance) still calibrates normally, not
         rejected too. Confirmed the same in the full render path with
         no console errors.
+
+- [x] A deliberate conservative haircut on top of the Harville model's
+      own Pr(2nd)/Pr(3rd) output — user-requested directly: a missed
+      opportunity (the model understating a real edge) costs nothing;
+      an inflated one (overstating it) costs real money on a bet that
+      wasn't actually +EV, so asked for the model to structurally lean
+      low rather than chase a perfect central estimate. Prompted by a
+      second live comparison (Cranbourne R10) where the model's own
+      figures for a race's favourite ran well above a reference tool's
+      even with a coherent real place market and a sane fitted λ — not
+      something the coherence check above catches, since that's
+      specifically for an incoherent market, not this.
+      - `CONSERVATISM_FACTOR = 0.7` (`computeHarvilleModel`) — every
+        runner's own Pr(2nd)/Pr(3rd) gets multiplied by this before
+        being stored in the model, applied uniformly (not chasing any
+        one specific cause of overestimation, the same rabbit hole that
+        made a prior version drop Harville entirely). One constant,
+        openly tunable — lower for more conservative, higher if it
+        turns out too conservative in practice.
+      - Deliberately does NOT change which runner the model ranks
+        highest — a flat multiplier preserves relative order, it only
+        scales the magnitude down. The Cranbourne case's other symptom
+        (the model picking a genuinely different "best" runner than
+        the reference tool, not just a different number for the same
+        one) is a separate, still-open question this change doesn't
+        address on its own.
+      - Verified in the harness: Σ Pr(2nd) across a field that summed
+        to exactly 1 before this change now sums to exactly 0.7 (=
+        CONSERVATISM_FACTOR), and the field's own best-to-worst ranking
+        by Pr(2nd)+Pr(3rd) is unchanged before vs after the haircut. No
+        console errors.
