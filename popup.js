@@ -493,6 +493,15 @@ function fitHarvilleLambda(pNormalized, realTargets, topK) {
 // favourite-overestimation bias with no correction at all.
 const DEFAULT_HARVILLE_LAMBDA = 0.85;
 
+// How far a real place market's own implied-probability sum is allowed
+// to fall short of `winners` before it's rejected as a calibration
+// target entirely (see computeHarvilleModel's own comment for the live
+// case — 0.97 against an expected ~3 — that motivated this). 0.5 means
+// "at least half of what a coherent market would sum to" — generous
+// enough to tolerate real overround/thin-but-usable markets, tight
+// enough to reject one this far gone.
+const COHERENCE_TOLERANCE = 0.5;
+
 // Ties every step above together for one whole race — called once per
 // render (renderRace), not per runner: builds the adjusted field once,
 // fits lambda against whatever real place-market data this race
@@ -520,7 +529,27 @@ function computeHarvilleModel(race) {
   // it used to be (see this whole section's own opening comment).
   const winners = race.placeMarketWinners;
   const realTargets = runners.map((r) => (r.placeBetfair != null ? 1 / r.placeBetfair : null));
-  const hasRealData = (winners === 2 || winners === 3) && realTargets.some((p) => p != null);
+
+  // Real per-runner Top-K implied probabilities should sum to roughly
+  // K across the whole field — one runner "wins" each of the K paid
+  // places, the exact same conservation Harville's own model enforces
+  // by construction (Model Top-K always sums to exactly K). User-caught
+  // live: a lower-tier greyhound race's own Top-3 PLACE market (far
+  // less traded than the WIN market — Betfair place markets commonly
+  // are) summed to 0.97, not ~3 — its own "best available to lay" price
+  // sitting on a stale/token order rather than real consensus, not a
+  // market efficiency problem calibration can fix by trusting it
+  // harder. Fitting lambda to that dragged it to 0.41 (far outside the
+  // literature's own 0.8-0.95 range) and inflated every runner's own
+  // modeled Top-3 chance 3-9x past what the real market implied.
+  // COHERENCE_TOLERANCE rejects a market this far off outright — a
+  // deficit this large isn't "a bit of overround" worth rescaling for,
+  // there's no real signal left in it to calibrate against at all.
+  const sumRealTargets = realTargets.reduce((sum, p) => sum + (p ?? 0), 0);
+  const hasRealData =
+    (winners === 2 || winners === 3) &&
+    realTargets.some((p) => p != null) &&
+    sumRealTargets >= winners * COHERENCE_TOLERANCE;
 
   const lambda = hasRealData
     ? fitHarvilleLambda(pNormalized, realTargets, winners)

@@ -2743,3 +2743,37 @@ https://developer.betfair.com/.
         Run 2nd 3rd's own combined figure bigger than Run 2nd's alone,
         and a race with no real place data at all correctly fell back
         to λ = 0.85. No console errors.
+
+- [x] Fixed a real bug in the Harville model above: user-reported the
+      new Run 2nd 3rd figures disagreeing with a reference tool's own
+      by roughly the same ~2x margin raw Harville was originally
+      dropped over — traced live to a genuinely illiquid PLACE market
+      (a lower-tier greyhound race's own "Top 3" market), not the
+      model itself.
+      - Root cause: a real place market's own per-runner implied
+        probabilities should sum to roughly `winners` across the whole
+        field (one runner "wins" each of the K paid places — the same
+        conservation Harville's own model enforces by construction).
+        Live diagnostic (`chrome.storage.local.get("liveRace", ...)` in
+        the popup's own DevTools) turned up a real Top-3 market summing
+        to 0.97, not ~3 — its own "best available to lay" price sitting
+        on a stale/token order rather than real consensus, common for
+        PLACE markets specifically (far less traded than the WIN
+        market, especially on a lower-tier meeting). Fitting λ against
+        that dragged it to 0.41 — far outside the literature's own
+        0.8-0.95 range — inflating every runner's own modeled Top-3
+        chance 3-9x past what the real market implied.
+      - Fixed with a coherence check (`COHERENCE_TOLERANCE = 0.5`,
+        `computeHarvilleModel`): a real place market's implied
+        probabilities summing to less than half of `winners` is
+        rejected as a calibration target outright — not a market
+        efficiency problem worth trusting harder, there's no real
+        signal left in it — falling back to the safe default λ = 0.85
+        instead of fitting to noise.
+      - Verified against the exact real numbers from the live
+        diagnostic: the Richmond R12 (G) data that exposed this now
+        correctly falls back to λ = 0.85 instead of fitting to 0.41; a
+        separately-checked genuinely coherent Top-2 market (summing to
+        ~1.96, well within tolerance) still calibrates normally, not
+        rejected too. Confirmed the same in the full render path with
+        no console errors.
