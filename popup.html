@@ -18,6 +18,9 @@
             <button id="planner-btn" title="Daily Planner">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
             </button>
+            <button id="tutorial-btn" title="Tutorial">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.82 1c0 2-3 2-3 4"/><line x1="12" y1="17.5" x2="12" y2="17.5"/></svg>
+            </button>
             <button id="settings-btn" title="Settings">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
             </button>
@@ -536,6 +539,28 @@
             <button id="planner-save-btn" class="modal-done-btn">Save</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- User-requested interactive tutorial — no full-page overlay
+         element needed: each step dims the whole page itself via a
+         huge-spread box-shadow on the one real control being explained
+         (.tutorial-highlight, popup.css), so there's nothing separate
+         to keep positioned/sized as the page scrolls or a modal opens.
+         This tooltip is the only extra markup it needs — built once,
+         moved to sit next to whichever element the current step points
+         at, and its own text/step-counter/button state all filled in
+         by popup.js as the tour advances. -->
+    <div id="tutorial-tooltip" class="tutorial-tooltip" hidden>
+      <div class="tutorial-tooltip-header">
+        <span class="tutorial-step-counter" id="tutorial-step-counter"></span>
+        <button id="tutorial-skip-btn" type="button">Skip</button>
+      </div>
+      <h3 id="tutorial-tooltip-title"></h3>
+      <p id="tutorial-tooltip-body"></p>
+      <div class="tutorial-tooltip-footer">
+        <button id="tutorial-back-btn" type="button">Back</button>
+        <button id="tutorial-next-btn" type="button">Next</button>
       </div>
     </div>
 

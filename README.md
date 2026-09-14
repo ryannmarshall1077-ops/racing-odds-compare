@@ -3314,3 +3314,43 @@ https://developer.betfair.com/.
       that was never actually what it does (it decides which bookmaker
       columns/tabs show at all, not just a highlight on top of an
       already-shown one).
+
+- [x] Added an **interactive Tutorial** (new button next to Planner/
+      Settings) — user-requested: guide the user through the *real*
+      controls, not a page of text, with highlighted sections, short
+      explanations, Back/Next/Skip/Finish, and a step counter. 8 steps
+      (`TUTORIAL_STEPS`, popup.js): Upcoming Races, Bookie Search Bar,
+      Daily Planner, Race Table, Hedge %, Race Timer, Bookmaker Tabs,
+      Settings.
+      - No separate full-page overlay element at all — each step dims
+        the rest of the page via one huge-spread `box-shadow` directly
+        on the real element being explained (`.tutorial-highlight`,
+        popup.css), the classic lightweight "spotlight" trick: the
+        shadow paints as a near-infinite dark sheet everywhere outside
+        that element's own box, while the element's own content sits
+        on top of its own shadow (how box-shadow always paints) and so
+        reads as the one lit-up thing on the page. A z-index above
+        every modal's own is what lets the Planner/Settings steps
+        reach in and highlight something *inside* an open modal.
+      - The Planner and Settings steps actually open/close those
+        modals as you step through (`onEnter`/`onExit` per step) —
+        forward opens it, Back away from it (or Skip/Finish/Escape
+        while it's open) closes it again, symmetrically in both
+        directions.
+      - Fixed a real bug found immediately while testing: the step
+        text/counter/button labels were wrapped in
+        `requestAnimationFrame`, which a background/inactive tab can
+        go a long time (or forever) without firing — every step's
+        tooltip content stayed stuck on the *previous* step's text
+        until the tab happened to regain focus. Made all of that
+        synchronous; only the tooltip's own on-screen *position*
+        (which needs the target's settled bounding box) still gets a
+        deferred re-measurement, via a plain `setTimeout` instead.
+      - Verified via the local static-preview harness: stepping
+        through all 8 with Next shows the right title/target/counter
+        at each one and opens/closes the Planner and Settings modals
+        at exactly the right steps; Back out of the Planner step
+        closes it and going forward again reopens it; Skip and Escape
+        both end the tour cleanly (clearing the highlight, hiding the
+        tooltip, and closing whichever modal was left open) from the
+        middle of a step, not just from the last one.

@@ -2775,3 +2775,185 @@ loadSettings().then((settings) => {
     btn.classList.toggle("active", selectedRaceTypes.has(btn.dataset.raceType));
   }
 });
+
+// --- Interactive Tutorial -----------------------------------------------
+//
+// User-requested: a beginner walkthrough that highlights the real
+// controls one at a time (not a page of text) — Race List, Bookie
+// Search, Planner, Race Table, Hedge %, Race Timer, Bookmaker Tabs,
+// Settings, in that order, with Back/Next/Skip/Finish and a step
+// counter. Each step is just a target element to highlight (see
+// .tutorial-highlight, popup.css) plus a short explanation; a couple
+// of steps also need to open/close a modal to point at something
+// inside it (onEnter/onExit below), same as clicking Planner/Settings
+// themselves would.
+const TUTORIAL_STEPS = [
+  {
+    title: "Upcoming Races",
+    body: "Every race for the rest of today, soonest first. Click any race here to load it into the table on the right.",
+    target: () => document.getElementById("races-list"),
+  },
+  {
+    title: "Bookie Search Bar",
+    body: "Type a bookmaker's name and click it to select it (or press Enter). Selected bookmakers get their own column in the table and their own tab opens automatically when you load a race — click a bookmaker's own logo here to deselect it again, which closes that tab too.",
+    target: () => document.getElementById("bookie-spotlight"),
+  },
+  {
+    title: "Daily Planner",
+    body: "Plan ahead: pick a course, a race number or range (e.g. 1-5), one or more bookmakers, and a promotion type, then Save. Anything planned here shows up automatically — its own column, its own tab — the moment you load that race, on top of whatever's picked in the Bookie Search Bar.",
+    target: () => document.querySelector("#planner-modal .modal-panel"),
+    onEnter: () => openPlannerModal(),
+    onExit: () => closePlannerModal(),
+  },
+  {
+    title: "Race Table",
+    body: "Best Price is the highest price across your selected bookmakers — that's what Edge%/Lay $/Liability are actually computed from. Back/Lay are Betfair's own exchange prices. Each bookmaker's own column shows its price with your Edge% underneath it.",
+    target: () => document.getElementById("odds-table-wrapper"),
+  },
+  {
+    title: "Hedge %",
+    body: "100% fully hedges your bet on Betfair (locks in the result regardless of who wins). 0% means no lay bet at all — the full stake rides on the bookmaker side. Try changing it and watch Lay $ and Liability update live in the table.",
+    target: () => document.getElementById("hedge-input"),
+  },
+  {
+    title: "Race Timer",
+    body: "Counts down to the jump. It switches to IN PLAY the moment the bookmaker's own market actually closes — not just when the scheduled jump time passes, since a race can start late — and to RESULTED once a winner is confirmed.",
+    target: () => document.getElementById("race-countdown-main"),
+  },
+  {
+    title: "Bookmaker Tabs",
+    body: "Selecting a race only opens a tab for a bookmaker you've actually selected here or planned for that exact race — Betfair's own tab always opens too. Deselect a bookmaker and its tab closes automatically, even if it was already open.",
+    target: () => document.getElementById("bookie-spotlight"),
+  },
+  {
+    title: "Settings",
+    body: "Turn bookmakers on or off for searching/selecting (this doesn't hide an already-selected one), set your own defaults for Mode/Stake/Hedge, and customise colours — including the Planner's own highlight colour.",
+    target: () => document.querySelector("#settings-modal .modal-panel"),
+    onEnter: () => {
+      settingsModal.hidden = false;
+    },
+    onExit: () => closeSettingsModal(),
+  },
+];
+
+let tutorialStepIndex = -1; // -1 = not currently running
+let tutorialHighlightedEl = null;
+
+const tutorialTooltipEl = document.getElementById("tutorial-tooltip");
+const tutorialStepCounterEl = document.getElementById("tutorial-step-counter");
+const tutorialTitleEl = document.getElementById("tutorial-tooltip-title");
+const tutorialBodyEl = document.getElementById("tutorial-tooltip-body");
+const tutorialBackBtn = document.getElementById("tutorial-back-btn");
+const tutorialNextBtn = document.getElementById("tutorial-next-btn");
+const tutorialSkipBtn = document.getElementById("tutorial-skip-btn");
+
+function clearTutorialHighlight() {
+  if (tutorialHighlightedEl) {
+    tutorialHighlightedEl.classList.remove("tutorial-highlight");
+    tutorialHighlightedEl = null;
+  }
+}
+
+// Below the target if there's room, above it otherwise; clamped on
+// both axes so it can never render partly off-screen regardless of
+// where the target itself happens to sit (a tall sidebar list, a
+// modal near the edge of the window, ...).
+function positionTutorialTooltip(targetEl) {
+  const rect = targetEl.getBoundingClientRect();
+  const tooltipRect = tutorialTooltipEl.getBoundingClientRect();
+  const margin = 12;
+
+  let top = rect.bottom + margin;
+  if (top + tooltipRect.height > window.innerHeight - margin) {
+    top = rect.top - tooltipRect.height - margin;
+  }
+  top = Math.min(Math.max(top, margin), window.innerHeight - tooltipRect.height - margin);
+
+  let left = rect.left;
+  left = Math.min(Math.max(left, margin), window.innerWidth - tooltipRect.width - margin);
+
+  tutorialTooltipEl.style.top = `${top}px`;
+  tutorialTooltipEl.style.left = `${left}px`;
+}
+
+function renderTutorialStep() {
+  clearTutorialHighlight();
+  const step = TUTORIAL_STEPS[tutorialStepIndex];
+  const target = step.target();
+  if (target) {
+    target.classList.add("tutorial-highlight");
+    tutorialHighlightedEl = target;
+    target.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
+  // All synchronous, deliberately not deferred behind
+  // requestAnimationFrame — an inactive/background tab can go a long
+  // time (or forever) between animation frames, which left every one
+  // of these stuck showing the PREVIOUS step's text/buttons until the
+  // tab happened to regain focus (confirmed live testing this).
+  tutorialStepCounterEl.textContent = `Step ${tutorialStepIndex + 1} of ${TUTORIAL_STEPS.length}`;
+  tutorialTitleEl.textContent = step.title;
+  tutorialBodyEl.textContent = step.body;
+  tutorialBackBtn.hidden = tutorialStepIndex === 0;
+  tutorialNextBtn.textContent = tutorialStepIndex === TUTORIAL_STEPS.length - 1 ? "Finish" : "Next";
+
+  if (!target) return;
+  // getBoundingClientRect() forces a synchronous layout, so this
+  // already reflects a just-opened modal (onEnter, above) or the
+  // target's settled position — no need to wait a frame for that.
+  positionTutorialTooltip(target);
+  // scrollIntoView's own smooth-scroll animation and a modal's CSS
+  // transition (if it has one) both continue after this point though
+  // — one more measurement shortly after catches the tooltip up to
+  // wherever the target actually ends up, without needing a scroll/
+  // transition-end listener for what's just a cosmetic settle.
+  setTimeout(() => positionTutorialTooltip(target), 300);
+}
+
+function goToTutorialStep(index) {
+  const outgoing = TUTORIAL_STEPS[tutorialStepIndex];
+  if (outgoing?.onExit) outgoing.onExit();
+  tutorialStepIndex = index;
+  const incoming = TUTORIAL_STEPS[tutorialStepIndex];
+  if (incoming.onEnter) incoming.onEnter();
+  renderTutorialStep();
+}
+
+function startTutorial() {
+  tutorialTooltipEl.hidden = false;
+  goToTutorialStep(0);
+}
+
+function endTutorial() {
+  const current = TUTORIAL_STEPS[tutorialStepIndex];
+  if (current?.onExit) current.onExit();
+  clearTutorialHighlight();
+  tutorialTooltipEl.hidden = true;
+  tutorialStepIndex = -1;
+}
+
+document.getElementById("tutorial-btn").addEventListener("click", startTutorial);
+tutorialSkipBtn.addEventListener("click", endTutorial);
+tutorialBackBtn.addEventListener("click", () => goToTutorialStep(tutorialStepIndex - 1));
+tutorialNextBtn.addEventListener("click", () => {
+  if (tutorialStepIndex === TUTORIAL_STEPS.length - 1) endTutorial();
+  else goToTutorialStep(tutorialStepIndex + 1);
+});
+
+// Escape ends the tour early, same as Skip — checked against
+// tutorialStepIndex (not just "is the tooltip visible") so this never
+// fires while some unrelated modal the tour didn't open is the one
+// actually being dismissed with Escape.
+document.addEventListener("keydown", (event) => {
+  if (tutorialStepIndex === -1 || event.key !== "Escape") return;
+  endTutorial();
+});
+
+// Keeps the tooltip pinned to its target if the window itself resizes
+// mid-tour (the target's own position within the page is handled by
+// the scrollIntoView + re-measure in renderTutorialStep already).
+window.addEventListener("resize", () => {
+  if (tutorialStepIndex === -1) return;
+  const target = TUTORIAL_STEPS[tutorialStepIndex].target();
+  if (target) positionTutorialTooltip(target);
+});
