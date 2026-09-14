@@ -168,4 +168,40 @@
   });
 
   scheduleUpdate(); // initial snapshot once the page has rendered
+
+  // Sportsbet's own React app can fail to render at all on a direct
+  // navigation to a race URL — user-reported/confirmed live: a genuine
+  // "Uncaught Error: Minified React error #418" (a hydration mismatch) in
+  // the console, then no racecard ever appears — while the identical URL
+  // loads fine in a clean browser, pointing at another extension in the
+  // same browser touching the same page rather than anything wrong with
+  // this one. openOrNavigateTab (popup.js) only ever navigates this tab
+  // once per race selection, so without this, a stuck load just sits
+  // there forever, silently leaving whatever was last scraped (a
+  // different, stale race) in place. Checking for the outer
+  // "racecard-frame" specifically (not runner count) — a legitimately
+  // closed/all-scratched race still has that frame, just no active
+  // runners to scrape, which is correctly empty rather than stuck.
+  const STUCK_CHECK_DELAY_MS = 8000;
+  const RELOAD_GUARD_KEY = "raceOddsCompare:sportsbetReloadedFor";
+
+  setTimeout(() => {
+    if (document.querySelector('[data-automation-id="racecard-frame"]')) return;
+
+    // Guarded via sessionStorage (survives this reload, but not a fresh
+    // navigation to a different race's URL — see openOrNavigateTab) so a
+    // one-off glitch gets exactly one retry, never an infinite reload
+    // loop on a page that's genuinely, persistently broken.
+    let alreadyReloaded = false;
+    try {
+      alreadyReloaded = sessionStorage.getItem(RELOAD_GUARD_KEY) === location.href;
+      sessionStorage.setItem(RELOAD_GUARD_KEY, location.href);
+    } catch {
+      // sessionStorage inaccessible (rare, e.g. some privacy modes) —
+      // reload anyway rather than getting stuck forever unable to try;
+      // worst case is one extra reload, not a loop (this timer only ever
+      // runs once per page load either way).
+    }
+    if (!alreadyReloaded) location.reload();
+  }, STUCK_CHECK_DELAY_MS);
 })();

@@ -2940,3 +2940,34 @@ https://developer.betfair.com/.
         capped at 120 events; the new one returned 381 events across 36
         meetings for the exact same moment, including a real Ballarat
         greyhound race that the old feed's cap had been excluding.
+
+- [x] `sportsbetWatcher.js` now recovers automatically when Sportsbet's
+      own page fails to render at all. User-reported the Sportsbet
+      column showing nothing for a race whose tab had genuinely
+      navigated to the correct URL — confirmed live in the user's own
+      browser: the page's console showed a real `Uncaught Error:
+      Minified React error #418` (a React hydration mismatch), after
+      which no racecard ever appeared at all — while the exact same race
+      URL, loaded fresh in a clean browser with no other extensions
+      running, rendered correctly first try. Points at another
+      extension in the same browser touching Sportsbet's own page (the
+      user runs several racing/betting-tool extensions alongside this
+      one) rather than anything wrong with Sportsbet's markup itself or
+      this extension's own selectors — confirmed those selectors are
+      still exactly right by finding the expected runner count on the
+      same clean-browser load.
+      - Since `openRaceTabs` (popup.js) only ever navigates a bookie's
+        tab once per race selection, a page that fails to render this
+        way previously just sat there forever, silently leaving
+        whatever was scraped from the *previous* race in place —
+        indistinguishable from Sportsbet simply "not working."
+      - Fixed with a one-shot self-heal: 8 seconds after the page
+        should have settled, if the outer `racecard-frame` element
+        still never appeared at all, reload the tab once. Checked
+        against the frame itself rather than runner count, so a
+        legitimately closed/all-scratched race (which still has the
+        frame, just no active runners) is correctly left alone, not
+        mistaken for stuck. Guarded via `sessionStorage` (survives the
+        reload itself, but not a fresh navigation to a different race's
+        URL) so a one-off glitch gets exactly one retry rather than
+        looping forever on a page that's genuinely, persistently down.
