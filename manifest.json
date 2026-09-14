@@ -60,6 +60,11 @@
       "matches": ["https://www.neds.com.au/racing/*"],
       "js": ["js/contentScripts/nedsWatcher.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://pointsbet.com.au/racing/*/*/*/race/*"],
+      "js": ["js/contentScripts/pointsbetWatcher.js"],
+      "run_at": "document_idle"
     }
   ],
   "permissions": ["storage", "scripting", "tabs", "alarms"],
@@ -71,6 +76,8 @@
     "https://www.ladbrokes.com.au/*",
     "https://api.ladbrokes.com.au/*",
     "https://www.neds.com.au/*",
-    "https://api.neds.com.au/*"
+    "https://api.neds.com.au/*",
+    "https://pointsbet.com.au/*",
+    "https://api.au.pointsbet.com/*"
   ]
 }

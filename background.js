@@ -4,6 +4,7 @@ importScripts(
   "js/sportsbet/api.js",
   "js/ladbrokes/api.js",
   "js/neds/api.js",
+  "js/pointsbet/api.js",
   "settings.js",
   "bookies.js"
 );
@@ -85,6 +86,13 @@ const BOOKIE_EXTRAS = {
   tab: { scraperFile: "js/contentScripts/tab.js", tabIdKey: "tabTabId" },
   ladbrokes: { scraperFile: "js/contentScripts/ladbrokes.js", tabIdKey: "ladbrokesTabId" },
   neds: { scraperFile: "js/contentScripts/neds.js", tabIdKey: "nedsTabId" },
+  // PointsBet is a genuinely separate platform (unlike Neds/Ladbrokes)
+  // — own REST feed (js/pointsbet/api.js), own data-test attribute
+  // convention, discovered by hooking window.fetch before loading a
+  // real race page rather than reading network requests after the fact
+  // (the actual call had already scrolled out of the request buffer by
+  // the time it was checked).
+  pointsbet: { scraperFile: "js/contentScripts/pointsbet.js", tabIdKey: "pointsbetTabId" },
 };
 const BOOKIES = Object.fromEntries(
   BOOKIE_LIST.map((b) => [b.id, { ...b, ...BOOKIE_EXTRAS[b.id] }])
@@ -1030,6 +1038,7 @@ async function listUpcomingRacesInner() {
     sportsbetEvents,
     ladbrokesEvents,
     nedsEvents,
+    pointsbetEvents,
     { tabVenueCodes = {} },
     { pendingResultChecks = [] },
     { liveRace },
@@ -1055,6 +1064,12 @@ async function listUpcomingRacesInner() {
     // just means nedsUrl stays null for this fetch.
     fetchNedsNextEvents(new Date().toISOString().slice(0, 10)).catch((err) => {
       console.warn("Neds RacingHomeScreenWeb skipped:", err.message);
+      return [];
+    }),
+    // Same best-effort treatment again — a PointsBet-side hiccup just
+    // means pointsbetUrl stays null for this fetch.
+    fetchPointsBetNextEvents().catch((err) => {
+      console.warn("PointsBet meetings skipped:", err.message);
       return [];
     }),
     chrome.storage.local.get(["tabVenueCodes"]),
@@ -1217,6 +1232,16 @@ async function listUpcomingRacesInner() {
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
       );
 
+      // Same matching again, no brand-prefix strip needed (same reasoning
+      // as nedsMatch above — every PointsBet venue seen was already bare).
+      const pbMatch = pointsbetEvents.find(
+        (e) =>
+          e.type === raceType &&
+          namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
+          e.raceNumber === raceNumber &&
+          Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
+      );
+
       return {
         track,
         raceNumber,
@@ -1262,6 +1287,9 @@ async function listUpcomingRacesInner() {
         // nedsMatch above) — same "nothing to open for this one"
         // null-when-unmatched treatment as every other bookie's own URL.
         nedsUrl: nedsMatch ? buildNedsRaceUrl(nedsMatch) : null,
+        // PointsBet also has a real feed from day one (js/pointsbet/
+        // api.js, pbMatch above), same treatment.
+        pointsbetUrl: pbMatch ? buildPointsBetRaceUrl(pbMatch) : null,
       };
     })
     .filter((r) => r.raceNumber !== null);
@@ -1685,6 +1713,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "NEDS_ODDS_UPDATED") {
     applyBookieOdds("neds", message.odds).catch((err) =>
       console.warn("Failed to apply live Neds update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  if (message.type === "POINTSBET_ODDS_UPDATED") {
+    applyBookieOdds("pointsbet", message.odds).catch((err) =>
+      console.warn("Failed to apply live PointsBet update:", err.message)
     );
     return; // fire-and-forget — the content script isn't awaiting a reply
   }
