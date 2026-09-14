@@ -437,22 +437,19 @@ h1 {
   border-left: 2px solid var(--accent);
 }
 
-/* Daily Planner — a saved row for this race (plannerEntryForMarketId,
+/* Daily Planner — a saved row for this race (plannerEntriesForMarketId,
    popup.js). Left border only (not the .selected background tint above,
    which both can carry independently) so a planned-and-selected race
-   still reads clearly as both at once rather than one hiding the other. */
+   still reads clearly as both at once rather than one hiding the other.
+   No icon/emoji — user-requested a plain highlight, nothing else; what
+   it's actually planned for is on the card's own title attribute
+   instead (raceCardHtml), so hovering still tells you. */
 .race-card.planned {
   border-left: 2px solid var(--lay-color);
 }
 
 .race-card.planned .race-card-title {
   padding-left: 2px;
-}
-
-.planner-pin {
-  color: var(--lay-color);
-  font-size: 10px;
-  margin-left: 4px;
 }
 
 /* Coloured sport-letter badge (R/H/G, RACE_TYPE_CODE — bookies.js) —
@@ -885,15 +882,14 @@ th.col-best-price {
 }
 
 /* Daily Planner's own "pop up" highlight (renderRace, popup.js) — user-
-   requested a plain highlighted box around just the bookmaker's own
-   header icon, not a border on every single runner's cell down the
-   column (too busy) and not a pin emoji either — a solid box around
-   the header alone is enough to show which bookmaker this loaded race
-   was planned against. */
-th.planned-bookie-col .bookie-th {
+   requested a plain highlighted box, no border on every single
+   runner's cell down the column (too busy) and no pin emoji either.
+   On the <th> itself (not just the inner .bookie-th icon wrapper —
+   user-reported the first version only outlined the small logo, not
+   the whole header box) so the whole column header reads as
+   highlighted, not just its icon. */
+th.planned-bookie-col {
   box-shadow: inset 0 0 0 1.5px var(--lay-color);
-  border-radius: 4px;
-  padding: 2px 6px;
 }
 
 th, td {
@@ -1592,16 +1588,17 @@ footer {
   border-bottom: none;
 }
 
-#planner-table select,
 #planner-table input[type="text"] {
   width: 100%;
 }
 
-/* Live-updates on every keystroke (plannerRangePreviewHtml, popup.js) —
-   what a typed race range (e.g. "1-5") actually resolves to at that
-   course right now, so a typo or a range with nothing at that course
-   is obvious before Save rather than only surfacing there. */
-.planner-race-preview {
+/* Live-updates on every keystroke (plannerRangePreviewHtml/
+   plannerBookiePreviewHtml, popup.js) — what a typed race range or
+   bookmaker list actually resolves to right now, so a typo or a range
+   with nothing at that course is obvious before Save rather than only
+   surfacing there. */
+.planner-race-preview,
+.planner-bookie-preview {
   font-size: 10px;
   color: var(--muted);
   margin-top: 2px;
@@ -1612,11 +1609,13 @@ footer {
   color: var(--accent-neg);
 }
 
-/* Race column needs more room than Course/Bookmaker/Promotion for a
-   realistic option label ("R6 2:22 pm Shepparton"). */
+/* Races/Bookmaker(s) need more room than Course/Promotion for a
+   realistic value ("1-5" plus its preview line, or "Sportsbet, TAB"). */
 #planner-table th:nth-child(2),
-#planner-table td:nth-child(2) {
-  width: 32%;
+#planner-table td:nth-child(2),
+#planner-table th:nth-child(3),
+#planner-table td:nth-child(3) {
+  width: 28%;
 }
 
 #planner-row-remove-btn,

@@ -3054,3 +3054,51 @@ https://developer.betfair.com/.
         loading a planned race still switches the mode tab correctly
         and highlights only that bookmaker's header box, with the
         Promotion dropdown showing just the two allowed options.
+
+- [x] Three more Daily Planner changes, all from follow-up screenshots
+      after trying the previous version:
+      - **Every field is now a plain typeable text input** (Course,
+        Bookmaker(s), Promotion — Races already was) instead of a
+        `<select>`, each backed by a `<datalist>` for suggestions —
+        user-requested: "make all boxes textboxes so its typeable so
+        you can look up races, bookmakers and promo." Course/Bookmaker/
+        Promotion resolve by exact, case-insensitive match against
+        their own datalist's real values (`plannerMatchTrack`/
+        `plannerMatchBookieIds`/`plannerMatchPromoId`) — the same
+        "can only ever really resolve to a real option" constraint a
+        `<select>` already had, just typed instead of clicked.
+      - **Plan more than one bookmaker in the same row.** The
+        Bookmaker(s) field takes a comma-separated list (e.g.
+        `Sportsbet, TAB`) instead of one at a time — a live preview
+        underneath shows exactly which names resolved, or names
+        whichever ones didn't (`Not recognised: ...`). One row now
+        expands into one committed entry per (race, bookmaker) pair;
+        `plannerEntriesForMarketId` (renamed from the old singular
+        `plannerEntryForMarketId`) returns every entry for a race, so
+        loading it highlights *every* bookmaker column you picked, not
+        just one. Reopening the modal groups entries back into rows in
+        two passes — first by (track, race, promotion) to see which
+        bookmakers were actually planned together for each race, then
+        by (track, promotion, bookmaker set) to collapse races sharing
+        that exact combination back into one range — so a row saved as
+        "1-5" on "Sportsbet, TAB" still reads that way when reopened.
+      - **Removed the pin emoji entirely** (the sidebar's own 📌, not
+        just the header one fixed last time) — the sidebar's left-
+        border accent (`.race-card.planned`) is the only visual signal
+        now. What's actually planned moved onto the race card's own
+        `title` attribute instead, so hovering it still tells you
+        (lists every bookmaker/promotion pair now, not just one).
+      - Also fixed, from the same screenshot: the header highlight
+        (`th.planned-bookie-col`) was still only boxing the small logo
+        icon inside the header cell, not the header cell itself — moved
+        the box-shadow onto the `<th>` directly so the *whole* header
+        box is highlighted, matching what was actually asked for.
+      - Verified via the same local harness end to end: adding a row,
+        typing a range + "Sportsbet, TAB" into Bookmaker(s), a
+        deliberate typo showing its own "Not recognised" warning,
+        saving expanding 5 races × 2 bookmakers into 10 real entries
+        and pinning all 5 races in the sidebar, reopening collapsing
+        those 10 back into one "1-5" / "Sportsbet, TAB" row, and
+        loading a planned race highlighting *both* bookmaker header
+        boxes (whole cell, not just the logo) while leaving the third
+        bookmaker and every runner row untouched.
