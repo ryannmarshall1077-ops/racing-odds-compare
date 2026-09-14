@@ -332,6 +332,20 @@ function plannerEntriesForMarketId(marketId) {
   return dailyPlannerEntries.filter((e) => e.marketId === marketId);
 }
 
+// User-requested: disabling a bookmaker in Settings > Bookie should
+// overwrite/drop any plan already saved against it, not leave it
+// sitting around planned somewhere its own column isn't even shown any
+// more. Called from applyDisplaySettings (below) every time settings
+// are (re)applied — startup and every Settings modal close — not just
+// while the planner happens to be open. No-op (and no storage write)
+// when nothing was actually enabled/disabled since the last check.
+function pruneDailyPlannerToEnabledBookies() {
+  const kept = dailyPlannerEntries.filter((e) => currentSettings.enabledBookies.includes(e.bookieId));
+  if (kept.length === dailyPlannerEntries.length) return;
+  dailyPlannerEntries = kept;
+  chrome.storage.local.set({ dailyPlanner: dailyPlannerEntries });
+}
+
 // Loaded once at startup — this callback runs well after the rest of
 // this script has finished defining everything below (renderFilteredRacesList
 // included), same as chrome.storage.local.get(["liveRace"], ...) further
@@ -339,6 +353,12 @@ function plannerEntriesForMarketId(marketId) {
 // here before its own declaration is safe.
 chrome.storage.local.get(["dailyPlanner"], (stored) => {
   dailyPlannerEntries = stored.dailyPlanner || [];
+  // Settings and this are two independent, unordered storage reads —
+  // pruning here too (not just from applyDisplaySettings) covers the
+  // case where this one resolves after settings already have, so a
+  // stale disabled-bookie entry loaded just now doesn't sit around
+  // unpruned until the next time the Settings modal happens to close.
+  pruneDailyPlannerToEnabledBookies();
   renderFilteredRacesList(); // picks up each row's own sidebar highlight, in case the list already rendered first
 });
 
@@ -497,7 +517,10 @@ function plannerBookieChipHtml(bookieId) {
 // this is a browse-and-pick list, not a single typed value.
 function plannerBookieSuggestions(searchText, selectedIds) {
   const query = (searchText || "").trim().toLowerCase();
-  return BOOKIE_LIST.filter((b) => !selectedIds.includes(b.id) && b.label.toLowerCase().includes(query));
+  // visibleBookies() (not the raw BOOKIE_LIST) — user-requested: a
+  // bookmaker disabled in Settings > Bookie shouldn't be pickable here
+  // either, same as it's already hidden from the odds table itself.
+  return visibleBookies().filter((b) => !selectedIds.includes(b.id) && b.label.toLowerCase().includes(query));
 }
 
 function plannerBookieSuggestionsHtml(searchText, selectedIds) {
@@ -2463,6 +2486,14 @@ for (const btn of document.querySelectorAll(".country-btn")) {
 // per theme and a plain CSS override can't win against an inline style.
 const THEME_DEFAULT_ACCENT = { dark: "#2f6feb", light: "#1f56c9" };
 
+// Same "resolve differently per theme until the user actually picks
+// one" treatment as THEME_DEFAULT_ACCENT above, for the Daily
+// Planner's own highlight colour (Settings > Colours > Promo Colour —
+// user-requested) — matches --lay-color's own existing per-theme
+// values (popup.css) exactly, so nothing changes visually for anyone
+// until they actually pick a different one.
+const THEME_DEFAULT_PROMO_COLOR = { dark: "#ef6fb0", light: "#cf4691" };
+
 const themeToggleBtn = document.getElementById("theme-toggle-btn");
 
 // Just the toggle button's own icon/title + the data-theme attribute
@@ -2501,6 +2532,7 @@ function applyTheme(theme) {
 // closes, so e.g. toggling "Show liquidity" takes effect immediately.
 function applyDisplaySettings(settings) {
   currentSettings = settings;
+  pruneDailyPlannerToEnabledBookies();
 
   applyTheme(settings.theme);
   // An untouched accentColor (still DEFAULT_SETTINGS' own dark-mode
@@ -2513,6 +2545,14 @@ function applyDisplaySettings(settings) {
       ? THEME_DEFAULT_ACCENT[settings.theme] || THEME_DEFAULT_ACCENT.dark
       : settings.accentColor;
   document.documentElement.style.setProperty("--accent", accentColor);
+  // Same treatment for the Daily Planner's own highlight colour
+  // (Settings > Colours > Promo Colour) — --promo-color (popup.css),
+  // read by .race-card.planned and th.planned-bookie-col.
+  const promoColor =
+    settings.promoColor === DEFAULT_SETTINGS.promoColor
+      ? THEME_DEFAULT_PROMO_COLOR[settings.theme] || THEME_DEFAULT_PROMO_COLOR.dark
+      : settings.promoColor;
+  document.documentElement.style.setProperty("--promo-color", promoColor);
   document.body.classList.toggle("compact-rows", settings.compactRows);
   document.body.classList.toggle("hide-liquidity", !settings.showLiquidityColumn);
   document.body.classList.toggle("show-liability", settings.showLiabilityColumn);
