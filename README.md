@@ -3147,3 +3147,31 @@ https://developer.betfair.com/.
         zero horizontal overflow (scrollWidth === clientWidth) with
         every column's rendered width matching its intended percentage
         of the container, not the old table-wide 700px floor.
+
+- [x] Two more Daily Planner changes, user-requested:
+      - **Settings > Bookie now overwrites the planner too.** Disabling
+        a bookmaker there no longer leaves it sitting around planned
+        somewhere its own column isn't even shown any more — any
+        already-saved plan entries against it are dropped
+        (`pruneDailyPlannerToEnabledBookies`, popup.js) the moment
+        settings are applied (startup, and every time the Settings
+        modal closes), and it stops appearing in the Bookmaker(s)
+        search-and-pick widget's own suggestions at all
+        (`plannerBookieSuggestions` now filters through `visibleBookies()`
+        rather than the raw `BOOKIE_LIST`). Verified: planning a race on
+        both Sportsbet and TAB, then disabling TAB in Settings, drops
+        exactly the TAB entry from both memory and storage while leaving
+        the Sportsbet one untouched, and TAB no longer shows up as a
+        pickable suggestion afterward.
+      - **A dedicated Promo Colour in Settings > Colours.** The Daily
+        Planner's own highlight (a planned race's sidebar border, and
+        the bookmaker(s) header box it switches on when that race
+        loads) used to just reuse `--lay-color` — now it's its own
+        setting (`DEFAULT_SETTINGS.promoColor`, a `--promo-color` CSS
+        variable) with a colour picker of its own, same "resolve
+        differently per theme until actually touched" treatment
+        `accentColor`/`--accent` already gets
+        (`THEME_DEFAULT_PROMO_COLOR`, popup.js). Verified: changing it
+        in Settings updates `--promo-color` live and persists to
+        storage, without touching the genuinely-unrelated `--lay-color`
+        (Betfair's own Lay-price cells) anywhere else in the table.

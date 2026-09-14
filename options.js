@@ -83,6 +83,7 @@ const settingFields = {
   focusRaceTabsOnOpen: document.getElementById("setting-focus-race-tabs"),
   autoRefresh: document.getElementById("setting-auto-refresh"),
   accentColor: document.getElementById("setting-accent-color"),
+  promoColor: document.getElementById("setting-promo-color"),
   compactRows: document.getElementById("setting-compact-rows"),
   highlightBestBookiePerRunner: document.getElementById("setting-highlight-best-bookie"),
   highlightBestRunnerPerBookie: document.getElementById("setting-highlight-best-runner"),
@@ -187,6 +188,7 @@ function applySettingsToForm(settings) {
   settingFields.focusRaceTabsOnOpen.checked = settings.focusRaceTabsOnOpen;
   settingFields.autoRefresh.checked = settings.autoRefresh;
   settingFields.accentColor.value = settings.accentColor;
+  settingFields.promoColor.value = settings.promoColor;
   settingFields.compactRows.checked = settings.compactRows;
   settingFields.highlightBestBookiePerRunner.checked = settings.highlightBestBookiePerRunner;
   settingFields.highlightBestRunnerPerBookie.checked = settings.highlightBestRunnerPerBookie;

@@ -79,6 +79,15 @@ const DEFAULT_SETTINGS = {
   // applyDisplaySettings() only treats accentColor as "untouched" (and
   // so free to swap per-theme) by comparing it against this exact value.
   accentColor: "#2f6feb",
+  // Daily Planner's own highlight colour (Settings > Colours > Promo
+  // Colour — user-requested) — the sidebar's left-border accent on a
+  // planned race and the planned bookmaker's own header box
+  // (.race-card.planned/th.planned-bookie-col, popup.css's
+  // --promo-color). Matches --lay-color's existing dark-mode value —
+  // see THEME_DEFAULT_PROMO_COLOR (popup.js) for the light-mode
+  // counterpart, which must always match this exact value for the
+  // same reason accentColor/THEME_DEFAULT_ACCENT already do.
+  promoColor: "#ef6fb0",
   compactRows: false,
   // Two independent bookie-grid highlights (renderRace, popup.js) —
   // matching a reference terminal's own two separate toggles rather
