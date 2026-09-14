@@ -1882,3 +1882,118 @@ footer {
   width: 70px;
   text-align: right;
 }
+
+/* --- Interactive Tutorial (TUTORIAL_STEPS, popup.js) ---
+   User-requested: guide the user through the *real* controls, not a
+   page of text. Each step dims the whole rest of the page around one
+   real element via a single huge-spread box-shadow directly on that
+   element (.tutorial-highlight below) — the classic lightweight
+   "spotlight" trick: a shadow spread of 9999px paints as a
+   near-infinite dark sheet everywhere outside the element's own box,
+   while the element's own background/content sits on top of its own
+   shadow (how box-shadow always paints, on every element) and so
+   reads as the one lit-up thing on the page. No separate full-page
+   overlay div needed at all — one class on one element, however big
+   or wherever it happens to be (sidebar list, modal panel, a single
+   input), is the whole mechanism. z-index 900+ (well above every
+   modal's own 100) is what lets a step reach into an open Planner/
+   Settings modal and highlight something inside it. */
+.tutorial-highlight {
+  position: relative;
+  z-index: 901;
+  box-shadow: 0 0 0 3px var(--accent), 0 0 0 9999px rgba(0, 0, 0, 0.65);
+  border-radius: 6px;
+}
+
+.tutorial-tooltip {
+  position: fixed;
+  z-index: 902;
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 40px var(--shadow);
+  padding: 14px;
+  color: var(--text);
+}
+
+.tutorial-tooltip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.tutorial-step-counter {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+#tutorial-skip-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+#tutorial-skip-btn:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+#tutorial-tooltip-title {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+#tutorial-tooltip-body {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.tutorial-tooltip-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.tutorial-tooltip-footer button {
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#tutorial-back-btn {
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+#tutorial-back-btn:hover {
+  border-color: var(--accent);
+}
+
+#tutorial-back-btn[hidden] {
+  display: none;
+}
+
+#tutorial-next-btn {
+  background: var(--accent);
+  border: none;
+  color: #0f1720;
+}
+
+#tutorial-next-btn:hover {
+  opacity: 0.9;
+}
