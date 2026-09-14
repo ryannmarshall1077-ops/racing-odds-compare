@@ -3354,3 +3354,65 @@ https://developer.betfair.com/.
         both end the tour cleanly (clearing the highlight, hiding the
         tooltip, and closing whichever modal was left open) from the
         middle of a step, not just from the last one.
+
+- [x] Fixed post-race data not backfilling for Sportsbet/Ladbrokes closing
+      odds and the Betfair closing price — user-reported: "the racing
+      table will show the winner but the bookmaker closing prices and
+      Betfair closing prices are blank" for a race that resulted without
+      being watched live, then narrowed it further: "it works for TAB but
+      not any other bookies." Root-caused (confirmed live against real
+      resulted races) to two separate, unrelated bugs — TAB itself was
+      never broken:
+      - **Sportsbet/Ladbrokes**: `sportsbetWatcher.js`/`ladbrokesWatcher.js`
+        deliberately send an *empty* runners array the instant a race's
+        own market closes (so in-play odds swings can't corrupt an
+        already-frozen pre-jump price) — but that rule fired even when
+        nothing had ever actually been captured yet, e.g. opening a race
+        for the first time *after* it had already resulted. There was
+        never a real price to protect in that case, so it froze on
+        *blank* forever instead. Fixed by tracking whether a page load has
+        ever sent a real (non-empty) scrape yet (`everSentRealPrices`) —
+        only suppress the scrape once something real is already frozen;
+        otherwise scrape once now, since a resulted Sportsbet/Ladbrokes
+        page still renders its final fixed odds (confirmed live).
+      - **Sportsbet only, on top of the above**: `sportsbetWatcher.js` and
+        the one-shot `js/contentScripts/sportsbet.js` paired names to
+        prices by parallel array index. A RESULTED race page additionally
+        renders a "Final Results" placings panel that reuses the exact
+        same `racecard-outcome-name` attribute as the real runners, but
+        lists only placed runners in *finishing* order — polluting the
+        name list and shifting the index-pairing out of sync with the
+        (unaffected) price list. Live-confirmed on a real resulted race
+        (Sandown Park G R8): the old pairing gave "Reanna's Pride" and
+        "Zipping Una"'s real prices to "Atticus" and "Flying Rogue"
+        instead. Fixed by pairing per Win-price element via DOM
+        containment instead — walk up to that price's own runner-row
+        wrapper (`racecard-outcome-<selectionId>`, no suffix) and read the
+        name from within that same row — which the Final Results panel
+        has no price element to walk up from in the first place, so it's
+        never consulted at all. `js/contentScripts/sportsbet.js` also
+        picked up the same `racecard-frame` scoping `sportsbetWatcher.js`
+        already had (it was querying the whole document unscoped).
+      - **Betfair**: `getMarketBook` only requested `EX_BEST_OFFERS`, which
+        goes empty the moment a market's fully settled (no more live
+        back/lay layers) — leaving the Betfair column permanently blank
+        for a race nobody watched live long enough to freeze a real price
+        for. Added `EX_TRADED` to the request so `lastPriceTraded` (the
+        final price a bet actually matched at) reliably comes back, and
+        used it as the last-resort fallback for both the Lay-based price
+        and the Back price shown in the table, below the DOM watcher and
+        the live REST price but above showing nothing. Also applied in
+        `settledRaceFromBook` (the fallback used once a race's market has
+        dropped out of Betfair's catalogue entirely) — which previously
+        always returned `betfair: null` and `bookmakers: {}` unconditionally
+        even when a perfectly good cached bookmaker scan already existed.
+      - v1 scope note, not yet done: this fixes closing odds once a race
+        is actually opened/selected at some point (live or after the
+        fact) — a race truly never clicked into at all still won't show
+        bookmaker odds automatically, since there's no background
+        mechanism yet that opens a bookmaker tab on its own once a race
+        results. Betfair's own closing price *is* fully automatic already
+        (pure REST, no tab needed). Ladbrokes also has a standing, separate
+        limitation: there's still no derivable race URL for it (see
+        `ladbrokesWatcher.js`), so it only ever works if the user had a
+        matching Ladbrokes tab open at some point.

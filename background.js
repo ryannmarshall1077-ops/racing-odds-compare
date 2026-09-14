@@ -349,7 +349,7 @@ function findBookmakerPrice(runnerName, bookmakerRunners) {
 // with a resolved winner, or null if listMarketBook has nothing either
 // (genuinely gone, not just resulted — the caller falls back to "next
 // upcoming race" in that case).
-async function settledRaceFromBook(appKey, sessionToken, marketId, previousRace) {
+async function settledRaceFromBook(appKey, sessionToken, marketId, previousRace, bookmakerOdds) {
   const [book] = await getMarketBook(appKey, sessionToken, [marketId]);
   const winnerRunner = book?.runners?.find((r) => r.status === "WINNER");
 
@@ -374,13 +374,42 @@ async function settledRaceFromBook(appKey, sessionToken, marketId, previousRace)
   }
 
   const bookStatusById = new Map(book.runners.map((r) => [String(r.selectionId), r.status]));
+  const bookRunnerById = new Map(book.runners.map((r) => [String(r.selectionId), r]));
   const nameById = new Map(previousRace.runners.map((r) => [r.selectionId, r.name]));
 
+  // This path only ever runs for a race whose Betfair market has already
+  // dropped out of catalogue entirely — well past "just resulted", so
+  // there was never a chance for the DOM watchers to freeze a live price
+  // (see refreshRaceInner's own runners.map) before this took over.
+  // lastPriceTraded (see getMarketBook's EX_TRADED, js/betfair/api.js) is
+  // the only Betfair price left to show at this point; every runner's
+  // own bookmakerOdds cache (last real scan, however old — same cache
+  // refreshRaceInner reads via recentBookieRunners, no freshness cutoff
+  // applied here since there may never be a newer one coming) fills in
+  // the bookmaker columns the same way. Previously this always returned
+  // bookmakers: {} and betfair: null unconditionally — the winner showed
+  // up but every price cell stayed blank even when a perfectly good scan
+  // existed in storage.
   return {
     ...previousRace,
     runners: previousRace.runners.map((r) => {
       const freshStatus = bookStatusById.get(r.selectionId);
-      return freshStatus ? { ...r, result: freshStatus } : r;
+      const freshBook = bookRunnerById.get(r.selectionId);
+      const bookmakers = {};
+      for (const bookieId of Object.keys(BOOKIES)) {
+        const scanned = bookmakerOdds?.[bookieId]?.runners;
+        const price = scanned ? findBookmakerPrice(r.name, scanned) : undefined;
+        if (price !== undefined) bookmakers[bookieId] = price;
+      }
+      return {
+        ...r,
+        ...(freshStatus && { result: freshStatus }),
+        ...(freshBook?.lastPriceTraded != null && {
+          betfair: freshBook.lastPriceTraded,
+          betfairBack: freshBook.lastPriceTraded,
+        }),
+        bookmakers: { ...r.bookmakers, ...bookmakers },
+      };
     }),
     winner: nameById.get(String(winnerRunner.selectionId)) ?? String(winnerRunner.selectionId),
     marketStatus: book.status,
@@ -483,7 +512,13 @@ async function refreshRaceInner(marketId) {
             }
           : null;
       const winnerRace = previousRace
-        ? await settledRaceFromBook(appKey, sessionToken, targetMarketId, previousRace)
+        ? await settledRaceFromBook(
+            appKey,
+            sessionToken,
+            targetMarketId,
+            previousRace,
+            stored.bookmakerOdds
+          )
         : null;
       if (winnerRace) {
         await chrome.storage.local.set({ liveRace: winnerRace });
@@ -641,6 +676,16 @@ async function refreshRaceInner(marketId) {
       // on Betfair", not the Betfair back price.
       const restBetfairPrice = r.ex?.availableToLay?.[0]?.price ?? null;
       const restBetfairLiquidity = r.ex?.availableToLay?.[0]?.size ?? null;
+      // Once a market's actually settled there's no availableToLay/Back
+      // left at all (no more live layers), so restBetfairPrice is always
+      // null for a race nobody watched live long enough to have frozen a
+      // real price for — e.g. a race that resulted without ever being
+      // selected. lastPriceTraded (needs EX_TRADED — see getMarketBook,
+      // js/betfair/api.js) is Betfair's own record of the final price a
+      // bet actually matched at, so it's the right "closing price" to
+      // fall back to here, below the DOM watcher and the REST lay price
+      // but above giving up entirely.
+      const finalTradedPrice = r.lastPriceTraded ?? null;
       // Falls back to the last known price when this fetch got nothing —
       // most commonly a settled runner (no more prices at all), but also
       // covers a plain transient gap in the REST response. Without this,
@@ -656,10 +701,10 @@ async function refreshRaceInner(marketId) {
       // same frozen value forward unchanged, since existingRunner.betfair
       // IS that frozen value by then.
       const betfairPrice = bookieMarketClosedConfirmed
-        ? existingRunner?.betfair ?? null
+        ? existingRunner?.betfair ?? finalTradedPrice
         : domIsFresh
         ? existingRunner.betfair
-        : restBetfairPrice ?? existingRunner?.betfair ?? null;
+        : restBetfairPrice ?? existingRunner?.betfair ?? finalTradedPrice;
       // Liquidity travels with price under the same freshness flag (and the
       // same freeze) — both come from whichever source (DOM watcher or this
       // REST call) actually supplied betfairPrice, so they're never
@@ -694,12 +739,16 @@ async function refreshRaceInner(marketId) {
         Date.now() - existingRunner.betfairBackPricedAt < 90 * 1000;
       const restBetfairBackPrice = r.ex?.availableToBack?.[0]?.price ?? null;
       const restBetfairBackLiquidity = r.ex?.availableToBack?.[0]?.size ?? null;
-      // Same freeze as the Lay price/liquidity above, once jumped.
+      // Same freeze as the Lay price/liquidity above, once jumped. Betfair
+      // only ever reports one lastPriceTraded per runner (not a separate
+      // back/lay version of it), so it's the same finalTradedPrice
+      // fallback as betfairPrice above — once settled there's no real
+      // back/lay distinction left anyway, just "the price it closed at".
       const betfairBack = bookieMarketClosedConfirmed
-        ? existingRunner?.betfairBack ?? null
+        ? existingRunner?.betfairBack ?? finalTradedPrice
         : backDomIsFresh
         ? existingRunner.betfairBack
-        : restBetfairBackPrice ?? existingRunner?.betfairBack ?? null;
+        : restBetfairBackPrice ?? existingRunner?.betfairBack ?? finalTradedPrice;
       const betfairBackLiquidity = bookieMarketClosedConfirmed
         ? existingRunner?.betfairBackLiquidity ?? null
         : backDomIsFresh
