@@ -46,15 +46,19 @@
         </div>
 
         <!-- User-requested: search-and-pick one or more bookmakers to
-             spotlight — whichever one(s) are selected highlight their
-             own column in the main odds table the same way a Daily
-             Planner entry already does (renderRace, popup.js), without
-             needing to actually plan a race against them first. Reuses
-             the exact same search-and-pick widget markup/behaviour the
-             planner's own Bookmaker(s) field already uses (bookieSpotlight,
-             popup.js) — only bookmakers enabled in Settings > Bookie are
-             ever offered here, same as there. -->
-        <div id="bookie-spotlight" title="Highlight a bookmaker's column in the odds table">
+             select — whichever one(s) are selected show their own
+             column in the main odds table (and open their own race
+             tab) the same way a Daily Planner entry already does
+             (renderRace/openRaceTabs, popup.js), without needing to
+             actually plan a race against them first. No title/tooltip
+             here any more (user-requested — it used to describe this
+             as only a highlight, which was never actually what it
+             does). Reuses the exact same search-and-pick widget
+             markup/behaviour the planner's own Bookmaker(s) field
+             already uses (bookieSpotlight, popup.js) — only bookmakers
+             enabled in Settings > Bookie are ever offered here, same
+             as there. -->
+        <div id="bookie-spotlight">
           <div class="planner-bookie-box" id="bookie-spotlight-box"></div>
           <div class="planner-bookie-suggestions" id="bookie-spotlight-suggestions" hidden></div>
         </div>

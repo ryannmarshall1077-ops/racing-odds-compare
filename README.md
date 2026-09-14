@@ -3306,3 +3306,11 @@ https://developer.betfair.com/.
         Sportsbet's tab only ever gets `update`d, never removed;
         planning Ladbrokes against the loaded race via Save opens its
         tab immediately without touching Sportsbet's.
+
+- [x] Cleaned up the Bookie Search Bar's own wording, user-requested:
+      its placeholder now reads "Select bookmaker" (was "Spotlight a
+      bookie..."), and the field's own tooltip — which described it as
+      only highlighting a bookmaker's column — is gone entirely, since
+      that was never actually what it does (it decides which bookmaker
+      columns/tabs show at all, not just a highlight on top of an
+      already-shown one).

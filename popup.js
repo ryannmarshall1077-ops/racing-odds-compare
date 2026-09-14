@@ -2515,11 +2515,11 @@ const bookieSpotlightSuggestionsEl = document.getElementById("bookie-spotlight-s
 // same "type, pick, keep typing the next one" flow as
 // refreshPlannerBookieCell, just against spotlightBookieIds instead of
 // one draft row's own bookieIds. Also re-renders the currently loaded
-// race so the header highlight picks up the change immediately.
+// race so its column shows/hides immediately.
 function refreshBookieSpotlight(searchText) {
   bookieSpotlightBoxEl.innerHTML = `
     ${spotlightBookieIds.map(plannerBookieChipHtml).join("")}
-    <input type="text" class="planner-bookie-search" id="bookie-spotlight-search" placeholder="Spotlight a bookie..." autocomplete="off" />
+    <input type="text" class="planner-bookie-search" id="bookie-spotlight-search" placeholder="Select bookmaker" autocomplete="off" />
   `;
   const searchInput = document.getElementById("bookie-spotlight-search");
   searchInput.value = searchText;
