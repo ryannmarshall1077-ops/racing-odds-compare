@@ -9,6 +9,7 @@ const BOOKIE_LIST = [
   { id: "sportsbet", label: "Sportsbet", logo: "icons/bookies/sportsbet.png" },
   { id: "tab", label: "TAB", logo: "icons/bookies/tab.png" },
   { id: "ladbrokes", label: "Ladbrokes", logo: "icons/bookies/ladbrokes.png" },
+  { id: "neds", label: "Neds", logo: "icons/bookies/neds.png" },
 ];
 
 // Single-letter race-type code shown in the compact race-info bar (e.g.
