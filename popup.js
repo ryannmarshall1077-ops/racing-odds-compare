@@ -171,6 +171,23 @@ function run2ndWinEVPercent(betfair, bookmaker, stake, placeBetfair) {
   return (ev / stake) * 100;
 }
 
+// Populated once loadSettings() resolves (see the bottom of this file) —
+// starts at DEFAULT_SETTINGS so anything reading it before then (tab
+// opening, countdown rendering) still gets sane values rather than
+// undefined. Unlike the per-session controls further down (sortMode,
+// stakeAmount, etc. — which the Settings page's Default* fields only
+// seed the INITIAL value of), currentSettings is read live by
+// openRaceTabs/renderRacesList on every use, since pin/focus/countdown-
+// visibility are meant to apply consistently for the whole session, not
+// just at startup. Declared up here (not grouped with the other
+// session-state `let`s below, where it originally sat) because
+// renderBookieHeaderCells() — via orderedBookieList() — reads it
+// synchronously at module load time (a few lines down); a `let` this
+// script reaches AFTER that first read would be a temporal-dead-zone
+// ReferenceError that kills the whole script before anything below it
+// (the sidebar's race list included) ever runs.
+let currentSettings = DEFAULT_SETTINGS;
+
 // Settings > Bookie — user-clarified this now means ONLY "which
 // bookmakers are available to search/select" (the Daily Planner's own
 // Bookmaker(s) field, the sidebar's Bookie Spotlight, and opening a
@@ -186,6 +203,114 @@ function run2ndWinEVPercent(betfair, bookmaker, stake, placeBetfair) {
 function visibleBookies() {
   return BOOKIE_LIST.filter((b) => currentSettings.enabledBookies.includes(b.id));
 }
+
+// User-requested: drag a bookie's own column header to reorder it in
+// the odds table. currentSettings.bookieColumnOrder is just a list of
+// ids — this resolves it to real BOOKIE_LIST entries, in that order,
+// with any id missing from it (a newly-added bookie an existing user's
+// stored order predates, or a fresh install's own untouched default)
+// appended afterward in BOOKIE_LIST's own order — same "a new bookie
+// shows up rather than silently vanishing" convention enabledBookies
+// already has, applied to position instead of visibility. This is the
+// one true ordering every bookie-column render (the header itself,
+// each row's own cells, the scratched-runner placeholder row, the
+// Market % footer) goes through, so none of them can ever drift out of
+// sync with each other.
+function orderedBookieList() {
+  const order = currentSettings.bookieColumnOrder || [];
+  const seen = new Set();
+  const ordered = [];
+  for (const id of order) {
+    const bookie = BOOKIE_LIST.find((b) => b.id === id);
+    if (bookie && !seen.has(id)) {
+      ordered.push(bookie);
+      seen.add(id);
+    }
+  }
+  for (const bookie of BOOKIE_LIST) {
+    if (!seen.has(bookie.id)) ordered.push(bookie);
+  }
+  return ordered;
+}
+
+function bookieThHtml(bookie) {
+  return `<th data-bookie="${bookie.id}" draggable="true" title="${bookie.label}'s own price, with Edge%/Ret% (whichever Mode is active) shown beneath it — drag to reorder"><span class="bookie-th"><img class="bookie-logo" src="${bookie.logo}" alt="${bookie.label}" /></span></th>`;
+}
+
+// Builds every bookie <th> fresh, in orderedBookieList()'s current
+// order, right before the (static) "Lay $" header — popup.html no
+// longer hardcodes these at all (see its own comment there), since
+// drag-to-reorder needs to actually move them, not just toggle each
+// one's own `hidden` attribute the way displayedBookieIds already does.
+// Called once at load (using whatever order is current — the hardcoded
+// default until real settings resolve, moments later) and again after
+// every successful drag-drop; renderRace's own hide/show loop
+// (querySelectorAll("th[data-bookie]")) picks up whatever exists here
+// unchanged, so it never needs to know a reorder just happened.
+function renderBookieHeaderCells() {
+  const layDollarsTh = document.getElementById("th-lay-dollars");
+  document.querySelectorAll("#odds-table thead th[data-bookie]").forEach((el) => el.remove());
+  layDollarsTh.insertAdjacentHTML("beforebegin", orderedBookieList().map(bookieThHtml).join(""));
+}
+renderBookieHeaderCells();
+
+// Drag-to-reorder a bookie's own column — delegated on the thead <tr>
+// (not one listener per <th>) since renderBookieHeaderCells rebuilds
+// those elements from scratch on every reorder, same reasoning
+// bindRaceCardClicks' own delegated listener further down already
+// uses. Native HTML5 drag-and-drop (draggable="true" on each <th>,
+// bookieThHtml above) rather than a hand-rolled mouse-drag — no
+// library needed, and every modern browser already implements the
+// drop-target highlighting/ghost-image affordance for free.
+const oddsTheadEl = document.querySelector("#odds-table thead");
+let dragSourceBookieId = null;
+
+oddsTheadEl.addEventListener("dragstart", (event) => {
+  const th = event.target.closest("th[data-bookie]");
+  if (!th) return;
+  dragSourceBookieId = th.dataset.bookie;
+  event.dataTransfer.effectAllowed = "move";
+  th.classList.add("dragging");
+});
+
+oddsTheadEl.addEventListener("dragover", (event) => {
+  const th = event.target.closest("th[data-bookie]");
+  if (!th || !dragSourceBookieId || th.dataset.bookie === dragSourceBookieId) return;
+  event.preventDefault(); // required for this to be a valid drop target at all
+  th.classList.add("drag-over");
+});
+
+oddsTheadEl.addEventListener("dragleave", (event) => {
+  event.target.closest("th[data-bookie]")?.classList.remove("drag-over");
+});
+
+oddsTheadEl.addEventListener("drop", (event) => {
+  event.preventDefault();
+  const targetTh = event.target.closest("th[data-bookie]");
+  document.querySelectorAll("#odds-table thead th.drag-over").forEach((el) => el.classList.remove("drag-over"));
+  if (!targetTh || !dragSourceBookieId || targetTh.dataset.bookie === dragSourceBookieId) return;
+
+  // Moves the dragged bookie to sit right where the drop target was —
+  // splice-out-then-splice-in on the id list is simplest, rather than
+  // reasoning about "before or after" the target directly.
+  const order = orderedBookieList().map((b) => b.id);
+  const fromIndex = order.indexOf(dragSourceBookieId);
+  const toIndex = order.indexOf(targetTh.dataset.bookie);
+  order.splice(fromIndex, 1);
+  order.splice(toIndex, 0, dragSourceBookieId);
+
+  currentSettings.bookieColumnOrder = order;
+  saveSettings({ bookieColumnOrder: order });
+  renderBookieHeaderCells();
+  if (currentRace) renderRace(currentRace); // re-order every row's own cells to match
+});
+
+oddsTheadEl.addEventListener("dragend", () => {
+  document.querySelectorAll("#odds-table thead th[data-bookie]").forEach((el) => {
+    el.classList.remove("dragging", "drag-over");
+  });
+  dragSourceBookieId = null;
+});
 
 function noteFor(race) {
   const systemNotePart = race.systemNote ? `${race.systemNote} ` : "";
@@ -322,16 +447,6 @@ let trackSearchQuery = "";
 // own marketId gets rendered (e.g. on startup, before the list has even
 // loaded yet).
 let selectedMarketId = null;
-
-// Populated once loadSettings() resolves (see the bottom of this file) —
-// starts at DEFAULT_SETTINGS so anything reading it before then (tab
-// opening, countdown rendering) still gets sane values rather than
-// undefined. Unlike the per-session controls above (sortMode, stakeAmount,
-// etc. — which the Settings page's Default* fields only seed the INITIAL
-// value of), currentSettings is read live by openRaceTabs/renderRacesList
-// on every use, since pin/focus/countdown-visibility are meant to apply
-// consistently for the whole session, not just at startup.
-let currentSettings = DEFAULT_SETTINGS;
 
 // Settings opens as an in-page modal (popup.html) rather than navigating
 // to a separate options.html tab — options.js manages every field inside
@@ -1838,7 +1953,7 @@ function renderRace(race) {
     // instead of being left out, so the header/body/footer column count
     // never drifts apart (see displayedBookieIds above for what
     // actually decides that now).
-    const bookieCells = BOOKIE_LIST.map((b) => {
+    const bookieCells = orderedBookieList().map((b) => {
       const price = runner.bookmakers?.[b.id];
       const bookieMetric = bookieMetricPercent(runner, price, commission, hedge);
       const hiddenAttr = displayedBookieIds.has(b.id) ? "" : " hidden";
@@ -1923,7 +2038,7 @@ function renderRace(race) {
       <td>${runner.name} <em class="scratched-tag">Scratched</em></td>
       <td class="col-best-price">—</td>
       <td class="col-backlay">${backLayCellHtml(null, null, null, null)}</td>
-      ${BOOKIE_LIST.map((b) => `<td${displayedBookieIds.has(b.id) ? "" : " hidden"}>—</td>`).join("")}
+      ${orderedBookieList().map((b) => `<td${displayedBookieIds.has(b.id) ? "" : " hidden"}>—</td>`).join("")}
       <td>—</td>
       <td class="col-liability">—</td>
     `;
@@ -1940,7 +2055,7 @@ function renderRace(race) {
     )}</span><span class="bl-cell bl-lay">${formatMarketPct(
       marketPercentFor(race.runners, (r) => r.betfair)
     )}</span></span></td>`,
-    ...BOOKIE_LIST.map(
+    ...orderedBookieList().map(
       (b) =>
         `<td${displayedBookieIds.has(b.id) ? "" : " hidden"}>${formatMarketPct(
           marketPercentFor(race.runners, (r) => r.bookmakers?.[b.id])
@@ -2859,6 +2974,13 @@ function applyDisplaySettings(settings) {
   document.body.classList.toggle("compact-rows", settings.compactRows);
   document.body.classList.toggle("hide-liquidity", !settings.showLiquidityColumn);
   document.body.classList.toggle("show-liability", settings.showLiabilityColumn);
+
+  // The very first renderBookieHeaderCells() (module load, above) ran
+  // before real settings had loaded, so it used DEFAULT_SETTINGS' own
+  // bookieColumnOrder — a returning user's actual dragged order needs
+  // this rebuild once it's actually in currentSettings, or the header
+  // would silently keep showing the default order until the next drag.
+  renderBookieHeaderCells();
 
   // Settings > Bookie no longer decides which bookie columns are
   // shown/hidden here (see renderRace's own displayedBookieIds) — this

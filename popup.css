@@ -871,6 +871,31 @@ th.col-best-price {
   align-items: center;
 }
 
+/* User-requested: drag a bookie's own column header to reorder it (see
+   the dragstart/dragover/drop/dragend wiring on #odds-table thead,
+   popup.js). "grab" on every bookie <th> makes the affordance
+   discoverable without needing a tooltip; the drop target itself
+   already gets the browser's own drag-ghost/cursor treatment for
+   free, so no separate "grabbing" cursor is needed here. */
+th[data-bookie] {
+  cursor: grab;
+}
+
+/* The <th> currently being dragged — dimmed (not hidden entirely) so
+   its own header stays visible as a reference point for where it came
+   from while it's mid-drag. */
+th[data-bookie].dragging {
+  opacity: 0.4;
+}
+
+/* Whichever <th> the dragged column is currently hovering over — an
+   inset accent outline (not a real border, same reasoning col-best
+   above already uses) so it never fights border-collapse or the
+   header's own background. */
+th[data-bookie].drag-over {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
 /* Two independent comparisons (renderRace's own comment, popup.js has
    the full reasoning) — matching a reference terminal's own two
    separate settings, "Highlight best bookie per runner" and

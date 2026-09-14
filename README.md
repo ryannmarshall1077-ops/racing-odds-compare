@@ -3842,3 +3842,58 @@ https://developer.betfair.com/.
         scraper against both a genuinely open race and an already-
         resulted one, in each case confirming the wrong-value bug above
         was real before the "Field" view fix and gone after it.
+
+- [x] Bookie columns in the odds table can now be reordered by drag —
+      user-requested ("can we make the bookie colums rotatable my
+      drag"). Drag a bookmaker's own column header left/right to move
+      it; the new order is saved (`Settings.bookieColumnOrder`,
+      `chrome.storage.sync`) and persists across popup reopens.
+      - Every bookie `<th>` is now built fresh by
+        `renderBookieHeaderCells()` (`popup.js`) from
+        `orderedBookieList()`, in whatever order
+        `bookieColumnOrder` says — popup.html no longer hardcodes
+        these 7 `<th>` elements at all, since actually reordering
+        columns means moving real DOM nodes, not just toggling each
+        one's own `hidden` attribute the way `enabledBookies` already
+        does. The per-runner row cells, the scratched-runner
+        placeholder row, and the Market % footer row all switched from
+        iterating the raw `BOOKIE_LIST` to `orderedBookieList()` too,
+        so header/body/footer can never drift out of sync with each
+        other.
+      - Native HTML5 drag-and-drop (`draggable="true"` +
+        dragstart/dragover/dragleave/drop/dragend), delegated on
+        `#odds-table thead` rather than one listener per `<th>` (those
+        elements get destroyed and recreated on every reorder) — no
+        library needed, and every modern browser already gives a
+        drag-ghost/drop-target affordance for free. `.dragging`
+        (dimmed) and `.drag-over` (an inset accent outline, same
+        treatment `.col-best` already uses) are the only new CSS
+        (`popup.css`), plus a `grab` cursor on every bookie header.
+      - Caught and fixed a real crash before shipping: the very first
+        `renderBookieHeaderCells()` call runs immediately at script
+        load (so headers exist before real settings have even loaded),
+        and it reads `currentSettings.bookieColumnOrder` — but
+        `currentSettings` was declared with `let` further down in the
+        file, so that first read was a temporal-dead-zone
+        `ReferenceError` that killed the *entire* script the instant it
+        ran, before anything below it (the whole sidebar race list
+        included) ever executed. This is exactly what a user hit live —
+        the popup's sidebar stuck forever on "Loading…" with no bookie
+        columns and no runners at all. Fixed by moving the
+        `currentSettings` declaration up above where it's first read.
+        Also added a `renderBookieHeaderCells()` call inside
+        `applyDisplaySettings` (previously it only ran once at load,
+        using the hardcoded default order, and again on a drag-drop —
+        never once the user's *actual* saved order had loaded), so a
+        returning user's own dragged order now genuinely applies on
+        every popup open, not just the default.
+      - Verified via the local static-preview harness: confirmed the
+        crash (and the "Loading…" hang it caused) reproduces exactly
+        against the pre-fix code and is gone after the fix; simulated a
+        real drag via dispatched `DragEvent`s and confirmed the header,
+        each row's own cells, and the footer all reorder together with
+        no drift; confirmed `.dragging`/`.drag-over` render correctly
+        mid-drag and leave no stray classes behind afterward; confirmed
+        the new order round-trips through `chrome.storage.sync` and
+        survives a full page reload (backed the harness's storage shim
+        with real `localStorage` specifically to test this).

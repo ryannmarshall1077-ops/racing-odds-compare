@@ -55,6 +55,16 @@ const DEFAULT_SETTINGS = {
   // generated, just hidden), so a newly-added bookie here defaults to
   // enabled the moment it's added to this array, not silently invisible.
   enabledBookies: ["sportsbet", "tab", "ladbrokes", "neds", "pointsbet", "betr", "tabtouch"],
+  // User-requested: drag a bookie's own column header left/right in the
+  // odds table to reorder it — this is what's actually dragged (see
+  // orderedBookieList(), popup.js). Same hardcoded-here reasoning as
+  // enabledBookies just above (BOOKIE_LIST doesn't exist yet at this
+  // point). orderedBookieList() appends any id missing from a saved
+  // order (an existing user's storage, or a newly-added bookie not yet
+  // dragged anywhere) in BOOKIE_LIST's own order, so this default only
+  // ever matters for a fresh install — it's never read as the literal
+  // "current" order once a user has dragged anything.
+  bookieColumnOrder: ["sportsbet", "tab", "ladbrokes", "neds", "pointsbet", "betr", "tabtouch"],
   showLiquidityColumn: true,
   showLiabilityColumn: false,
   // Scratched (Betfair status REMOVED) runners default to showing as

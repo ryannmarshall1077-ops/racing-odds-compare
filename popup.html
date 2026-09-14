@@ -142,14 +142,12 @@
                     <span class="bl-cell bl-lay">Lay</span>
                   </span>
                 </th>
-                <th data-bookie="sportsbet" title="Sportsbet's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it"><span class="bookie-th"><img class="bookie-logo" src="icons/bookies/sportsbet.png" alt="Sportsbet" /></span></th>
-                <th data-bookie="tab" title="TAB's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it"><span class="bookie-th"><img class="bookie-logo" src="icons/bookies/tab.png" alt="TAB" /></span></th>
-                <th data-bookie="ladbrokes" title="Ladbrokes' own price, with Edge%/Ret% (whichever Mode is active) shown beneath it"><span class="bookie-th"><img class="bookie-logo" src="icons/bookies/ladbrokes.png" alt="Ladbrokes" /></span></th>
-                <th data-bookie="neds" title="Neds' own price, with Edge%/Ret% (whichever Mode is active) shown beneath it"><span class="bookie-th"><img class="bookie-logo" src="icons/bookies/neds.png" alt="Neds" /></span></th>
-                <th data-bookie="pointsbet" title="PointsBet's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it"><span class="bookie-th"><img class="bookie-logo" src="icons/bookies/pointsbet.png" alt="PointsBet" /></span></th>
-                <th data-bookie="betr" title="Betr's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it"><span class="bookie-th"><img class="bookie-logo" src="icons/bookies/betr.png" alt="Betr" /></span></th>
-                <th data-bookie="tabtouch" title="TABtouch's own price, with Edge%/Ret% (whichever Mode is active) shown beneath it"><span class="bookie-th"><img class="bookie-logo" src="icons/bookies/tabtouch.png" alt="TABtouch" /></span></th>
-                <th>Lay $</th>
+                <!-- Bookie <th> columns are injected here (before #th-lay-dollars)
+                     by popup.js's renderBookieHeaderCells, in the user's own
+                     dragged order (see orderedBookieList/bookieColumnOrder) —
+                     no longer static, since drag-to-reorder needs to actually
+                     move these, not just toggle each one's own hidden attribute. -->
+                <th id="th-lay-dollars">Lay $</th>
                 <th class="col-liability" title="What you'd owe if the lay bet loses: Lay $ × (Betfair odds − 1)">Liability</th>
               </tr>
             </thead>
