@@ -32,8 +32,11 @@ const PROMO_MODES = [
   { id: "run2nd", label: "Run 2nd" },
   // Same 2nd-place trigger as "run2nd" above, but the bookmaker pays
   // the FULL win price as real cash if it comes 2nd, instead of a
-  // smaller bonus-bet-equivalent refund — see popup.js's
-  // run2ndWinEVPercent for the actual formula/derivation.
+  // smaller bonus-bet-equivalent refund. Its own EV is a raw, unhedged
+  // 3-outcome calculation (no Betfair lay, no commission) rather than
+  // this file's usual hedge-blended QL approach, and only computable
+  // when a race has a genuine 2-place Betfair place market — see
+  // popup.js's run2ndWinEVPercent for the full formula/derivation.
   { id: "run2ndwin", label: "Run 2nd You Win" },
 ];
 
