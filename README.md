@@ -2864,3 +2864,39 @@ https://developer.betfair.com/.
         own call; confirmed no hidden `.slice`/cap anywhere in the
         popup's own rendering that would silently truncate a longer
         list.
+
+- [x] Fixed a real bug this same "all races today" change exposed:
+      Sportsbet's own price column showing its betfair×1.08 placeholder
+      — styled identically to a real price, no visual difference at
+      all — for a race Sportsbet's own tracked tab plainly hadn't
+      loaded yet (most likely because Sportsbet itself doesn't list a
+      market that many hours ahead of jump, something users are far
+      more likely to click into now that the whole day's races show
+      up). User-caught live: every single runner's own Sportsbet number
+      in a real race exactly matched Betfair's own Lay price × 1.08,
+      while TAB/Ladbrokes showed real, independent numbers for the same
+      runners.
+      - Root cause: the placeholder decision was made per-runner,
+        inline, during the same pass that counts how many runners a
+        bookie's own recent scan matched — so it had no way to know
+        the race-WIDE result (every runner, not just this one) before
+        deciding. A real Sportsbet scan existing but matching *zero*
+        runners in this race means that scan is for a completely
+        different race (the tab hasn't caught up), not "no data yet" —
+        but the code couldn't tell those two cases apart.
+      - Fixed by hoisting the match-counting into its own pass over
+        every runner first (`bookmakerMatched`, now computed once,
+        fully, before the main runner-building pass reads it), then
+        gating the placeholder on a new `sportsbetScanIsForADifferentRace`
+        — true only when a real recent scan exists but matched nothing
+        at all in this race. The original "never scanned yet at all"
+        case (`recentBookieRunners.sportsbet` itself null) is
+        unaffected — the placeholder still shows then, exactly as
+        before.
+      - Verified: a standalone simulation of the exact live scenario
+        (Sportsbet's own scan real but for unrelated runner names, TAB/
+        Ladbrokes matching everyone) confirmed the placeholder is now
+        suppressed (`null`, not a synthetic number) for every runner,
+        while TAB/Ladbrokes are unaffected; a second case (Sportsbet
+        never scanned at all) confirmed the original placeholder
+        behaviour still fires unchanged.
