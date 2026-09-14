@@ -15,6 +15,9 @@
           </div>
           <span class="sidebar-header-actions">
             <button id="theme-toggle-btn" title="Toggle light/dark mode"></button>
+            <button id="planner-btn" title="Daily Planner">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            </button>
             <button id="settings-btn" title="Settings">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
             </button>
@@ -438,6 +441,58 @@
           <div class="modal-footer-actions">
             <button id="restore-defaults-btn" class="link-btn">Restore defaults</button>
             <button id="settings-done-btn" class="modal-done-btn">Done</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Daily Planner, as an in-page modal (same pattern as settings-modal
+         above) — plan which races today are running a promo, which
+         bookmaker it's on, and which promo type, ahead of time. Saved
+         rows (popup.js's dailyPlannerEntries) highlight that race's own
+         sidebar card and, once loaded, highlight that bookmaker's column
+         in the odds table and switch the mode tab to match — see
+         popup.js's plannerEntryForMarketId and its callers. -->
+    <div id="planner-modal" class="modal-overlay" hidden>
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2>Daily Planner</h2>
+          <button id="planner-close-btn" class="modal-close" title="Close">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <p class="field-hint">
+            Plan which of today's races you're running a promo on, which bookmaker it's for, and
+            which promotion type &mdash; before you sit down to actually work through them. A
+            saved race is highlighted in the Upcoming Races list; loading it into the table
+            highlights that bookmaker's column and switches the mode tab to match.
+          </p>
+
+          <div id="planner-table-wrapper">
+            <table id="planner-table">
+              <thead>
+                <tr>
+                  <th>Course</th>
+                  <th>Race</th>
+                  <th>Bookmaker</th>
+                  <th>Promotion</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="planner-body">
+                <!-- rows injected by popup.js -->
+              </tbody>
+            </table>
+          </div>
+
+          <button id="planner-add-row-btn" class="link-btn" type="button">+ Add race</button>
+        </div>
+
+        <div class="modal-footer">
+          <span id="planner-status" class="status"></span>
+          <div class="modal-footer-actions">
+            <button id="planner-clear-btn" class="link-btn" type="button">Clear all</button>
+            <button id="planner-save-btn" class="modal-done-btn">Save</button>
           </div>
         </div>
       </div>

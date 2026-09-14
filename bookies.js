@@ -19,3 +19,15 @@ const BOOKIE_LIST = [
 // horse -> "T" (Thoroughbred) to match the Upcoming Races filter pill's
 // own T/H/G lettering, not TAB's own R/H/G scheme.
 const RACE_TYPE_CODE = { horse: "T", harness: "H", greyhound: "G" };
+
+// The main table's own mode tabs (#mode-tabs, popup.html) and the Daily
+// Planner's own Promotion column (popup.js) both need this exact same
+// id/label pairing — kept here, in one place, so a renamed/added mode
+// can't leave the planner's dropdown quietly out of sync with the tabs
+// themselves (they're two separate DOM trees, only ever meant to agree).
+const PROMO_MODES = [
+  { id: "mug", label: "Mug" },
+  { id: "bonus", label: "Bonus" },
+  { id: "run2nd3rd", label: "Run 2nd 3rd" },
+  { id: "run2nd", label: "Run 2nd" },
+];

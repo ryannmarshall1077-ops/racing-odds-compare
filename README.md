@@ -2971,3 +2971,48 @@ https://developer.betfair.com/.
         reload itself, but not a fresh navigation to a different race's
         URL) so a one-off glitch gets exactly one retry rather than
         looping forever on a page that's genuinely, persistently down.
+
+- [x] Added a **Daily Planner** (user-requested) — a new calendar-icon
+      button next to Settings opens an in-page modal with a table for
+      planning which of today's races you're running a promo on, ahead
+      of time: pick a Course, then a Race at that course, then which
+      Bookmaker and Promotion type (the same Mug/Bonus/Run 2nd 3rd/
+      Run 2nd modes the main table's own tabs already use — shared from
+      one place, `bookies.js`'s new `PROMO_MODES`, so the two can't
+      silently drift apart). Rows are edited freely and only actually
+      committed on Save (`chrome.storage.local`'s new `dailyPlanner`
+      key) — closing the modal without saving discards whatever was
+      added/removed/changed.
+      - A saved race gets a small 📌 pin next to its title in the
+        Upcoming Races sidebar (`raceCardHtml`'s own
+        `plannerEntryForMarketId` lookup) plus a left-border accent, so
+        a planned race is visible at a glance without opening the
+        planner back up.
+      - Loading a planned race into the main table (`renderRace`)
+        automatically switches the mode tab to match its planned
+        promotion type, and highlights that bookmaker's whole column
+        (header + every runner's cell) with its own distinct outline —
+        composing cleanly with the existing row-best (green)/col-best
+        (amber) highlights rather than fighting either of them. The
+        mode switch only fires on an actual race change, not every
+        re-render a Stake/Hedge tweak already triggers — manually
+        picking a different mode on a planned race sticks instead of
+        being immediately reverted back.
+      - A planner row survives its own race jumping and dropping out of
+        Betfair's catalogue (`listUpcomingRacesInner`'s ~20-races-wide
+        window doesn't apply here, but a race still eventually drops
+        once it's well and truly done) — its Course/Race dropdowns fall
+        back to a synthetic option built from the entry's own
+        cached track/race number/start time, so the row keeps reading
+        sensibly and Save doesn't silently drop it, instead of the
+        dropdown quietly jumping to a different race.
+      - Verified end to end via a local static-preview harness: adding/
+        removing rows, switching Course (which correctly resets that
+        row's Race to the new course's own soonest one), Save
+        persisting to storage and updating the sidebar pin immediately,
+        loading a planned race switching the mode tab and highlighting
+        the right bookmaker column (and *not* the others), a manual
+        mode override on an already-loaded planned race surviving an
+        unrelated re-render, the highlight clearing on an unplanned
+        race, and closing without saving correctly discarding the
+        draft.
