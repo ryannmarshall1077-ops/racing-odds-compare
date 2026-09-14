@@ -2831,3 +2831,36 @@ https://developer.betfair.com/.
         recovered exactly, unaffected by the cap. Confirmed the same in
         the full render path (a case shaped to previously land above 1
         now produces 0.844 for every runner) with no console errors.
+
+- [x] The sidebar's Upcoming Races list now shows every race for the
+      rest of the day, not just the next ~20 soonest across all sports
+      combined — user-requested, specifically as a flat list still
+      sorted by jump time (not grouped by track/meeting), so nothing
+      needs scrolling or clicking through track-by-track to see what's
+      coming up.
+      - `listWinMarkets` (`js/betfair/api.js`) gained an optional
+        `marketStartTimeTo` param, added to the existing
+        `marketStartTime` filter's own `to` bound alongside its
+        already-there `from: now` (unchanged) — left unset by
+        `refreshRaceInner`'s own "single soonest race" fallback call,
+        which only ever wants `maxResults: 1` regardless of how far out
+        Betfair would otherwise search.
+      - `listUpcomingRacesInner` (background.js) now passes the current
+        UTC day's own end-of-day boundary (`endOfTodayUtc`, via
+        `setUTCHours(24,0,0,0)` — the same UTC-day approximation this
+        codebase already makes elsewhere for "today", e.g.
+        `fetchLadbrokesNextEvents`'s own date param) and raises
+        `maxResults` from 20 to 1000 — Betfair's own documented
+        `listMarketCatalogue` ceiling, not an arbitrary number.
+        `FIRST_TO_START` sort (unchanged) keeps the result chronological.
+      - No popup.js/UI changes needed at all — `renderRacesList` already
+        maps over the full `latestRaces` array with no truncation
+        anywhere in the frontend, so the wider backend list just renders
+        in full automatically.
+      - Verified: the date-boundary math resolves to the correct next
+        UTC midnight from any "now"; the filter object correctly omits
+        `to` entirely for the old single-soonest-race call site
+        (backward compatible) and includes both bounds for the sidebar's
+        own call; confirmed no hidden `.slice`/cap anywhere in the
+        popup's own rendering that would silently truncate a longer
+        list.

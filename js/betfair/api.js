@@ -50,7 +50,14 @@ async function findEventTypeIds(appKey, sessionToken, eventTypeNames) {
 // e.g. horse + greyhound racing's soonest-starting markets can be found in
 // one call (sort + maxResults apply across the combined set) instead of
 // querying each sport separately and merging client-side.
-async function listWinMarkets(appKey, sessionToken, eventTypeIds, maxResults = 1) {
+//
+// marketStartTimeTo (optional) — user-requested: show every race for the
+// rest of the day in the sidebar, not just the next handful, still sorted
+// by jump time so nothing needs scrolling/clicking through track-by-track
+// to see what's coming up. Left undefined by the "single soonest race"
+// caller (refreshRaceInner's own fallback), which only ever wants
+// maxResults 1 regardless of how far out Betfair would otherwise search.
+async function listWinMarkets(appKey, sessionToken, eventTypeIds, maxResults = 1, marketStartTimeTo) {
   return betfairApiCall(appKey, sessionToken, "listMarketCatalogue", {
     filter: {
       eventTypeIds,
@@ -67,7 +74,10 @@ async function listWinMarkets(appKey, sessionToken, eventTypeIds, maxResults = 1
       // Excludes markets that have already jumped — listMarketCatalogue
       // otherwise keeps returning an in-play/just-closed race until it's
       // fully settled, well after it's no longer useful to show.
-      marketStartTime: { from: new Date().toISOString() },
+      marketStartTime: {
+        from: new Date().toISOString(),
+        ...(marketStartTimeTo && { to: marketStartTimeTo }),
+      },
     },
     // EVENT_TYPE lets callers tell which sport a market belongs to
     // (market.eventType.name) without having to separately remember which
