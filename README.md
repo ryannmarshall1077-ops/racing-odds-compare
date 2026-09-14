@@ -2808,3 +2808,26 @@ https://developer.betfair.com/.
         CONSERVATISM_FACTOR), and the field's own best-to-worst ranking
         by Pr(2nd)+Pr(3rd) is unchanged before vs after the haircut. No
         console errors.
+
+- [x] Capped how far `fitHarvilleLambda`'s own calibration search can
+      go — user-requested: don't prioritize favourites as much, dampen
+      the EV spread across the field. lambda < 1 flattens the
+      favourite/longshot gap by design (the whole reason the power
+      adjustment exists), but nothing stopped the fit from landing
+      *above* 1 when that best matched a race's own real place data —
+      confirmed live this actually happens (1.02-1.15 in real
+      comparisons), which sharpens the gap instead, the opposite of
+      what this exists for.
+      - New `MAX_HARVILLE_LAMBDA = 0.85` (same value as
+        `DEFAULT_HARVILLE_LAMBDA`, so calibration can only ever match or
+        beat that baseline's own flattening, never fall back toward raw
+        Harville's sharper shape) — the search range itself is capped
+        at this (`fitHarvilleLambda`'s own `hi`), not clamped onto the
+        fitted result afterward, so the cap is baked into what "best
+        fit" even means for this model now.
+      - Verified: a real-world-shaped case that previously fit to ~1.06
+        (sharpening) now caps at exactly 0.85; a separately-checked case
+        that genuinely wants a strongly-flattening low lambda (0.5) is
+        recovered exactly, unaffected by the cap. Confirmed the same in
+        the full render path (a case shaped to previously land above 1
+        now produces 0.844 for every runner) with no console errors.
