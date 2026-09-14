@@ -3501,3 +3501,37 @@ https://developer.betfair.com/.
         unchanged, and a race with neither a real Top 2 nor Top 3
         market still correctly returns null (no Harville or other
         fallback — still requires one of those two real markets).
+
+- [x] Four user-requested changes to the interactive Tutorial (see its
+      own entry above):
+      - Step 3 (Daily Planner) now highlights the actual `#planner-btn`
+        in the sidebar header instead of auto-opening the modal and
+        highlighting its panel — the body text explicitly says "Click
+        this button to open the Daily Planner" first, then explains
+        what it's for, so a beginner learns where to click rather than
+        having it opened for them.
+      - Step 7 was a duplicate of Step 2 (both pointed at
+        `#bookie-spotlight`, one titled "Bookie Search Bar", the other
+        "Bookmaker Tabs") — replaced entirely with **Mode Toggle
+        Switches**, highlighting `#mode-tabs`. Explains each of the 5
+        modes (Mug/Bonus/Run 2nd 3rd/Run 2nd/Run 2nd You Win) and which
+        real promo each one matches, so a beginner knows which tab to
+        switch to for their own bookmaker's actual deal — worded as
+        "switch to" rather than "turn on/off" since they're mutually
+        exclusive tabs, not independent toggles.
+      - Step 8 (Settings) now highlights the actual `#settings-btn`
+        gear icon instead of auto-opening the modal, same treatment as
+        Step 3 — "Click this gear icon to open Settings" first, then a
+        brief rundown of what it controls.
+      - Step 2 (Bookie Search Bar) left completely untouched, per
+        explicit request.
+      - Removing the auto-open `onEnter`/`onExit` from both the Planner
+        and Settings steps needed no other changes — `goToTutorialStep`
+        already treats them as optional (`if (incoming.onEnter)` /
+        `outgoing?.onExit`), so a step without either just highlights
+        its target and does nothing else, exactly as intended.
+      - Verified via the local static-preview harness: stepped through
+        all 8 forward and all 8 backward, confirming each one's
+        highlighted element id matches the new target and neither modal
+        ever pops open unexpectedly at any step; confirmed Skip/Finish
+        both still end the tour cleanly with no lingering highlight.

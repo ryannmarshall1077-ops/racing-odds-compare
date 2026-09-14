@@ -2890,10 +2890,8 @@ const TUTORIAL_STEPS = [
   },
   {
     title: "Daily Planner",
-    body: "Plan ahead: pick a course, a race number or range (e.g. 1-5), one or more bookmakers, and a promotion type, then Save. Anything planned here shows up automatically — its own column, its own tab — the moment you load that race, on top of whatever's picked in the Bookie Search Bar.",
-    target: () => document.querySelector("#planner-modal .modal-panel"),
-    onEnter: () => openPlannerModal(),
-    onExit: () => closePlannerModal(),
+    body: "Click this button to open the Daily Planner. There you can plan ahead: pick a course, a race number or range (e.g. 1-5), one or more bookmakers, and a promotion type, then Save. Anything planned here shows up automatically — its own column, its own tab — the moment you load that race, on top of whatever's picked in the Bookie Search Bar.",
+    target: () => document.getElementById("planner-btn"),
   },
   {
     title: "Race Table",
@@ -2911,18 +2909,14 @@ const TUTORIAL_STEPS = [
     target: () => document.getElementById("race-countdown-main"),
   },
   {
-    title: "Bookmaker Tabs",
-    body: "Selecting a race only opens a tab for a bookmaker you've actually selected here or planned for that exact race — Betfair's own tab always opens too. Deselect a bookmaker and its tab closes automatically, even if it was already open.",
-    target: () => document.getElementById("bookie-spotlight"),
+    title: "Mode Toggle Switches",
+    body: "These pick which promotion Edge%/Lay $ are worked out for — switch to whichever one matches the deal you're actually using. Mug: an ordinary back-and-lay bet, no promo — the everyday default. Bonus: a stake-not-returned free bet a bookmaker's credited you. Run 2nd 3rd / Run 2nd: a normal bet that also earns a bonus bet if your selection runs 2nd (or 2nd/3rd) — switch to whichever matches that promo's own placings. Run 2nd You Win: for the rarer promo where 2nd place gets paid the FULL win amount in real cash, not just a bonus bet.",
+    target: () => document.getElementById("mode-tabs"),
   },
   {
     title: "Settings",
-    body: "Turn bookmakers on or off for searching/selecting (this doesn't hide an already-selected one), set your own defaults for Mode/Stake/Hedge, and customise colours — including the Planner's own highlight colour.",
-    target: () => document.querySelector("#settings-modal .modal-panel"),
-    onEnter: () => {
-      settingsModal.hidden = false;
-    },
-    onExit: () => closeSettingsModal(),
+    body: "Click this gear icon to open Settings. There you can turn bookmakers on or off for searching/selecting (this doesn't hide an already-selected one), set your own defaults for Mode/Stake/Hedge, and customise colours — including the EV colour thresholds for each mode and the Planner's own highlight colour.",
+    target: () => document.getElementById("settings-btn"),
   },
 ];
 
