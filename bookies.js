@@ -35,8 +35,9 @@ const PROMO_MODES = [
   // smaller bonus-bet-equivalent refund. Its own EV is a raw, unhedged
   // 3-outcome calculation (no Betfair lay, no commission) rather than
   // this file's usual hedge-blended QL approach, and only computable
-  // when a race has a genuine 2-place Betfair place market — see
-  // popup.js's run2ndWinEVPercent for the full formula/derivation.
+  // when a race has a real 2- or 3-place Betfair place market (a
+  // 55/45 rule-of-thumb split isolates Pr(2nd) from a 3-place one) —
+  // see popup.js's run2ndWinEVPercent for the full formula/derivation.
   { id: "run2ndwin", label: "Run 2nd You Win" },
 ];
 

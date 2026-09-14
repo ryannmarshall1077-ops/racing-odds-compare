@@ -3471,7 +3471,33 @@ https://developer.betfair.com/.
       - Verified via the local static-preview harness against a
         synthetic Top-2-market test race: hand-worked the exact EV%
         figure for a test runner and matched the live-computed value
-        to 10+ significant figures; confirmed a Top-3-market race
-        correctly returns null everywhere instead of a wrong number;
-        confirmed Lay $/Liability render "—" for this mode and a real
-        dollar figure for every other mode, unchanged.
+        to 10+ significant figures; confirmed Lay $/Liability render
+        "—" for this mode and a real dollar figure for every other
+        mode, unchanged.
+
+- [x] Extended Run 2nd You Win to also work off a real Top 3 market —
+      user-supplied method, since most bigger AU/NZ fields only ever
+      get a "Top 3 Finish" Betfair place market, not a Top 2 one (the
+      previous version left the mode entirely uncomputable there).
+      - A Top 3 market's own implied probability
+        (`P(top3) = 1/placeBetfair`) minus `P(win)` is the COMBINED
+        "2nd or 3rd" probability, not Pr(2nd) alone. Rather than split
+        it evenly, isolates Pr(2nd) via a standard matched-betting rule
+        of thumb: in a balanced field, 2nd is always slightly more
+        likely than 3rd, so the gap is split 55/45 in 2nd's favour
+        (new `TOP3_SECOND_PLACE_SHARE` constant, popup.js).
+      - `run2ndWinEVPercent` now branches on
+        `race.placeMarketWinners` (2 vs 3) for how Pr(2nd) itself is
+        derived, but the rest of the formula (P(lose) = whatever's left
+        once win and 2nd are both accounted for; same
+        stake×(bookmaker−1) payout on both win and 2nd) is unchanged
+        and shared by both branches — a real Top 2 market's own
+        P(top2) already IS Pr(win-or-2nd) directly, so it skips the
+        55/45 split entirely rather than needlessly reapplying it.
+      - Verified against the user's own worked example (win odds 2.16,
+        Top 3 odds 1.24, $100 stake): matched their hand-calculated
+        +$40.81 EV (40.81%) to within a rounding difference (40.806%);
+        confirmed the existing Top 2 case's own number is completely
+        unchanged, and a race with neither a real Top 2 nor Top 3
+        market still correctly returns null (no Harville or other
+        fallback — still requires one of those two real markets).
