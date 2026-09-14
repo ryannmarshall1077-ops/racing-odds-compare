@@ -1632,19 +1632,21 @@ footer {
 }
 
 /* min-width: 0 overrides the browser's own intrinsic minimum width on
-   <input> (roughly a 20-character default) — without it, a narrow
-   fixed-width column (Races, Promotion) gets forced wider than its own
-   computed width to fit that minimum, overflowing the table sideways
-   regardless of border-box. td/div get the same treatment since the
-   Bookmaker(s) cell nests a couple of layers before reaching its own
-   search input. */
+   <input>/<select> (roughly a 20-character default) — without it, a
+   narrow fixed-width column (Races, Promotion) gets forced wider than
+   its own computed width to fit that minimum, overflowing the table
+   sideways regardless of border-box. td/div get the same treatment
+   since the Bookmaker(s) cell nests a couple of layers before reaching
+   its own search input. */
 #planner-table td,
 .planner-bookie-cell,
-#planner-table input[type="text"] {
+#planner-table input[type="text"],
+#planner-table select {
   min-width: 0;
 }
 
-#planner-table input[type="text"] {
+#planner-table input[type="text"],
+#planner-table select {
   width: 100%;
   box-sizing: border-box;
 }

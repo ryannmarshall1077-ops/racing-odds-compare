@@ -3535,3 +3535,40 @@ https://developer.betfair.com/.
         highlighted element id matches the new target and neither modal
         ever pops open unexpectedly at any step; confirmed Skip/Finish
         both still end the tour cleanly with no lingering highlight.
+
+- [x] Two Daily Planner changes, user-requested:
+      - Renamed **Course &rarr; Track** everywhere user-visible: the
+        table's own column header, the input's placeholder, the
+        field-hint paragraph, and the Tutorial's own Daily Planner step
+        text. Purely a label change — every internal identifier
+        (`courseText`, `plannerCourseOptions`, `plannerMatchTrack`'s own
+        param, the `planner-course-input`/`planner-course-options`
+        ids) was deliberately left alone: none of it is user-visible,
+        and the persisted storage format already uses `track` as its
+        real field name (`dailyPlanner` entries, background.js/
+        popup.js), so there was never any saved-data migration to
+        worry about either way.
+      - **Promotion is now a real `<select>` dropdown**, not a typed
+        text input with autocomplete suggestions — only ever offers
+        PLANNER_PROMO_MODES' own 3 entries (Run 2nd 3rd/Run 2nd/Run 2nd
+        You Win), so a bad/misspelled promo (the old free-text field's
+        one real failure mode — Save's own "no valid promotion" problem
+        message) simply can't happen any more. New
+        `plannerPromoOptionsHtml` (popup.js) builds each row's own
+        `<option>`s straight from PLANNER_PROMO_MODES, each value set to
+        that mode's exact LABEL — the same value `plannerMatchPromoId`
+        (Save's own text-to-id lookup) already expected, so nothing
+        downstream needed touching at all. The existing delegated
+        `input` listener (`planner-promo-input`, unchanged class name)
+        already covered this for free too — a native `<select>` fires
+        `input` on every selection change the same way a text input
+        fires it on every keystroke. Removed the now-dead
+        `planner-promo-options` `<datalist>` and its one-time fill.
+      - Verified via the local static-preview harness: added a row,
+        confirmed the Promotion cell renders as an actual `<select>`
+        pre-populated with all 3 modes and the right one pre-selected;
+        changed it, saved, and confirmed the persisted entry's own
+        `promoType` matched; closed and reopened the modal and
+        confirmed the dropdown correctly re-selected the saved value
+        from scratch (the full round trip, not just the in-memory
+        write). No console errors.

@@ -466,15 +466,13 @@ const plannerModal = document.getElementById("planner-modal");
 const plannerBodyEl = document.getElementById("planner-body");
 const plannerStatusEl = document.getElementById("planner-status");
 const plannerCourseDatalistEl = document.getElementById("planner-course-options");
-const plannerPromoDatalistEl = document.getElementById("planner-promo-options");
 
-// Promotion's datalist never changes (PLANNER_PROMO_MODES is static,
-// loaded from bookies.js before this script runs) — filled once,
-// rather than rebuilt on every render the way Course's own needs to be
-// further down. Bookmaker has no datalist at all any more — it's its
-// own search-and-select picker (plannerBookieCellHtml), not a typed
-// value with suggestions.
-plannerPromoDatalistEl.innerHTML = PLANNER_PROMO_MODES.map((m) => `<option value="${m.label}"></option>`).join("");
+// Promotion is a plain <select> (plannerRowHtml below), not a typed
+// value — no datalist needed for it at all. Bookmaker has no datalist
+// either — it's its own search-and-select picker (plannerBookieCellHtml),
+// not a typed value with suggestions. Track's own datalist is the only
+// one left, and it DOES need rebuilding on every render (it depends on
+// latestRaces) — see refreshPlannerCourseDatalist further down.
 
 // Every distinct track currently in the sidebar's own list, still in
 // jump-time order (latestRaces already comes sorted that way —
@@ -514,8 +512,11 @@ function plannerMatchTrack(text) {
   return plannerCourseOptions().find((t) => t.toLowerCase() === trimmed) || null;
 }
 
-// Single value, matched the same way — only Run 2nd/Run 2nd 3rd are
-// ever valid here (PLANNER_PROMO_MODES, bookies.js).
+// Single value, matched the same way — only PLANNER_PROMO_MODES'
+// entries (bookies.js) are ever valid here. Now backed by a plain
+// <select> (plannerRowHtml) rather than free text, so in practice this
+// can only ever be an exact match or empty — kept as its own function
+// regardless, since Save still calls it the same way it always did.
 function plannerMatchPromoId(text) {
   const trimmed = (text || "").trim().toLowerCase();
   if (trimmed === "") return null;
@@ -668,21 +669,33 @@ function refreshPlannerBookieCell(cellEl, entry, searchText) {
   suggestionsEl.hidden = suggestionsEl.innerHTML === "";
 }
 
+// Promotion's own <option>s, built fresh per row from PLANNER_PROMO_MODES
+// (bookies.js) rather than shared/cached — cheap enough (only 3 options),
+// and each row needs its own "selected" marked against that row's own
+// entry.promoText anyway. Values are the mode's LABEL, not its id — same
+// value plannerMatchPromoId already expects/produces, so Save's own
+// lookup (plannerMatchPromoId(entry.promoText)) needed no change at all
+// once this stopped being free text: a <select> can only ever hold one
+// of these exact labels to begin with, unlike the old typed input.
+function plannerPromoOptionsHtml(selectedLabel) {
+  return PLANNER_PROMO_MODES.map(
+    (m) => `<option value="${m.label}"${m.label === selectedLabel ? " selected" : ""}>${m.label}</option>`
+  ).join("");
+}
+
 function plannerRowHtml(entry, index) {
   const escape = (s) => (s || "").replace(/"/g, "&quot;");
 
   return `
     <tr data-index="${index}">
-      <td><input type="text" class="planner-course-input" list="planner-course-options" placeholder="Course" value="${escape(
+      <td><input type="text" class="planner-course-input" list="planner-course-options" placeholder="Track" value="${escape(
         entry.courseText
       )}" /></td>
       <td><input type="text" class="planner-race-range-input" placeholder="e.g. 1-5" value="${escape(
         entry.raceRangeText
       )}" /></td>
       <td class="planner-bookie-td">${plannerBookieCellHtml(entry)}</td>
-      <td><input type="text" class="planner-promo-input" list="planner-promo-options" placeholder="Run 2nd 3rd" value="${escape(
-        entry.promoText
-      )}" /></td>
+      <td><select class="planner-promo-input">${plannerPromoOptionsHtml(entry.promoText)}</select></td>
       <td><button type="button" class="planner-row-remove-btn" title="Remove">&times;</button></td>
     </tr>
   `;
@@ -830,10 +843,12 @@ plannerBodyEl.addEventListener("mousedown", (event) => {
   refreshPlannerBookieCell(cellEl, entry, "");
 });
 
-// Course/Races/Promotion stay plain text — live on every keystroke via
-// one delegated "input" listener, updating just this row's own state
-// (never the whole table, which would drop focus/cursor position
-// mid-type). The Bookmaker(s) search box's own typing just re-filters
+// Track/Races stay plain text; Promotion is a <select> now, but a
+// native <select> fires "input" on every change the exact same way a
+// text input fires it on every keystroke, so one delegated listener
+// still covers all three — updating just this row's own state (never
+// the whole table, which would drop focus/cursor position mid-type for
+// Track/Races). The Bookmaker(s) search box's own typing just re-filters
 // its dropdown; it doesn't touch entry state until a suggestion is
 // actually picked (see the "mousedown" listener above).
 plannerBodyEl.addEventListener("input", (event) => {
@@ -2890,7 +2905,7 @@ const TUTORIAL_STEPS = [
   },
   {
     title: "Daily Planner",
-    body: "Click this button to open the Daily Planner. There you can plan ahead: pick a course, a race number or range (e.g. 1-5), one or more bookmakers, and a promotion type, then Save. Anything planned here shows up automatically — its own column, its own tab — the moment you load that race, on top of whatever's picked in the Bookie Search Bar.",
+    body: "Click this button to open the Daily Planner. There you can plan ahead: pick a track, a race number or range (e.g. 1-5), one or more bookmakers, and a promotion type from the dropdown, then Save. Anything planned here shows up automatically — its own column, its own tab — the moment you load that race, on top of whatever's picked in the Bookie Search Bar.",
     target: () => document.getElementById("planner-btn"),
   },
   {

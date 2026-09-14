@@ -495,8 +495,9 @@
           <p class="field-hint">
             Plan which of today's races you're running a promo on, which bookmaker(s) it's for,
             and which promotion type &mdash; before you sit down to actually work through them.
-            Course/Races/Promotion are typeable, with suggestions as you go (a single race number
-            or a range, e.g. <code>3</code> or <code>1-5</code>, comma-separate more than one).
+            Track/Races are typeable, with suggestions as you go (a single race number or a
+            range, e.g. <code>3</code> or <code>1-5</code>, comma-separate more than one).
+            Promotion is a dropdown &mdash; only a real promotion type is ever selectable.
             Bookmaker(s): search and click to add one, then keep typing to add another. A saved
             race is highlighted in the Upcoming Races list; loading it into the table highlights
             every bookmaker you picked and switches the mode tab to match.
@@ -506,7 +507,7 @@
             <table id="planner-table">
               <thead>
                 <tr>
-                  <th>Course</th>
+                  <th>Track</th>
                   <th>Races</th>
                   <th>Bookmaker(s)</th>
                   <th>Promotion</th>
@@ -521,17 +522,15 @@
 
           <button id="planner-add-row-btn" class="link-btn" type="button">+ Add row</button>
 
-          <!-- Shared across every row (a <datalist> can back more than one
-               input at once) — populated/refreshed by popup.js. Course's
-               own options depend on latestRaces so it's rebuilt each time
-               the table renders; Promotion is static, filled once from
-               PLANNER_PROMO_MODES (bookies.js) so its labels can't drift
-               out of sync with what's actually matched against.
-               Bookmaker(s) has no datalist — it's its own search-and-pick
-               widget (plannerBookieCellHtml, popup.js), not a typed value
-               with suggestions. -->
+          <!-- Backs the Track input's own suggestions as you type
+               (populated/refreshed by popup.js — depends on latestRaces,
+               so it's rebuilt each time the table renders). Promotion is
+               a plain <select> now (see plannerRowHtml, popup.js) — a
+               real dropdown, not a typed value, so it needs no datalist
+               of its own any more. Bookmaker(s) has no datalist either
+               — it's its own search-and-pick widget (plannerBookieCellHtml,
+               popup.js), not a typed value with suggestions. -->
           <datalist id="planner-course-options"></datalist>
-          <datalist id="planner-promo-options"></datalist>
         </div>
 
         <div class="modal-footer">
