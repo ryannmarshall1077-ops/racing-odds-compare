@@ -303,6 +303,263 @@ for (const tabBtn of document.querySelectorAll(".modal-tab-btn")) {
   });
 }
 
+// --- Daily Planner -----------------------------------------------------
+//
+// User-requested: plan ahead of time which of today's races you're
+// running a promo on, on which bookmaker, and under which promo type —
+// instead of figuring that out race by race as you get to it. A saved
+// entry highlights that race's own sidebar card (raceCardHtml's own
+// plannerEntryForMarketId lookup) and, once the race is actually loaded,
+// highlights that bookmaker's whole column in the odds table and
+// switches the mode tab to match (renderRace).
+let dailyPlannerEntries = [];
+
+// A separate working copy, only edited while the modal is open — Save is
+// what actually commits it to dailyPlannerEntries/storage. Closing via
+// the × or the backdrop instead just discards whatever was added,
+// removed, or changed since it was opened.
+let plannerDraftEntries = [];
+
+function plannerEntryForMarketId(marketId) {
+  if (!marketId) return null;
+  return dailyPlannerEntries.find((e) => e.marketId === marketId) || null;
+}
+
+// Loaded once at startup — this callback runs well after the rest of
+// this script has finished defining everything below (renderFilteredRacesList
+// included), same as chrome.storage.local.get(["liveRace"], ...) further
+// down already relies on for the exact same reason, so referencing it
+// here before its own declaration is safe.
+chrome.storage.local.get(["dailyPlanner"], (stored) => {
+  dailyPlannerEntries = stored.dailyPlanner || [];
+  renderFilteredRacesList(); // picks up each row's own sidebar pin, in case the list already rendered first
+});
+
+const plannerModal = document.getElementById("planner-modal");
+const plannerBodyEl = document.getElementById("planner-body");
+const plannerStatusEl = document.getElementById("planner-status");
+
+// Every distinct track currently in the sidebar's own list, still in
+// jump-time order (latestRaces already comes sorted that way —
+// listWinMarkets' own FIRST_TO_START) rather than alphabetical, so a
+// track's soonest race is a sensible "just picked this course" default.
+function plannerCourseOptions() {
+  const seen = new Set();
+  const tracks = [];
+  for (const race of latestRaces) {
+    if (!seen.has(race.track)) {
+      seen.add(race.track);
+      tracks.push(race.track);
+    }
+  }
+  return tracks;
+}
+
+function plannerRacesForTrack(track) {
+  return latestRaces.filter((r) => r.track === track);
+}
+
+// R6 3:32 pm — same 12-hour formatting raceCardHtml's own time already
+// uses, just without the track name (the Course column right next to it
+// already says that).
+function plannerRaceLabel(race) {
+  const time = race.startTime
+    ? new Date(race.startTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })
+    : "";
+  return `R${race.raceNumber ?? "?"}${time ? ` ${time}` : ""}`;
+}
+
+function plannerRowHtml(entry, index) {
+  const courses = plannerCourseOptions();
+  // The entry's own track might not be in today's list at all (a brand
+  // new, still-empty row, before latestRaces has loaded) or might have
+  // dropped out of it (its race already jumped — see listUpcomingRacesInner)
+  // — either way it still needs to appear as a selectable/selected
+  // option, or the <select> would silently show a different course than
+  // what's actually stored on the entry.
+  const courseList = entry.track && !courses.includes(entry.track) ? [entry.track, ...courses] : courses;
+
+  const courseOptionsHtml = courseList.length
+    ? courseList
+        .map((track) => `<option value="${track}"${track === entry.track ? " selected" : ""}>${track}</option>`)
+        .join("")
+    : `<option value="">No races loaded yet</option>`;
+
+  const racesForTrack = entry.track ? plannerRacesForTrack(entry.track) : [];
+  const raceStillListed = racesForTrack.some((r) => r.marketId === entry.marketId);
+  // Same fallback as the course list above, built from the entry's own
+  // cached fields — keeps a jumped/dropped race visible and selected
+  // instead of the dropdown quietly switching to whichever race happens
+  // to be first at that course.
+  const raceOptions =
+    entry.marketId && !raceStillListed
+      ? [
+          {
+            marketId: entry.marketId,
+            raceNumber: entry.raceNumber,
+            startTime: entry.startTime,
+            track: entry.track,
+            sport: entry.sport,
+          },
+          ...racesForTrack,
+        ]
+      : racesForTrack;
+
+  const raceOptionsHtml = raceOptions.length
+    ? raceOptions
+        .map(
+          (r) =>
+            `<option value="${r.marketId}"${r.marketId === entry.marketId ? " selected" : ""}>${plannerRaceLabel(
+              r
+            )}</option>`
+        )
+        .join("")
+    : `<option value="">Pick a course first</option>`;
+
+  const bookieOptionsHtml = BOOKIE_LIST.map(
+    (b) => `<option value="${b.id}"${b.id === entry.bookieId ? " selected" : ""}>${b.label}</option>`
+  ).join("");
+
+  const promoOptionsHtml = PROMO_MODES.map(
+    (m) => `<option value="${m.id}"${m.id === entry.promoType ? " selected" : ""}>${m.label}</option>`
+  ).join("");
+
+  return `
+    <tr data-index="${index}">
+      <td><select class="planner-course-select">${courseOptionsHtml}</select></td>
+      <td><select class="planner-race-select">${raceOptionsHtml}</select></td>
+      <td><select class="planner-bookie-select">${bookieOptionsHtml}</select></td>
+      <td><select class="planner-promo-select">${promoOptionsHtml}</select></td>
+      <td><button type="button" class="planner-row-remove-btn" title="Remove">&times;</button></td>
+    </tr>
+  `;
+}
+
+function renderPlannerTable() {
+  if (plannerDraftEntries.length === 0) {
+    plannerBodyEl.innerHTML =
+      '<tr><td colspan="5" id="planner-empty-row">No races planned yet — click "+ Add race" to start.</td></tr>';
+    return;
+  }
+  plannerBodyEl.innerHTML = plannerDraftEntries.map((entry, index) => plannerRowHtml(entry, index)).join("");
+}
+
+function plannerDefaultEntry() {
+  const track = plannerCourseOptions()[0] || null;
+  const race = track ? plannerRacesForTrack(track)[0] : null;
+  return {
+    id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    marketId: race?.marketId ?? null,
+    track: race?.track ?? track,
+    raceNumber: race?.raceNumber ?? null,
+    startTime: race?.startTime ?? null,
+    sport: race?.sport ?? null,
+    bookieId: BOOKIE_LIST[0].id,
+    promoType: PROMO_MODES[0].id,
+  };
+}
+
+function openPlannerModal() {
+  plannerDraftEntries = dailyPlannerEntries.map((e) => ({ ...e }));
+  plannerStatusEl.textContent = "";
+  renderPlannerTable();
+  plannerModal.hidden = false;
+}
+
+function closePlannerModal() {
+  plannerModal.hidden = true;
+}
+
+document.getElementById("planner-btn").addEventListener("click", openPlannerModal);
+document.getElementById("planner-close-btn").addEventListener("click", closePlannerModal);
+
+// Same "click the dimmed backdrop closes it" UX as settings-modal above.
+plannerModal.addEventListener("mousedown", (event) => {
+  if (event.target === plannerModal) closePlannerModal();
+});
+
+document.getElementById("planner-add-row-btn").addEventListener("click", () => {
+  plannerDraftEntries.push(plannerDefaultEntry());
+  renderPlannerTable();
+});
+
+document.getElementById("planner-clear-btn").addEventListener("click", () => {
+  plannerDraftEntries = [];
+  renderPlannerTable();
+});
+
+// Delegated on the table body (bound once — matching bindRaceCardClicks'
+// own reasoning further down) rather than one listener per row/button,
+// since renderPlannerTable rebuilds the whole tbody on every add/remove/
+// course change.
+plannerBodyEl.addEventListener("click", (event) => {
+  const removeBtn = event.target.closest(".planner-row-remove-btn");
+  if (!removeBtn) return;
+  const index = Number(removeBtn.closest("tr").dataset.index);
+  plannerDraftEntries.splice(index, 1);
+  renderPlannerTable();
+});
+
+plannerBodyEl.addEventListener("change", (event) => {
+  const row = event.target.closest("tr");
+  if (!row) return;
+  const entry = plannerDraftEntries[Number(row.dataset.index)];
+  if (!entry) return;
+
+  if (event.target.classList.contains("planner-course-select")) {
+    // Changing course resets this row's race to that track's own
+    // soonest one — keeping the old marketId around here would
+    // silently plan a race at the PREVIOUS course under the new
+    // course's own label, since marketId is what actually gets saved.
+    const track = event.target.value;
+    const firstRace = plannerRacesForTrack(track)[0] || null;
+    entry.track = track;
+    entry.marketId = firstRace?.marketId ?? null;
+    entry.raceNumber = firstRace?.raceNumber ?? null;
+    entry.startTime = firstRace?.startTime ?? null;
+    entry.sport = firstRace?.sport ?? null;
+    renderPlannerTable(); // this row's Race <select> needs a fresh option list
+  } else if (event.target.classList.contains("planner-race-select")) {
+    const race = latestRaces.find((r) => r.marketId === event.target.value);
+    if (race) {
+      entry.marketId = race.marketId;
+      entry.raceNumber = race.raceNumber;
+      entry.startTime = race.startTime;
+      entry.sport = race.sport;
+    } else {
+      entry.marketId = event.target.value || null;
+    }
+  } else if (event.target.classList.contains("planner-bookie-select")) {
+    entry.bookieId = event.target.value;
+  } else if (event.target.classList.contains("planner-promo-select")) {
+    entry.promoType = event.target.value;
+  }
+});
+
+document.getElementById("planner-save-btn").addEventListener("click", () => {
+  // A row with no race actually picked yet (an empty course list, or a
+  // half-finished new row) doesn't get saved — keeping it would just
+  // reappear as a confusing blank line the next time the modal opens.
+  dailyPlannerEntries = plannerDraftEntries.filter((e) => e.marketId);
+  chrome.storage.local.set({ dailyPlanner: dailyPlannerEntries });
+
+  renderFilteredRacesList(); // sidebar pins need to reflect the new/removed entries right away
+
+  // If the race currently loaded into the main table is itself one of
+  // the saved entries, apply its planned mode/highlight immediately too
+  // — otherwise this would wait for the next time this exact race
+  // happens to get (re)loaded, which renderRace's own isNewMarket check
+  // wouldn't fire again for a race that's already the one on screen.
+  if (currentRace) {
+    const entry = plannerEntryForMarketId(currentRace.marketId);
+    if (entry) setMode(entry.promoType);
+    renderRace(currentRace);
+  }
+
+  plannerStatusEl.textContent = "Saved.";
+  setTimeout(closePlannerModal, 500);
+});
+
 function parseRunnerNumber(name) {
   const match = name.match(/^(\d+)\./);
   return match ? Number(match[1]) : Infinity;
@@ -1007,6 +1264,20 @@ function renderRace(race) {
   metricsSuspended = raceInPlay;
   currentHarvilleModel = computeHarvilleModel(race);
 
+  // Daily Planner — user-requested pairing: loading a race you planned a
+  // promo on switches the mode tab to match (only on an actual race
+  // change, not every re-render triggered by Stake/Hedge/Mode itself —
+  // otherwise picking a different mode by hand on a planned race would
+  // just get immediately overridden back) and highlights that
+  // bookmaker's whole column further down (bookieCells).
+  const plannerEntry = plannerEntryForMarketId(race.marketId);
+  if (plannerEntry && isNewMarket && currentMode !== plannerEntry.promoType) {
+    setMode(plannerEntry.promoType);
+  }
+  for (const th of document.querySelectorAll("#odds-table thead th[data-bookie]")) {
+    th.classList.toggle("planned-bookie-col", th.dataset.bookie === plannerEntry?.bookieId);
+  }
+
   // Race Result / Display > Betfair commission discount — percentage
   // points off whatever the track/sport would otherwise charge, floored
   // at 0% so a discount larger than the base rate can't go negative.
@@ -1122,7 +1393,14 @@ function renderRace(race) {
         price != null &&
         bookieMetric != null &&
         bookieMetric === bestBookieMetricByBookie.get(b.id);
-      const cellClass = `col-bookie${rowBest ? " row-best" : ""}${colBest ? " col-best" : ""}`;
+      // Daily Planner's own highlight — this race's planned bookmaker
+      // column (renderRace's own plannerEntry, computed once above and
+      // closed over here), independent of rowBest/colBest so a cell can
+      // carry any combination of the three.
+      const planned = plannerEntry?.bookieId === b.id;
+      const cellClass = `col-bookie${rowBest ? " row-best" : ""}${colBest ? " col-best" : ""}${
+        planned ? " planned-bookie-col" : ""
+      }`;
       const bg = rowBest ? "rgba(61, 220, 151, 0.22)" : edgeMetricHtml(price == null ? null : bookieMetric).bg;
       return `<td class="${cellClass}"${hiddenAttr} style="background:${bg}">${bookieCellHtml(price, bookieMetric)}</td>`;
     }).join("");
@@ -1498,6 +1776,8 @@ async function openRaceTabs(race) {
 function raceCardHtml(race) {
   const code = RACE_TYPE_CODE[race.raceType] || RACE_TYPE_CODE[race.sport] || "?";
   const selected = race.marketId === selectedMarketId ? " selected" : "";
+  const plannerEntry = plannerEntryForMarketId(race.marketId);
+  const planned = plannerEntry ? " planned" : "";
 
   // hour12 explicit (not left to the browser's own locale default) so
   // this can never silently drift from formatJumpTime's own guaranteed
@@ -1530,15 +1810,26 @@ function raceCardHtml(race) {
     race.hasLiveBookie ? "true" : ""
   );
 
+  const plannerBookieLabel = plannerEntry
+    ? BOOKIE_LIST.find((b) => b.id === plannerEntry.bookieId)?.label || plannerEntry.bookieId
+    : "";
+  const plannerPromoLabel = plannerEntry
+    ? PROMO_MODES.find((m) => m.id === plannerEntry.promoType)?.label || plannerEntry.promoType
+    : "";
+
   return `
-    <li class="race-card sport-${race.raceType}${selected}" data-market-id="${race.marketId}">
+    <li class="race-card sport-${race.raceType}${selected}${planned}" data-market-id="${race.marketId}">
       <span class="race-sport-badge">${code}</span>
       <span class="race-card-body">
         <span class="race-card-title-row">
           <span class="race-live-dot${marketClosed ? " closed" : ""}" title="${
     marketClosed ? "Market closed" : "Market open"
   }"></span>
-          <span class="race-card-title">R${race.raceNumber} ${race.track}</span>
+          <span class="race-card-title">R${race.raceNumber} ${race.track}</span>${
+    plannerEntry
+      ? `<span class="planner-pin" title="Planned: ${plannerBookieLabel} – ${plannerPromoLabel}">\u{1F4CC}</span>`
+      : ""
+  }
         </span>
         <span class="race-card-sub">${time}${
     race.country ? `<span class="race-country">${race.country}</span>` : ""

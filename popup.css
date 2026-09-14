@@ -437,6 +437,24 @@ h1 {
   border-left: 2px solid var(--accent);
 }
 
+/* Daily Planner — a saved row for this race (plannerEntryForMarketId,
+   popup.js). Left border only (not the .selected background tint above,
+   which both can carry independently) so a planned-and-selected race
+   still reads clearly as both at once rather than one hiding the other. */
+.race-card.planned {
+  border-left: 2px solid var(--lay-color);
+}
+
+.race-card.planned .race-card-title {
+  padding-left: 2px;
+}
+
+.planner-pin {
+  color: var(--lay-color);
+  font-size: 10px;
+  margin-left: 4px;
+}
+
 /* Coloured sport-letter badge (R/H/G, RACE_TYPE_CODE — bookies.js) —
    same colours as the race-info bar's Back/amber/accent already use
    elsewhere, not new one-off colours just for this. */
@@ -866,6 +884,36 @@ th.col-best-price {
   box-shadow: inset 0 0 0 1.5px var(--amber);
 }
 
+/* Daily Planner's own "pop up" highlight (renderRace, popup.js) — the
+   whole column for whichever bookmaker this loaded race was planned
+   against, so it stands out from row-best/col-best above (different
+   colour, --lay-color, and applied column-wide rather than per-cell)
+   without fighting either of them; a cell can carry all three at once. */
+th.planned-bookie-col {
+  color: var(--lay-color);
+}
+
+th.planned-bookie-col::after {
+  content: "📌";
+  font-size: 9px;
+  margin-left: 3px;
+  vertical-align: middle;
+}
+
+/* box-shadow, not background — renderRace (popup.js) always sets this
+   cell's own background inline (its EV-tier tint, or the row-best green
+   override), which would otherwise beat any background set here on
+   specificity; a box-shadow paints independently of that, same reason
+   .col-bookie.col-best above uses one instead of a border. Two classes
+   (matching .col-bookie.col-best's own specificity) and declared after
+   it in source order, so on the rare cell that's both this race's
+   planned bookie AND that bookie's best-runner outline, the planned
+   highlight is what actually shows — it's the more specific, more
+   deliberate signal of the two. */
+.col-bookie.planned-bookie-col {
+  box-shadow: inset 0 0 0 1.5px var(--lay-color);
+}
+
 th, td {
   padding: 8px 10px;
   text-align: center;
@@ -1244,12 +1292,15 @@ footer {
 
 /* An id selector beats the UA stylesheet's own [hidden] rule, so this has
    to be spelled out explicitly or the modal would stay visible even
-   while hidden. */
-#settings-modal[hidden] {
+   while hidden. Covers both modals sharing this markup pattern
+   (settings-modal, planner-modal) rather than a separate copy each. */
+#settings-modal[hidden],
+#planner-modal[hidden] {
   display: none;
 }
 
-#settings-modal .modal-panel {
+#settings-modal .modal-panel,
+#planner-modal .modal-panel {
   width: 460px;
   max-height: 85vh;
   display: flex;
@@ -1260,7 +1311,8 @@ footer {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
 
-#settings-modal .modal-header {
+#settings-modal .modal-header,
+#planner-modal .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1268,12 +1320,14 @@ footer {
   border-bottom: 1px solid var(--border);
 }
 
-#settings-modal .modal-header h2 {
+#settings-modal .modal-header h2,
+#planner-modal .modal-header h2 {
   margin: 0;
   font-size: 15px;
 }
 
-#settings-modal .modal-close {
+#settings-modal .modal-close,
+#planner-modal .modal-close {
   background: none;
   border: none;
   color: var(--muted);
@@ -1283,7 +1337,8 @@ footer {
   padding: 2px 4px;
 }
 
-#settings-modal .modal-close:hover {
+#settings-modal .modal-close:hover,
+#planner-modal .modal-close:hover {
   color: var(--text);
 }
 
@@ -1314,7 +1369,8 @@ footer {
   border-bottom-color: var(--accent);
 }
 
-#settings-modal .modal-body {
+#settings-modal .modal-body,
+#planner-modal .modal-body {
   overflow-y: auto;
   padding: 16px;
 }
@@ -1333,7 +1389,8 @@ footer {
   display: none;
 }
 
-#settings-modal .modal-footer {
+#settings-modal .modal-footer,
+#planner-modal .modal-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1341,13 +1398,15 @@ footer {
   border-top: 1px solid var(--border);
 }
 
-#settings-modal .modal-footer-actions {
+#settings-modal .modal-footer-actions,
+#planner-modal .modal-footer-actions {
   display: flex;
   align-items: center;
   gap: 14px;
 }
 
-#settings-modal .modal-done-btn {
+#settings-modal .modal-done-btn,
+#planner-modal .modal-done-btn {
   padding: 7px 18px;
   background: var(--accent);
   border: none;
@@ -1358,7 +1417,8 @@ footer {
   cursor: pointer;
 }
 
-#settings-modal .modal-done-btn:hover {
+#settings-modal .modal-done-btn:hover,
+#planner-modal .modal-done-btn:hover {
   opacity: 0.9;
 }
 
@@ -1385,7 +1445,8 @@ footer {
   font-weight: 500;
 }
 
-#settings-modal .field-hint {
+#settings-modal .field-hint,
+#planner-modal .field-hint {
   font-size: 11px;
   color: var(--muted);
   opacity: 0.75;
@@ -1429,7 +1490,8 @@ footer {
 }
 
 #settings-modal input,
-#settings-modal select {
+#settings-modal select,
+#planner-modal select {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -1487,7 +1549,8 @@ footer {
   opacity: 0.9;
 }
 
-#settings-modal .link-btn {
+#settings-modal .link-btn,
+#planner-modal .link-btn {
   background: none;
   border: none;
   color: var(--accent);
@@ -1496,11 +1559,13 @@ footer {
   padding: 0;
 }
 
-#settings-modal .link-btn:hover {
+#settings-modal .link-btn:hover,
+#planner-modal .link-btn:hover {
   text-decoration: underline;
 }
 
-#settings-modal .status {
+#settings-modal .status,
+#planner-modal .status {
   font-size: 12px;
   color: var(--positive);
 }
@@ -1509,8 +1574,77 @@ footer {
   color: var(--positive);
 }
 
-#settings-modal .status.error {
+#settings-modal .status.error,
+#planner-modal .status.error {
   color: var(--accent-neg);
+}
+
+/* --- Daily Planner table (plannerRowHtml, popup.js) --- */
+
+#planner-modal .modal-panel {
+  width: 620px;
+}
+
+#planner-table-wrapper {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+#planner-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#planner-table th {
+  text-align: left;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 0 6px 6px;
+}
+
+#planner-table td {
+  padding: 4px 6px;
+  text-align: left;
+  white-space: normal;
+  border-bottom: none;
+}
+
+#planner-table select {
+  width: 100%;
+}
+
+/* Race column needs more room than Course/Bookmaker/Promotion for a
+   realistic option label ("R6 2:22 pm Shepparton"). */
+#planner-table th:nth-child(2),
+#planner-table td:nth-child(2) {
+  width: 32%;
+}
+
+#planner-row-remove-btn,
+.planner-row-remove-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.planner-row-remove-btn:hover {
+  color: var(--accent-neg);
+}
+
+#planner-empty-row {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 14px 6px;
+}
+
+#planner-add-row-btn {
+  margin-top: 10px;
 }
 
 /* --- EV Colours and Thresholds bands — unscoped (not #settings-modal-
