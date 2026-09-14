@@ -3102,3 +3102,48 @@ https://developer.betfair.com/.
         loading a planned race highlighting *both* bookmaker header
         boxes (whole cell, not just the logo) while leaving the third
         bookmaker and every runner row untouched.
+
+- [x] Daily Planner's Bookmaker(s) field replaced with an actual
+      search-and-pick widget, from a follow-up screenshot plus explicit
+      direction: "search sportsbet and select then also type tab and
+      select tab as well" — the comma-separated text field from the
+      previous version technically supported more than one bookmaker,
+      but wasn't the click-to-add interaction actually asked for.
+      - Typing filters a dropdown of not-yet-picked bookmakers; picking
+        one adds its own logo (bookies.js's `BOOKIE_LIST.logo` — same
+        icon the odds table header already uses) right into the same
+        box the search text is typed into, not a separate row of chips
+        stacked above it (also explicitly requested) — clicking a
+        logo removes it. Selecting uses "mousedown" rather than
+        "click" specifically so the search box never loses focus when
+        you pick a suggestion, which is what makes "search, pick, keep
+        typing the next one" work as one continuous motion instead of
+        having to click back into the field each time. Enter also
+        picks the top match, for typing a full name and not reaching
+        for the mouse.
+      - The three other fields' own live preview text underneath them
+        (Races' "→ R4 3:00 pm, ...", Bookmaker(s)' "→ Sportsbet") was
+        removed entirely, per explicit direction ("remove sub headings
+        underneath text boxes") — Save's own status message is the
+        only feedback now if something didn't resolve.
+      - Fixed the table not lining up / needing a horizontal scrollbar
+        (both user-reported, screenshotted) two different ways:
+        `table-layout: fixed` with explicit per-column percentages
+        (rather than letting each column size to its own row's
+        content, which is what let rows drift out of alignment with
+        each other) is what actually keeps every row lined up; the
+        overflow itself traced back to a *different*, pre-existing
+        rule — a bare `table { min-width: 700px; }` meant for the main
+        odds table's own many columns was also matching this table and
+        refusing to let it shrink below 700px no matter what was set
+        on `#planner-table` directly, fixed with an explicit
+        `min-width: 0` override there.
+      - Verified via the same local harness: typing "tab" and picking
+        it via a simulated mousedown correctly keeps focus on the
+        search box and adds TAB's logo into the box alongside
+        Sportsbet's; removing a logo and re-adding a different one via
+        Enter both work; Save/reopen round-trips a multi-bookmaker,
+        multi-race plan correctly; and the table's own wrapper reports
+        zero horizontal overflow (scrollWidth === clientWidth) with
+        every column's rendered width matching its intended percentage
+        of the container, not the old table-wide 700px floor.

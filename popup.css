@@ -1557,20 +1557,54 @@ footer {
   color: var(--accent-neg);
 }
 
-/* --- Daily Planner table (plannerRowHtml, popup.js) --- */
+/* --- Daily Planner table (plannerRowHtml, popup.js) ---
+   table-layout: fixed + explicit column widths (declared once, on
+   th/td pairs below) is what actually keeps every row lined up —
+   without it the browser sizes each column to its own content, which
+   is exactly what made Course/Races/Bookmaker(s)/Promotion drift out
+   of alignment row to row (user-reported). #planner-table's own
+   min-width: 0 (below) is what fixes the horizontal-scrollbar overflow
+   (also user-reported) — the generic `table { min-width: 700px; }`
+   rule further up this file (for the main odds table's own many
+   columns) was matching this table too and refusing to let it shrink
+   below 700px regardless of anything set here, the actual cause once
+   traced all the way down. box-sizing: border-box on every cell keeps
+   a cell's own padding from adding on top of its specified width
+   instead of being carved out of it. Every cell also gets a single
+   shared vertical-align, so a taller cell (Bookmaker(s), which can
+   wrap chips onto a second line) never pulls its row's other cells'
+   content out of line with it either. */
 
 #planner-modal .modal-panel {
-  width: 620px;
+  width: 680px;
 }
 
 #planner-table-wrapper {
   max-height: 320px;
   overflow-y: auto;
+  /* Only this axis scrolls, and only if a row genuinely needs more
+     height than max-height allows — the table itself must never need
+     to scroll sideways (user-reported it was). */
+  overflow-x: hidden;
 }
 
 #planner-table {
   width: 100%;
+  /* Overrides the generic `table { min-width: 700px; }` rule further up
+     this file (needed there for the main odds table's own many
+     columns) — that bare element selector was also matching THIS
+     table and was the actual reason it couldn't shrink below 700px no
+     matter what width/table-layout was set here, the real cause of the
+     sideways overflow (user-reported). */
+  min-width: 0;
+  table-layout: fixed;
   border-collapse: collapse;
+}
+
+#planner-table th,
+#planner-table td {
+  box-sizing: border-box;
+  vertical-align: middle;
 }
 
 #planner-table th {
@@ -1582,40 +1616,59 @@ footer {
 }
 
 #planner-table td {
-  padding: 4px 6px;
+  padding: 5px 6px;
   text-align: left;
   white-space: normal;
   border-bottom: none;
 }
 
+/* min-width: 0 overrides the browser's own intrinsic minimum width on
+   <input> (roughly a 20-character default) — without it, a narrow
+   fixed-width column (Races, Promotion) gets forced wider than its own
+   computed width to fit that minimum, overflowing the table sideways
+   regardless of border-box. td/div get the same treatment since the
+   Bookmaker(s) cell nests a couple of layers before reaching its own
+   search input. */
+#planner-table td,
+.planner-bookie-cell,
+#planner-table input[type="text"] {
+  min-width: 0;
+}
+
 #planner-table input[type="text"] {
   width: 100%;
+  box-sizing: border-box;
 }
 
-/* Live-updates on every keystroke (plannerRangePreviewHtml/
-   plannerBookiePreviewHtml, popup.js) — what a typed race range or
-   bookmaker list actually resolves to right now, so a typo or a range
-   with nothing at that course is obvious before Save rather than only
-   surfacing there. */
-.planner-race-preview,
-.planner-bookie-preview {
-  font-size: 10px;
-  color: var(--muted);
-  margin-top: 2px;
-  min-height: 12px;
+/* Course/Races/Bookmaker(s)/Promotion/remove-button — explicit
+   percentages summing to exactly 100%, so table-layout: fixed has an
+   unambiguous width for every column instead of guessing from content.
+   Bookmaker(s) gets the most room since it can hold several chips plus
+   its own search box; the remove-button column just needs to fit a
+   single "×". */
+#planner-table th:nth-child(1),
+#planner-table td:nth-child(1) {
+  width: 18%;
 }
 
-.planner-preview-warn {
-  color: var(--accent-neg);
-}
-
-/* Races/Bookmaker(s) need more room than Course/Promotion for a
-   realistic value ("1-5" plus its preview line, or "Sportsbet, TAB"). */
 #planner-table th:nth-child(2),
-#planner-table td:nth-child(2),
+#planner-table td:nth-child(2) {
+  width: 13%;
+}
+
 #planner-table th:nth-child(3),
 #planner-table td:nth-child(3) {
-  width: 28%;
+  width: 37%;
+}
+
+#planner-table th:nth-child(4),
+#planner-table td:nth-child(4) {
+  width: 18%;
+}
+
+#planner-table th:nth-child(5),
+#planner-table td:nth-child(5) {
+  width: 14%;
 }
 
 #planner-row-remove-btn,
@@ -1642,6 +1695,107 @@ footer {
 
 #planner-add-row-btn {
   margin-top: 10px;
+}
+
+/* --- Bookmaker(s) search-and-pick cell (plannerBookieCellHtml,
+   popup.js) — user-requested: search Sportsbet, click to add it, then
+   type TAB and add that too, its logo landing right there in the same
+   box the search text is typed into (not a separate row of chips
+   stacked above it). `.planner-bookie-box` is styled to look like a
+   single text input; the real <input> inside it (`.planner-bookie-
+   search`) is borderless/transparent so it visually blends into that
+   box rather than reading as its own separate field. `position:
+   relative` on the outer cell is what lets the suggestions dropdown
+   float over the row below it (position: absolute) instead of pushing
+   that row down while open. */
+.planner-bookie-cell {
+  position: relative;
+}
+
+.planner-bookie-box {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 30px;
+  padding: 3px 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: text;
+}
+
+/* The picked bookmaker's own logo (bookies.js's BOOKIE_LIST.logo) —
+   no pill background of its own, just the plain image sized down to
+   fit inside the box, same "no extra chrome" treatment .bookie-badge
+   already uses elsewhere. Click anywhere on it to remove. */
+.planner-bookie-chip {
+  display: inline-flex;
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  line-height: 0;
+  opacity: 0.9;
+}
+
+.planner-bookie-chip:hover {
+  opacity: 1;
+}
+
+.planner-bookie-chip .bookie-logo {
+  width: 20px;
+  height: 20px;
+}
+
+/* #planner-table-prefixed to beat #planner-table input[type="text"]'s
+   own width:100%/box-sizing rule above on specificity — this input
+   needs flex-basis sizing instead, to sit inline after the logo chips
+   rather than filling the whole box on its own line. */
+#planner-table .planner-bookie-search {
+  width: auto;
+  flex: 1 1 60px;
+  min-width: 60px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.planner-bookie-search:focus {
+  outline: none;
+}
+
+.planner-bookie-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  margin-top: 2px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px var(--shadow);
+  overflow: hidden;
+}
+
+.planner-bookie-suggestion {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.planner-bookie-suggestion:hover {
+  background: var(--panel-raised);
 }
 
 /* --- EV Colours and Thresholds bands — unscoped (not #settings-modal-

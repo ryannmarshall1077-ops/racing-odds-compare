@@ -346,14 +346,14 @@ const plannerModal = document.getElementById("planner-modal");
 const plannerBodyEl = document.getElementById("planner-body");
 const plannerStatusEl = document.getElementById("planner-status");
 const plannerCourseDatalistEl = document.getElementById("planner-course-options");
-const plannerBookieDatalistEl = document.getElementById("planner-bookie-options");
 const plannerPromoDatalistEl = document.getElementById("planner-promo-options");
 
-// Bookmaker/Promotion datalists never change (BOOKIE_LIST/
-// PLANNER_PROMO_MODES are both static, loaded from bookies.js before
-// this script runs) — filled once, rather than rebuilt on every render
-// the way Course's own datalist needs to be further down.
-plannerBookieDatalistEl.innerHTML = BOOKIE_LIST.map((b) => `<option value="${b.label}"></option>`).join("");
+// Promotion's datalist never changes (PLANNER_PROMO_MODES is static,
+// loaded from bookies.js before this script runs) — filled once,
+// rather than rebuilt on every render the way Course's own needs to be
+// further down. Bookmaker has no datalist at all any more — it's its
+// own search-and-select picker (plannerBookieCellHtml), not a typed
+// value with suggestions.
 plannerPromoDatalistEl.innerHTML = PLANNER_PROMO_MODES.map((m) => `<option value="${m.label}"></option>`).join("");
 
 // Every distinct track currently in the sidebar's own list, still in
@@ -392,22 +392,6 @@ function plannerMatchTrack(text) {
   const trimmed = (text || "").trim().toLowerCase();
   if (trimmed === "") return null;
   return plannerCourseOptions().find((t) => t.toLowerCase() === trimmed) || null;
-}
-
-// "Sportsbet, TAB" -> ["sportsbet", "tab"] — user-requested: plan more
-// than one bookmaker in the same row. Comma-separated, each piece
-// matched case-insensitively against BOOKIE_LIST's own labels; an
-// unmatched piece (a typo) is simply dropped rather than aborting the
-// whole field — plannerBookiePreviewHtml (below) is what surfaces that
-// to the user before Save does.
-function plannerMatchBookieIds(text) {
-  return (text || "")
-    .split(",")
-    .map((part) => part.trim().toLowerCase())
-    .filter((part) => part !== "")
-    .map((part) => BOOKIE_LIST.find((b) => b.label.toLowerCase() === part))
-    .filter(Boolean)
-    .map((b) => b.id);
 }
 
 // Single value, matched the same way — only Run 2nd/Run 2nd 3rd are
@@ -493,40 +477,72 @@ function plannerMatchedRaces(courseText, rangeText) {
     .sort((a, b) => a.raceNumber - b.raceNumber);
 }
 
-// Live feedback under the Races input (updated on every keystroke, see
-// the "input" listener below) — what it actually resolves to right
-// now, or why it doesn't, before Save ever has to say so.
-function plannerRangePreviewHtml(courseText, rangeText) {
-  const trimmed = (rangeText || "").trim();
-  if (trimmed === "") return "";
-  if (parseRaceRangeList(trimmed) === null) {
-    return `<span class="planner-preview-warn">Enter e.g. 3 or 1-5</span>`;
-  }
-  if (!plannerMatchTrack(courseText)) {
-    return `<span class="planner-preview-warn">Pick a valid course first</span>`;
-  }
-  const matches = plannerMatchedRaces(courseText, trimmed);
-  if (matches.length === 0) {
-    return `<span class="planner-preview-warn">No races found for that range</span>`;
-  }
-  return `→ ${matches.map((r) => plannerRaceLabel(r)).join(", ")}`;
+// The bookmaker's own logo (same icon/asset the odds table header and
+// Best Price badges already use — bookies.js's BOOKIE_LIST.logo) as a
+// small, clickable-to-remove chip — not the text label, and sitting
+// inside the same box as the search input itself (plannerBookieCellHtml),
+// not stacked above it, per user request. The name is still reachable
+// via this chip's own title attribute on hover.
+function plannerBookieChipHtml(bookieId) {
+  const bookie = BOOKIE_LIST.find((b) => b.id === bookieId);
+  const label = bookie?.label || bookieId;
+  return `<button type="button" class="planner-bookie-chip" data-bookie="${bookieId}" title="${label} — click to remove">${
+    bookie?.logo ? `<img class="bookie-logo" src="${bookie.logo}" alt="${label}" />` : label
+  }</button>`;
 }
 
-// Same idea for the Bookmaker(s) field — which typed names actually
-// matched a real bookmaker, or a warning naming whichever didn't.
-function plannerBookiePreviewHtml(text) {
-  const trimmed = (text || "").trim();
-  if (trimmed === "") return "";
-  const pieces = trimmed
-    .split(",")
-    .map((p) => p.trim())
-    .filter((p) => p !== "");
-  const unmatched = pieces.filter((p) => !BOOKIE_LIST.some((b) => b.label.toLowerCase() === p.toLowerCase()));
-  if (unmatched.length > 0) {
-    return `<span class="planner-preview-warn">Not recognised: ${unmatched.join(", ")}</span>`;
-  }
-  const labels = plannerMatchBookieIds(trimmed).map((id) => BOOKIE_LIST.find((b) => b.id === id).label);
-  return `→ ${labels.join(", ")}`;
+// Every bookmaker not already selected for this row, filtered by
+// whatever's currently typed in the search box — a case-insensitive
+// substring match (not an exact one, unlike Course/Promotion) since
+// this is a browse-and-pick list, not a single typed value.
+function plannerBookieSuggestions(searchText, selectedIds) {
+  const query = (searchText || "").trim().toLowerCase();
+  return BOOKIE_LIST.filter((b) => !selectedIds.includes(b.id) && b.label.toLowerCase().includes(query));
+}
+
+function plannerBookieSuggestionsHtml(searchText, selectedIds) {
+  return plannerBookieSuggestions(searchText, selectedIds)
+    .map((b) => `<button type="button" class="planner-bookie-suggestion" data-bookie="${b.id}">${b.label}</button>`)
+    .join("");
+}
+
+// The whole Bookmaker(s) cell: one bordered box that looks like a
+// single text input but actually contains the logo chips already
+// picked *and* the search input side by side (not a separate chips
+// row stacked above it, per user request) — clicking into any part of
+// the box focuses the same search field. Its own (initially empty/
+// hidden) suggestions dropdown floats below. User-requested
+// interaction: type to search, click a suggestion to add its logo
+// into the box, then keep typing to add another — see the
+// "mousedown" handler further down for why picking a suggestion
+// doesn't blur the search box.
+function plannerBookieCellHtml(entry) {
+  return `
+    <div class="planner-bookie-cell">
+      <div class="planner-bookie-box">
+        ${entry.bookieIds.map(plannerBookieChipHtml).join("")}
+        <input type="text" class="planner-bookie-search" placeholder="Search bookmaker..." autocomplete="off" />
+      </div>
+      <div class="planner-bookie-suggestions" hidden></div>
+    </div>
+  `;
+}
+
+// Rebuilds one row's Bookmaker(s) cell after its selection changes —
+// scoped to just that cell (not a full renderPlannerTable(), which
+// would rebuild every row and drop whatever else had focus) — then
+// refocuses the search box with the given text and reopens its
+// dropdown, so picking one bookmaker keeps the same "type, pick, type
+// the next one" flow going without having to click back into the
+// field.
+function refreshPlannerBookieCell(cellEl, entry, searchText) {
+  cellEl.innerHTML = plannerBookieCellHtml(entry);
+  const searchInput = cellEl.querySelector(".planner-bookie-search");
+  searchInput.value = searchText;
+  searchInput.focus();
+  const suggestionsEl = cellEl.querySelector(".planner-bookie-suggestions");
+  suggestionsEl.innerHTML = plannerBookieSuggestionsHtml(searchText, entry.bookieIds);
+  suggestionsEl.hidden = suggestionsEl.innerHTML === "";
 }
 
 function plannerRowHtml(entry, index) {
@@ -537,18 +553,10 @@ function plannerRowHtml(entry, index) {
       <td><input type="text" class="planner-course-input" list="planner-course-options" placeholder="Course" value="${escape(
         entry.courseText
       )}" /></td>
-      <td>
-        <input type="text" class="planner-race-range-input" placeholder="e.g. 1-5" value="${escape(
-          entry.raceRangeText
-        )}" />
-        <div class="planner-race-preview">${plannerRangePreviewHtml(entry.courseText, entry.raceRangeText)}</div>
-      </td>
-      <td>
-        <input type="text" class="planner-bookie-input" list="planner-bookie-options" placeholder="Sportsbet, TAB" value="${escape(
-          entry.bookieText
-        )}" />
-        <div class="planner-bookie-preview">${plannerBookiePreviewHtml(entry.bookieText)}</div>
-      </td>
+      <td><input type="text" class="planner-race-range-input" placeholder="e.g. 1-5" value="${escape(
+        entry.raceRangeText
+      )}" /></td>
+      <td class="planner-bookie-td">${plannerBookieCellHtml(entry)}</td>
       <td><input type="text" class="planner-promo-input" list="planner-promo-options" placeholder="Run 2nd 3rd" value="${escape(
         entry.promoText
       )}" /></td>
@@ -574,7 +582,7 @@ function plannerDefaultEntry() {
     id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     courseText: track || "",
     raceRangeText: firstRace ? String(firstRace.raceNumber) : "",
-    bookieText: BOOKIE_LIST[0].label,
+    bookieIds: [BOOKIE_LIST[0].id],
     promoText: PLANNER_PROMO_MODES[0].label,
   };
 }
@@ -618,7 +626,7 @@ function openPlannerModal() {
     id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     courseText: g.track || "",
     raceRangeText: formatRaceRangeList(g.raceNumbers),
-    bookieText: g.bookieIds.map((id) => BOOKIE_LIST.find((b) => b.id === id)?.label || id).join(", "),
+    bookieIds: g.bookieIds,
     promoText: PLANNER_PROMO_MODES.find((m) => m.id === g.promoType)?.label || g.promoType,
   }));
 
@@ -652,19 +660,59 @@ document.getElementById("planner-clear-btn").addEventListener("click", () => {
 // Delegated on the table body (bound once — matching bindRaceCardClicks'
 // own reasoning further down) rather than one listener per row/button,
 // since renderPlannerTable rebuilds the whole tbody on every add/remove.
+// Handles both "remove this whole row" and "remove one bookmaker chip"
+// — two different buttons, same delegation.
 plannerBodyEl.addEventListener("click", (event) => {
-  const removeBtn = event.target.closest(".planner-row-remove-btn");
-  if (!removeBtn) return;
-  const index = Number(removeBtn.closest("tr").dataset.index);
-  plannerDraftEntries.splice(index, 1);
-  renderPlannerTable();
+  const removeRowBtn = event.target.closest(".planner-row-remove-btn");
+  if (removeRowBtn) {
+    const index = Number(removeRowBtn.closest("tr").dataset.index);
+    plannerDraftEntries.splice(index, 1);
+    renderPlannerTable();
+    return;
+  }
+
+  const chip = event.target.closest(".planner-bookie-chip");
+  if (chip) {
+    const row = chip.closest("tr");
+    const cellEl = chip.closest(".planner-bookie-cell");
+    const entry = plannerDraftEntries[Number(row.dataset.index)];
+    if (!entry) return;
+    entry.bookieIds = entry.bookieIds.filter((id) => id !== chip.dataset.bookie);
+    refreshPlannerBookieCell(cellEl, entry, "");
+    return;
+  }
+
+  // Clicking the box's own empty space (not a chip, not the search
+  // input itself) still focuses the search field — otherwise the box
+  // reads as one clickable input but most of it wouldn't actually be.
+  if (event.target.classList.contains("planner-bookie-box")) {
+    event.target.querySelector(".planner-bookie-search")?.focus();
+  }
 });
 
-// Every field is a plain text input now (user-requested — typeable with
-// datalist suggestions, not a click-to-open <select>), so everything is
-// live on every keystroke via one delegated "input" listener — updating
-// just this row's own state and preview text, never the whole table
-// (that would blow away focus/cursor position mid-type).
+// mousedown, not click — fires before the search box would blur, so
+// event.preventDefault() here keeps focus right where it was instead
+// of briefly moving it to this button. That's what makes the "search
+// Sportsbet, pick it, keep typing TAB" flow work as one continuous
+// motion rather than needing to click back into the field each time.
+plannerBodyEl.addEventListener("mousedown", (event) => {
+  const suggestionBtn = event.target.closest(".planner-bookie-suggestion");
+  if (!suggestionBtn) return;
+  event.preventDefault();
+  const row = suggestionBtn.closest("tr");
+  const cellEl = suggestionBtn.closest(".planner-bookie-cell");
+  const entry = plannerDraftEntries[Number(row.dataset.index)];
+  if (!entry) return;
+  entry.bookieIds.push(suggestionBtn.dataset.bookie);
+  refreshPlannerBookieCell(cellEl, entry, "");
+});
+
+// Course/Races/Promotion stay plain text — live on every keystroke via
+// one delegated "input" listener, updating just this row's own state
+// (never the whole table, which would drop focus/cursor position
+// mid-type). The Bookmaker(s) search box's own typing just re-filters
+// its dropdown; it doesn't touch entry state until a suggestion is
+// actually picked (see the "mousedown" listener above).
 plannerBodyEl.addEventListener("input", (event) => {
   const row = event.target.closest("tr");
   if (!row) return;
@@ -673,38 +721,75 @@ plannerBodyEl.addEventListener("input", (event) => {
 
   if (event.target.classList.contains("planner-course-input")) {
     entry.courseText = event.target.value;
-    row.querySelector(".planner-race-preview").innerHTML = plannerRangePreviewHtml(
-      entry.courseText,
-      entry.raceRangeText
-    );
   } else if (event.target.classList.contains("planner-race-range-input")) {
     entry.raceRangeText = event.target.value;
-    row.querySelector(".planner-race-preview").innerHTML = plannerRangePreviewHtml(
-      entry.courseText,
-      entry.raceRangeText
-    );
-  } else if (event.target.classList.contains("planner-bookie-input")) {
-    entry.bookieText = event.target.value;
-    row.querySelector(".planner-bookie-preview").innerHTML = plannerBookiePreviewHtml(entry.bookieText);
   } else if (event.target.classList.contains("planner-promo-input")) {
     entry.promoText = event.target.value;
+  } else if (event.target.classList.contains("planner-bookie-search")) {
+    const suggestionsEl = row.querySelector(".planner-bookie-suggestions");
+    suggestionsEl.innerHTML = plannerBookieSuggestionsHtml(event.target.value, entry.bookieIds);
+    suggestionsEl.hidden = suggestionsEl.innerHTML === "";
   }
+});
+
+// focusin/focusout (not focus/blur) so this can be delegated on the
+// table body at all — plain focus/blur don't bubble.
+plannerBodyEl.addEventListener("focusin", (event) => {
+  if (!event.target.classList.contains("planner-bookie-search")) return;
+  const row = event.target.closest("tr");
+  const entry = plannerDraftEntries[Number(row.dataset.index)];
+  if (!entry) return;
+  const suggestionsEl = row.querySelector(".planner-bookie-suggestions");
+  suggestionsEl.innerHTML = plannerBookieSuggestionsHtml(event.target.value, entry.bookieIds);
+  suggestionsEl.hidden = suggestionsEl.innerHTML === "";
+});
+
+// Delayed, not immediate — the "mousedown" listener above needs its
+// own chance to fire and add the bookmaker first; a plain blur/
+// focusout has already resolved by the time a "click" would, which is
+// exactly the race condition mousedown avoids.
+plannerBodyEl.addEventListener(
+  "focusout",
+  (event) => {
+    if (!event.target.classList.contains("planner-bookie-search")) return;
+    const suggestionsEl = event.target.closest("td")?.querySelector(".planner-bookie-suggestions");
+    if (!suggestionsEl) return;
+    setTimeout(() => {
+      suggestionsEl.hidden = true;
+    }, 150);
+  },
+  true
+);
+
+// Enter picks the top visible suggestion — a small nicety for typing a
+// full/unique name and hitting Enter instead of reaching for the
+// mouse; no need for full keyboard-nav (arrow keys, etc.) given there
+// are only ever 3 bookmakers to choose from.
+plannerBodyEl.addEventListener("keydown", (event) => {
+  if (!event.target.classList.contains("planner-bookie-search") || event.key !== "Enter") return;
+  event.preventDefault();
+  const row = event.target.closest("tr");
+  const cellEl = event.target.closest(".planner-bookie-cell");
+  const entry = plannerDraftEntries[Number(row.dataset.index)];
+  if (!entry) return;
+  const top = plannerBookieSuggestions(event.target.value, entry.bookieIds)[0];
+  if (!top) return;
+  entry.bookieIds.push(top.id);
+  refreshPlannerBookieCell(cellEl, entry, "");
 });
 
 document.getElementById("planner-save-btn").addEventListener("click", () => {
   // Each draft row (a course + a typed range of race numbers + one or
-  // more typed bookmakers + one promo type) expands into one committed
-  // entry per (race, bookmaker) pair — plannerMatchedRaces/
-  // plannerMatchBookieIds/plannerMatchPromoId are the exact same
-  // lookups the live previews already used, so what got shown before
-  // Save is exactly what gets saved.
+  // more selected bookmakers + one promo type) expands into one
+  // committed entry per (race, bookmaker) pair — plannerMatchedRaces/
+  // plannerMatchPromoId are the exact same lookups already used while
+  // the row was being edited.
   const expanded = [];
   const problems = [];
   for (const entry of plannerDraftEntries) {
-    if (!entry.courseText && !entry.raceRangeText && !entry.bookieText) continue; // a genuinely empty/unstarted row
+    if (!entry.courseText && !entry.raceRangeText && entry.bookieIds.length === 0) continue; // a genuinely empty/unstarted row
 
     const matches = plannerMatchedRaces(entry.courseText, entry.raceRangeText);
-    const bookieIds = plannerMatchBookieIds(entry.bookieText);
     const promoType = plannerMatchPromoId(entry.promoText);
     const label = `${entry.courseText || "?"} ${entry.raceRangeText || "?"}`;
 
@@ -712,8 +797,8 @@ document.getElementById("planner-save-btn").addEventListener("click", () => {
       problems.push(`${label}: no matching races`);
       continue;
     }
-    if (bookieIds.length === 0) {
-      problems.push(`${label}: no valid bookmaker`);
+    if (entry.bookieIds.length === 0) {
+      problems.push(`${label}: no bookmaker selected`);
       continue;
     }
     if (!promoType) {
@@ -721,7 +806,7 @@ document.getElementById("planner-save-btn").addEventListener("click", () => {
       continue;
     }
     for (const race of matches) {
-      for (const bookieId of bookieIds) {
+      for (const bookieId of entry.bookieIds) {
         expanded.push({
           id: `plan-${race.marketId}-${bookieId}`,
           marketId: race.marketId,
