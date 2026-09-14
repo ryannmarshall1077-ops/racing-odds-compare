@@ -103,29 +103,51 @@ function promoEVPercent(betfair, bookmaker, commission, hedge, stake, retention,
   return (ev / stake) * 100;
 }
 
-// Run 2nd You Win mode: same QL baseline and same trigger (placeProb =
-// Pr(2nd), promoPlaceProb) as Run 2nd above, but a completely different
-// payout on the trigger — the bookmaker settles the bet as a genuine WIN
-// (real cash, stake × bookmaker price) if the runner comes 2nd, not a
-// smaller bonus-bet-equivalent refund. Derived from first principles
-// (see the "Racing Edge & EV Formulas" doc in this repo for the full
-// working): QL already assumes a "not-win" outcome loses the stake
-// (that's baked into qualifyingLoss/layStake's own full-hedge
-// derivation), so the INCREMENTAL value 2nd-place adds on top of that
-// baseline is the full win-style payout (stake × bookmaker) plus the
-// stake QL already assumed lost, i.e. stake × bookmaker — not
-// stake × (bookmaker - 1) and not a retention-adjusted figure. Crucially
-// this does NOT change what to lay: the existing Betfair WIN-market lay
-// (layStake, same as Mug/Run 2nd) still fully hedges the win/not-win
-// split regardless of whether "not-win" turns out to be 2nd or anywhere
-// else — the promo's 2nd-place payout is a pure add-on with no extra
-// staking cost, exactly like Run 2nd's own bonus trigger.
-function run2ndWinEVPercent(betfair, bookmaker, commission, hedge, stake, placeProb) {
-  if (placeProb == null) return null;
+// Run 2nd You Win mode — user-specified formula (a standard "3 outcome"
+// promo-value calculator, not this file's own hedge-blended QL
+// approach): the raw, UNHEDGED expected value of taking the bookmaker
+// bet at face value, weighting its three real outcomes (win, 2nd,
+// anything else) by their own true probabilities. No Betfair lay at
+// all — commission/hedge don't enter into this, unlike every other
+// mode here.
+//
+// True probabilities are estimated the standard "no-vig" way (1 over
+// the fair price), sourced from Betfair's own markets rather than the
+// bookmaker's own (vigged) price — same convention this file already
+// uses elsewhere (e.g. Harville's own raw 1/layOdds):
+//
+//   P(win)  = 1 / betfair       — Betfair's own WIN lay price
+//   P(top2) = 1 / placeBetfair  — Betfair's own PLACE lay price. Only a
+//             genuine Pr(top 2) when the real place market pays
+//             EXACTLY 2 places (currentRace.placeMarketWinners === 2,
+//             a "Top 2 Finish" market) — a 3-place market's own price
+//             is Pr(top 3) instead, which would silently fold 3rd
+//             place into P(2nd) below if used directly, so this is
+//             deliberately left uncomputable (null) in that case.
+//   P(2nd)  = P(top2) - P(win)
+//   P(lose) = 1 - P(top2)
+//
+// Payout per outcome: the promo pays 2nd exactly like a win (full
+// price), so profitWin = profit2nd = stake × (bookmaker - 1); a loss is
+// just -stake.
+//
+//   EV = P(win)×profitWin + P(2nd)×profit2nd + P(lose)×(-stake)
+//
+// null whenever there's no genuine 2-place market to source P(top2)
+// from, or this runner's own placeBetfair/betfair is missing — same
+// "no reliable number to show" convention used everywhere else here.
+function run2ndWinEVPercent(betfair, bookmaker, stake, placeBetfair) {
+  if (currentRace?.placeMarketWinners !== 2 || placeBetfair == null || betfair == null) return null;
 
-  const ql = qualifyingLoss(stake, bookmaker, betfair, commission, hedge);
-  const fullPayout = stake * bookmaker;
-  const ev = ql + placeProb * fullPayout;
+  const pWin = 1 / betfair;
+  const pTop2 = 1 / placeBetfair;
+  const p2nd = pTop2 - pWin;
+  const pLose = 1 - pTop2;
+
+  const profitWinOr2nd = stake * (bookmaker - 1);
+  const lossLose = -stake;
+
+  const ev = pWin * profitWinOr2nd + p2nd * profitWinOr2nd + pLose * lossLose;
 
   return (ev / stake) * 100;
 }
@@ -1260,10 +1282,6 @@ function computeHarvilleModel(race) {
 function promoPlaceProb(runner) {
   const entry = currentHarvilleModel?.get(runner.selectionId);
   if (!entry) return null;
-  // run2ndwin triggers on the exact same event as run2nd (2nd place,
-  // nothing else) — just a different payout once it fires (see
-  // run2ndWinEVPercent) — so it falls through to the same entry.p2
-  // every other mode besides run2nd3rd already uses here.
   return currentMode === "run2nd3rd" ? entry.p2 + entry.p3 : entry.p2;
 }
 
@@ -1284,7 +1302,7 @@ function metricPercent(runner, commission, hedge, displayedBookieIds) {
     );
   }
   if (currentMode === "run2ndwin") {
-    return run2ndWinEVPercent(runner.betfair, price, commission, hedge, stakeAmount, promoPlaceProb(runner));
+    return run2ndWinEVPercent(runner.betfair, price, stakeAmount, runner.placeBetfair);
   }
   return currentMode === "bonus"
     ? bonusRetentionPercent(runner.betfair, price, commission, hedge)
@@ -1312,15 +1330,22 @@ function bookieMetricPercent(runner, price, commission, hedge) {
     );
   }
   if (currentMode === "run2ndwin") {
-    return run2ndWinEVPercent(runner.betfair, price, commission, hedge, stakeAmount, promoPlaceProb(runner));
+    return run2ndWinEVPercent(runner.betfair, price, stakeAmount, runner.placeBetfair);
   }
   return currentMode === "bonus"
     ? bonusRetentionPercent(runner.betfair, price, commission, hedge)
     : edgePercent(runner.betfair, price, commission, hedge);
 }
 
+// Run 2nd You Win has no lay/hedge at all in its own model (see
+// run2ndWinEVPercent) — null here, not a plain layStake figure that
+// would misleadingly imply a Betfair lay is actually part of this
+// mode's strategy. Rendered as "—" the same way every other missing
+// number already is (renderRace's own row-building, and liabilityFor
+// right below).
 function rowLayDollars(runner, commission, hedge, displayedBookieIds) {
   const price = bestBookmakerPrices(runner, displayedBookieIds).price ?? 0;
+  if (currentMode === "run2ndwin") return null;
   return currentMode === "bonus"
     ? layStakeBonus(stakeAmount, runner.betfair, price, commission, hedge)
     : layStake(stakeAmount, runner.betfair, price, commission, hedge);
@@ -1522,11 +1547,14 @@ function bestPriceCellHtml(price, badgesHtml, metric) {
 }
 
 // What you'd owe if the lay bet loses (the backed selection wins) — the
-// standard exchange lay-liability formula, stake × (odds - 1). Unlike
-// Liquidity this is always computable from data already on the row (no
-// "genuinely absent" case), since it's derived from our own Lay $, not
-// scraped.
+// standard exchange lay-liability formula, stake × (odds - 1). Normally
+// always computable from data already on the row (no "genuinely absent"
+// case), since it's derived from our own Lay $, not scraped — except
+// Run 2nd You Win, whose own model has no lay at all (rowLayDollars
+// returns null for it), so there's genuinely nothing to owe a figure
+// for here either.
 function liabilityFor(layDollars, betfairOdds) {
+  if (layDollars == null) return null;
   return layDollars * (betfairOdds - 1);
 }
 
@@ -1722,9 +1750,13 @@ function renderRace(race) {
   });
 
   // Max liability filters displayed rows entirely (not just a visual
-  // flag), per the Settings page's own description of the setting.
+  // flag), per the Settings page's own description of the setting. A
+  // null liability (Run 2nd You Win's own model has no lay at all — see
+  // liabilityFor) is left in rather than filtered out either way: there's
+  // genuinely no number to compare against the threshold, not a real
+  // zero.
   if (currentSettings.maxLiability !== null) {
-    rows = rows.filter((r) => r.liability <= currentSettings.maxLiability);
+    rows = rows.filter((r) => r.liability == null || r.liability <= currentSettings.maxLiability);
   }
   if (currentSettings.maxResults !== null) {
     rows = rows.slice(0, currentSettings.maxResults);
@@ -1833,8 +1865,8 @@ function renderRace(race) {
         runner.betfairLiquidity
       )}</td>
       ${bookieCells}
-      <td class="lay-dollars" title="Click to copy">${layDollars.toFixed(2)}</td>
-      <td class="col-liability">${liability.toFixed(2)}</td>
+      <td class="lay-dollars" title="Click to copy">${layDollars == null ? "—" : layDollars.toFixed(2)}</td>
+      <td class="col-liability">${liability == null ? "—" : liability.toFixed(2)}</td>
     `;
 
     tbody.appendChild(row);

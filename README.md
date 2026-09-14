@@ -3419,37 +3419,48 @@ https://developer.betfair.com/.
 
 - [x] Added a new Mode: **Run 2nd You Win** — user-requested, alongside
       the existing Mug/Bonus/Run 2nd 3rd/Run 2nd tabs (`#mode-tabs`,
-      popup.html). Triggers on the exact same event as Run 2nd (the
-      runner comes 2nd, nothing else — same `promoPlaceProb`/Harville
-      Pr(2nd) source), but pays out completely differently: the
+      popup.html). Same trigger as Run 2nd (the runner comes 2nd,
+      nothing else), but pays out completely differently: the
       bookmaker settles the bet as a genuine WIN at the original price
-      (real cash, stake × bookmaker price) instead of a smaller
+      (real cash, stake × (bookmaker − 1)) instead of a smaller
       bonus-bet-equivalent refund.
-      - Derived from first principles (see the "Racing Edge & EV
-        Formulas" doc in this repo) rather than reusing Run 2nd's own
-        `promoEVPercent` with a different refund value straight off:
-        `qualifyingLoss`'s existing full-hedge derivation already
-        assumes a "not-win" outcome loses the stake, so the
-        *incremental* value 2nd place adds on top of that baseline is
-        the full win-style payout (stake × bookmaker) — not
-        stake × (bookmaker − 1), and not a retention-adjusted figure.
-        New `run2ndWinEVPercent` (popup.js), same QL baseline as
-        `promoEVPercent`, different (larger) refund term.
-      - Confirmed this does NOT change what to lay on Betfair — the
-        existing WIN-market lay (`layStake`, same as Mug/Run 2nd)
-        already fully hedges the win/not-win split regardless of
-        whether "not-win" turns out to be 2nd or anywhere else; the
-        promo's 2nd-place payout is a pure add-on with no extra staking
-        cost. `rowLayDollars`/Lay $/Liability needed no change at all —
-        they already fall through to the same plain `layStake` branch
-        every other non-Bonus mode uses.
-      - New mode bucketed under the existing "Promo" EV Colour
-        threshold key (Settings), same as Run 2nd/Run 2nd 3rd — no new
-        threshold fields needed, though its own numbers run
-        noticeably higher than Run 2nd's (a full win-price payout vs. a
-        retention-capped bonus bet) so the existing Promo thresholds
-        may need a user tweak in Settings to stay meaningfully
-        discriminating for it.
+      - User supplied the exact formula to follow (a standard 3-outcome
+        promo-value calculator), which this deliberately implements
+        literally rather than reusing this file's own hedge-blended QL
+        approach the other modes share: the RAW, UNHEDGED expected
+        value of the bookmaker bet at face value — no Betfair lay, no
+        commission. Three outcomes (win, 2nd, anything else), each
+        weighted by its own true ("no-vig") probability:
+        `P(win) = 1/betfair`, `P(top2) = 1/placeBetfair`,
+        `P(2nd) = P(top2) − P(win)`, `P(lose) = 1 − P(top2)`; both win
+        and 2nd pay `stake × (bookmaker − 1)`, a loss is `−stake`. New
+        `run2ndWinEVPercent` (popup.js) — an earlier version of this
+        reused Run 2nd's own hedge-based QL formula, algebraically
+        equivalent to this one only at Hedge % = 0 (proved by hand and
+        replaced once the user specified this exact unhedged formula
+        instead).
+      - Only computable when the race's REAL Betfair place market pays
+        exactly 2 places (`race.placeMarketWinners === 2`, a genuine
+        "Top 2 Finish" market) — a 3-place market's own price is
+        Pr(top 3), which would silently fold 3rd place into P(2nd) if
+        used directly, so it's left uncomputable (renders "—") rather
+        than approximated. This is noticeably more races than Run 2nd/
+        Run 2nd 3rd ever go blank for, since those fall back to a
+        Harville model when there's no clean real market to use; this
+        mode deliberately has no such fallback — the user's own formula
+        calls for the real Top 2 market specifically, not a modelled
+        estimate.
+      - Because there's no Betfair lay in this model at all, `Lay $`/
+        `Liability` now render "—" for this mode specifically —
+        `rowLayDollars` returns `null` for it (a real dollar figure
+        there would misleadingly imply a lay is actually part of this
+        mode's strategy) and `liabilityFor`/the row renderer/the Max
+        Liability filter all needed a null-safe path added for exactly
+        that case, none of which existed before this mode (every other
+        mode's own Lay $ was always a real number).
+      - Bucketed under the existing "Promo" EV Colour threshold key
+        (Settings), same as Run 2nd/Run 2nd 3rd — no new threshold
+        fields needed.
       - Added to `PROMO_MODES`/`PLANNER_PROMO_MODES` (bookies.js — so
         it's also plannable in the Daily Planner, same as Run 2nd/Run
         2nd 3rd), the mode-tabs row (popup.html), and the Default Mode
@@ -3457,9 +3468,10 @@ https://developer.betfair.com/.
         modal and the separate `options.html` page each keep their own
         independent copy of that `<select>`, so both needed the new
         `<option>`.
-      - Verified via the local static-preview harness: switched
-        through all 5 modes against the same mock runner and hand-
-        verified the exact EV% figure (QL + Pr(2nd) × stake×bookmaker,
-        worked out by hand against the live-computed value — matched
-        to 10+ significant figures); confirmed Mug/Bonus/Run 2nd/Run
-        2nd 3rd's own numbers are completely unchanged by this addition.
+      - Verified via the local static-preview harness against a
+        synthetic Top-2-market test race: hand-worked the exact EV%
+        figure for a test runner and matched the live-computed value
+        to 10+ significant figures; confirmed a Top-3-market race
+        correctly returns null everywhere instead of a wrong number;
+        confirmed Lay $/Liability render "—" for this mode and a real
+        dollar figure for every other mode, unchanged.
