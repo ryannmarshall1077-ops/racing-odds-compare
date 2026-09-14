@@ -2900,3 +2900,43 @@ https://developer.betfair.com/.
         while TAB/Ladbrokes are unaffected; a second case (Sportsbet
         never scanned at all) confirmed the original placeholder
         behaviour still fires unchanged.
+
+- [x] Fixed the real root cause behind Sportsbet tabs not auto-opening
+      for (and showing a permanent "!" warning on) races further into
+      the day, now that the sidebar shows all of them: `js/sportsbet/api.js`'s
+      `fetchSportsbetNextEvents` used to call Sportsbet's own
+      `Racing/NextEvents` feed, which hard-caps at exactly 120 events
+      across ALL of AU/NZ domestic horse/harness/greyhound racing
+      combined — confirmed live against the real API, including trying
+      `count`/`take`/`limit`/`pageSize` overrides on it directly, all
+      silently ignored. That cap was invisible while the sidebar only
+      ever showed ~20 upcoming races, but once every race for the rest
+      of the day started showing, any race beyond the cap simply never
+      appeared in Sportsbet's own feed at all — no match was ever
+      possible for it, so `sportsbetUrl` stayed permanently `null`,
+      which is exactly what draws the sidebar's "!" marker and is also
+      why `openRaceTabs` (popup.js) never opened/navigated a Sportsbet
+      tab for it (a missing URL there is deliberately left untouched,
+      same treatment as TAB before its venue code is learned) — and
+      with no tab ever pointed at the right race, whatever the scraper
+      read back was for whichever race that tab happened to be sitting
+      on already.
+      - Fixed by switching to Sportsbet's own per-meeting
+        `Racing/Competitions?classId=N&date=YYYY-MM-DD` endpoint instead
+        (classId 1/3/4 = Aus/NZ horse/harness/greyhound, the same three
+        domestic codes the old feed's own filter already scoped to) —
+        confirmed live it returns every meeting and every race for that
+        one day with no cap at all, each event carrying the exact same
+        fields (`id`/`type`/`competitionName`/`raceNumber`/`startTime`)
+        the old feed did, so nothing downstream (`buildSportsbetRaceUrl`,
+        the `sbMatch` lookup in `listUpcomingRacesInner`) needed to
+        change at all. Queried for both today's and tomorrow's UTC-based
+        calendar date (Sportsbet's own `date` param resolves against its
+        own server-local day, not UTC) and de-duped by event id, so a
+        late race that falls under Sportsbet's "tomorrow" before this
+        extension's own UTC-day sidebar cutoff reaches it still gets
+        covered.
+      - Verified live end to end against the real API: the old feed
+        capped at 120 events; the new one returned 381 events across 36
+        meetings for the exact same moment, including a real Ballarat
+        greyhound race that the old feed's cap had been excluding.
