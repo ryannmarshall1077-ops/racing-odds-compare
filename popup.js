@@ -103,16 +103,18 @@ function promoEVPercent(betfair, bookmaker, commission, hedge, stake, retention,
   return (ev / stake) * 100;
 }
 
-// Settings > Bookie — which bookmakers actually participate in the
-// comparison right now (bookies.js's BOOKIE_LIST stays the full,
-// unfiltered set; background.js keeps scraping/tracking every one of
-// them regardless, so re-enabling one here picks its odds straight back
-// up with no fresh scan needed). Used everywhere BOOKIE_LIST previously
-// drove an actual calculation or behaviour (Best Price, this note,
-// opening a bookie's own race tab) — NOT for the odds table's own
-// column rendering, which always builds every bookie's cell (so header/
-// body/footer stay aligned) and instead hides the disabled ones via
-// their own `hidden` attribute (see bookieCells/applyDisplaySettings).
+// Settings > Bookie — user-clarified this now means ONLY "which
+// bookmakers are available to search/select" (the Daily Planner's own
+// Bookmaker(s) field, the sidebar's Bookie Spotlight, and opening a
+// bookie's own race tab), NOT "which bookie columns show in the odds
+// table" any more — that's now driven entirely by which bookies are
+// actually planned or spotlighted for the loaded race (see
+// raceDisplayedBookieIds, computed fresh per race in renderRace).
+// bookies.js's BOOKIE_LIST stays the full, unfiltered set;
+// background.js keeps scraping/tracking every one of them regardless,
+// so re-enabling one here (or planning/spotlighting a disabled one
+// that was already selected before) picks its odds straight back up
+// with no fresh scan needed.
 function visibleBookies() {
   return BOOKIE_LIST.filter((b) => currentSettings.enabledBookies.includes(b.id));
 }
@@ -141,26 +143,30 @@ function noteFor(race) {
   return systemNotePart + betfairPart + bookmakerPart;
 }
 
-// The highest price across every bookmaker compared for this runner, and
-// which bookie(s) it came from (more than one if tied) — that price is
-// what Edge%/Ret%/Lay $/Liability get computed against, so the table
-// always reflects the best real opportunity available, not just whichever
-// bookmaker happens to be listed first. The raw per-bookie price columns
-// still show every bookmaker's own number alongside it (with the winning
-// one(s) highlighted), so nothing about the comparison itself is hidden —
-// this just picks what feeds the metric, and what the dedicated Best
-// Price column displays.
-function bestBookmakerPrices(runner) {
+// The highest price across every bookmaker actually shown as a column
+// right now (displayedBookieIds — planner/spotlight picks for this
+// race, NOT every enabled bookie any more) for this runner, and which
+// bookie(s) it came from (more than one if tied) — that price is what
+// Edge%/Ret%/Lay $/Liability get computed against, so the table always
+// reflects the best real opportunity actually on screen, never a
+// bookmaker whose own column isn't even displayed. The raw per-bookie
+// price columns still show every DISPLAYED bookmaker's own number
+// alongside it (with the winning one(s) highlighted), so nothing about
+// the comparison itself is hidden among what's actually shown — this
+// just picks what feeds the metric, and what the dedicated Best Price
+// column displays.
+function bestBookmakerPrices(runner, displayedBookieIds) {
   let price = null;
-  for (const bookie of visibleBookies()) {
+  for (const bookie of BOOKIE_LIST) {
+    if (!displayedBookieIds.has(bookie.id)) continue;
     const p = runner.bookmakers?.[bookie.id];
     if (p != null && (price === null || p > price)) price = p;
   }
   if (price === null) return { price: null, bookieIds: [] };
 
-  const bookieIds = visibleBookies()
-    .filter((b) => runner.bookmakers?.[b.id] === price)
-    .map((b) => b.id);
+  const bookieIds = BOOKIE_LIST.filter(
+    (b) => displayedBookieIds.has(b.id) && runner.bookmakers?.[b.id] === price
+  ).map((b) => b.id);
   return { price, bookieIds };
 }
 
@@ -332,20 +338,6 @@ function plannerEntriesForMarketId(marketId) {
   return dailyPlannerEntries.filter((e) => e.marketId === marketId);
 }
 
-// User-requested: disabling a bookmaker in Settings > Bookie should
-// overwrite/drop any plan already saved against it, not leave it
-// sitting around planned somewhere its own column isn't even shown any
-// more. Called from applyDisplaySettings (below) every time settings
-// are (re)applied — startup and every Settings modal close — not just
-// while the planner happens to be open. No-op (and no storage write)
-// when nothing was actually enabled/disabled since the last check.
-function pruneDailyPlannerToEnabledBookies() {
-  const kept = dailyPlannerEntries.filter((e) => currentSettings.enabledBookies.includes(e.bookieId));
-  if (kept.length === dailyPlannerEntries.length) return;
-  dailyPlannerEntries = kept;
-  chrome.storage.local.set({ dailyPlanner: dailyPlannerEntries });
-}
-
 // Loaded once at startup — this callback runs well after the rest of
 // this script has finished defining everything below (renderFilteredRacesList
 // included), same as chrome.storage.local.get(["liveRace"], ...) further
@@ -353,12 +345,6 @@ function pruneDailyPlannerToEnabledBookies() {
 // here before its own declaration is safe.
 chrome.storage.local.get(["dailyPlanner"], (stored) => {
   dailyPlannerEntries = stored.dailyPlanner || [];
-  // Settings and this are two independent, unordered storage reads —
-  // pruning here too (not just from applyDisplaySettings) covers the
-  // case where this one resolves after settings already have, so a
-  // stale disabled-bookie entry loaded just now doesn't sit around
-  // unpruned until the next time the Settings modal happens to close.
-  pruneDailyPlannerToEnabledBookies();
   renderFilteredRacesList(); // picks up each row's own sidebar highlight, in case the list already rendered first
 });
 
@@ -1198,8 +1184,8 @@ function promoPlaceProb(runner) {
 // Mode-dispatching wrappers so the rest of the file doesn't need to know
 // which formula is active — sorting, rendering, and the column header all
 // go through these.
-function metricPercent(runner, commission, hedge) {
-  const price = bestBookmakerPrices(runner).price ?? 0;
+function metricPercent(runner, commission, hedge, displayedBookieIds) {
+  const price = bestBookmakerPrices(runner, displayedBookieIds).price ?? 0;
   if (currentMode === "run2nd" || currentMode === "run2nd3rd") {
     return promoEVPercent(
       runner.betfair,
@@ -1241,14 +1227,14 @@ function bookieMetricPercent(runner, price, commission, hedge) {
     : edgePercent(runner.betfair, price, commission, hedge);
 }
 
-function rowLayDollars(runner, commission, hedge) {
-  const price = bestBookmakerPrices(runner).price ?? 0;
+function rowLayDollars(runner, commission, hedge, displayedBookieIds) {
+  const price = bestBookmakerPrices(runner, displayedBookieIds).price ?? 0;
   return currentMode === "bonus"
     ? layStakeBonus(stakeAmount, runner.betfair, price, commission, hedge)
     : layStake(stakeAmount, runner.betfair, price, commission, hedge);
 }
 
-function sortedRunners(race, commission, hedge) {
+function sortedRunners(race, commission, hedge, displayedBookieIds) {
   // Scratched runners (Betfair status REMOVED) are rendered separately, as
   // placeholder rows at the end of the table (see renderRace) — they have
   // no price to sort or compute a metric from, so they're excluded here
@@ -1264,8 +1250,8 @@ function sortedRunners(race, commission, hedge) {
     // case before. Sorts to the bottom, same "no reliable number to
     // show" treatment as everywhere else this can happen.
     runners.sort((a, b) => {
-      const bMetric = metricPercent(b, commission, hedge);
-      const aMetric = metricPercent(a, commission, hedge);
+      const bMetric = metricPercent(b, commission, hedge, displayedBookieIds);
+      const aMetric = metricPercent(a, commission, hedge, displayedBookieIds);
       if (bMetric == null && aMetric == null) return 0;
       if (bMetric == null) return -1;
       if (aMetric == null) return 1;
@@ -1578,21 +1564,24 @@ function renderRace(race) {
   // promo on switches the mode tab to match (only on an actual race
   // change, not every re-render triggered by Stake/Hedge/Mode itself —
   // otherwise picking a different mode by hand on a planned race would
-  // just get immediately overridden back) and highlights every
-  // bookmaker column you planned it against — plural, since a race can
-  // now be planned on more than one bookmaker at once.
+  // just get immediately overridden back).
   const plannerEntries = plannerEntriesForMarketId(race.marketId);
   if (plannerEntries.length > 0 && isNewMarket && currentMode !== plannerEntries[0].promoType) {
     setMode(plannerEntries[0].promoType);
   }
-  // Unioned with the sidebar's own Bookie Spotlight picks
-  // (spotlightBookieIds) — a bookmaker highlighted either way (a saved
-  // plan, or just spotlighted for this session) gets the same header
-  // treatment; spotlighting never touches the mode tab above, since it
-  // isn't tied to any particular promo type.
-  const plannedBookieIds = new Set([...plannerEntries.map((e) => e.bookieId), ...spotlightBookieIds]);
+  // Which bookie columns actually show at all, for this specific race —
+  // user-clarified this is now the ONLY thing that controls it (not
+  // Settings > Bookie, which just gates what's searchable/selectable in
+  // the first place): a bookmaker's column appears if and only if it's
+  // been planned against this exact race (plannerEntries above) or
+  // picked in the sidebar's own Bookie Spotlight (spotlightBookieIds) —
+  // no automatic "every enabled bookie" column any more, and no
+  // separate highlight treatment either (this directly toggles `hidden`
+  // below and in bookieCells/the footer/scratched rows, rather than
+  // adding a CSS class on top of an already-shown column).
+  const displayedBookieIds = new Set([...plannerEntries.map((e) => e.bookieId), ...spotlightBookieIds]);
   for (const th of document.querySelectorAll("#odds-table thead th[data-bookie]")) {
-    th.classList.toggle("planned-bookie-col", plannedBookieIds.has(th.dataset.bookie));
+    th.hidden = !displayedBookieIds.has(th.dataset.bookie);
   }
 
   // Race Result / Display > Betfair commission discount — percentage
@@ -1632,8 +1621,8 @@ function renderRace(race) {
   const tbody = document.getElementById("odds-body");
   tbody.innerHTML = "";
 
-  let rows = sortedRunners(race, commission, hedge).map((runner) => {
-    const layDollars = rowLayDollars(runner, commission, hedge);
+  let rows = sortedRunners(race, commission, hedge, displayedBookieIds).map((runner) => {
+    const layDollars = rowLayDollars(runner, commission, hedge, displayedBookieIds);
     const liability = liabilityFor(layDollars, runner.betfair);
     return { runner, layDollars, liability };
   });
@@ -1676,22 +1665,23 @@ function renderRace(race) {
     const row = document.createElement("tr");
     if (runner.result === "WINNER") row.className = "winner-row";
 
-    const { price: bestPrice, bookieIds: bestBookieIds } = bestBookmakerPrices(runner);
+    const { price: bestPrice, bookieIds: bestBookieIds } = bestBookmakerPrices(runner, displayedBookieIds);
     const bestPriceBadges = bestBookieIds
       .map((id) => {
         const bookie = BOOKIE_LIST.find((b) => b.id === id);
         return `<span class="bookie-badge" title="${bookie.label}"><img class="bookie-logo" src="${bookie.logo}" alt="${bookie.label}" /></span>`;
       })
       .join(" ");
-    const bestMetric = metricPercent(runner, commission, hedge);
-    // Every bookie's own cell is always generated here, even a disabled
-    // one — hidden via its own `hidden` attribute instead of being left
-    // out, so the header/body/footer column count never drifts apart
-    // (see visibleBookies()'s own comment for the full split).
+    const bestMetric = metricPercent(runner, commission, hedge, displayedBookieIds);
+    // Every bookie's own cell is always generated here, even one not
+    // currently displayed — hidden via its own `hidden` attribute
+    // instead of being left out, so the header/body/footer column count
+    // never drifts apart (see displayedBookieIds above for what
+    // actually decides that now).
     const bookieCells = BOOKIE_LIST.map((b) => {
       const price = runner.bookmakers?.[b.id];
       const bookieMetric = bookieMetricPercent(runner, price, commission, hedge);
-      const hiddenAttr = currentSettings.enabledBookies.includes(b.id) ? "" : " hidden";
+      const hiddenAttr = displayedBookieIds.has(b.id) ? "" : " hidden";
       // Row-wise ("best bookie per runner") — a strong green tint,
       // overriding this cell's own EV-tier tint outright rather than
       // layering both (green already means "good" on its own). Column-
@@ -1773,9 +1763,7 @@ function renderRace(race) {
       <td>${runner.name} <em class="scratched-tag">Scratched</em></td>
       <td class="col-best-price">—</td>
       <td class="col-backlay">${backLayCellHtml(null, null, null, null)}</td>
-      ${BOOKIE_LIST.map(
-        (b) => `<td${currentSettings.enabledBookies.includes(b.id) ? "" : " hidden"}>—</td>`
-      ).join("")}
+      ${BOOKIE_LIST.map((b) => `<td${displayedBookieIds.has(b.id) ? "" : " hidden"}>—</td>`).join("")}
       <td>—</td>
       <td class="col-liability">—</td>
     `;
@@ -1794,7 +1782,7 @@ function renderRace(race) {
     )}</span></span></td>`,
     ...BOOKIE_LIST.map(
       (b) =>
-        `<td${currentSettings.enabledBookies.includes(b.id) ? "" : " hidden"}>${formatMarketPct(
+        `<td${displayedBookieIds.has(b.id) ? "" : " hidden"}>${formatMarketPct(
           marketPercentFor(race.runners, (r) => r.bookmakers?.[b.id])
         )}</td>`
     ),
@@ -2635,16 +2623,14 @@ function applyTheme(theme) {
 // closes, so e.g. toggling "Show liquidity" takes effect immediately.
 function applyDisplaySettings(settings) {
   currentSettings = settings;
-  pruneDailyPlannerToEnabledBookies();
 
-  // Same "a disabled bookmaker doesn't get to keep being highlighted"
-  // treatment as the prune above, for the sidebar's own Bookie
-  // Spotlight picks.
-  const keptSpotlightIds = spotlightBookieIds.filter((id) => settings.enabledBookies.includes(id));
-  if (keptSpotlightIds.length !== spotlightBookieIds.length) {
-    spotlightBookieIds = keptSpotlightIds;
-    refreshBookieSpotlight("");
-  }
+  // Deliberately does NOT prune the Daily Planner's or the Bookie
+  // Spotlight's own existing bookmaker picks against enabledBookies any
+  // more — user-clarified Settings > Bookie now only gates what's
+  // available to search/select going forward, not what's already been
+  // selected. renderRace (below) is what actually decides which bookie
+  // columns show, purely from those two picks — never from this
+  // setting directly.
 
   applyTheme(settings.theme);
   // An untouched accentColor (still DEFAULT_SETTINGS' own dark-mode
@@ -2659,7 +2645,9 @@ function applyDisplaySettings(settings) {
   document.documentElement.style.setProperty("--accent", accentColor);
   // Same treatment for the Daily Planner's own highlight colour
   // (Settings > Colours > Promo Colour) — --promo-color (popup.css),
-  // read by .race-card.planned and th.planned-bookie-col.
+  // read by .race-card.planned (the sidebar's own left-border accent on
+  // a planned race — the bookie column itself is no longer highlighted
+  // at all, user-requested, see renderRace's own displayedBookieIds).
   const promoColor =
     settings.promoColor === DEFAULT_SETTINGS.promoColor
       ? THEME_DEFAULT_PROMO_COLOR[settings.theme] || THEME_DEFAULT_PROMO_COLOR.dark
@@ -2669,15 +2657,10 @@ function applyDisplaySettings(settings) {
   document.body.classList.toggle("hide-liquidity", !settings.showLiquidityColumn);
   document.body.classList.toggle("show-liability", settings.showLiabilityColumn);
 
-  // Settings > Bookie — the header row's own <th data-bookie="..."> is
-  // static markup (popup.html), never regenerated the way each render
-  // rebuilds the table body/footer (see bookieCells' own comment for
-  // those), so it's the one place that needs updating here rather than
-  // inline at render time.
-  for (const th of document.querySelectorAll("[data-bookie]")) {
-    th.hidden = !settings.enabledBookies.includes(th.dataset.bookie);
-  }
-
+  // Settings > Bookie no longer decides which bookie columns are
+  // shown/hidden here (see renderRace's own displayedBookieIds) — this
+  // just needs a re-render so any Bookmaker(s)/Bookie Spotlight fields
+  // still open right now re-filter their own suggestions immediately.
   if (currentRace) renderRace(currentRace);
   if (latestRaces.length > 0) renderFilteredRacesList();
 }

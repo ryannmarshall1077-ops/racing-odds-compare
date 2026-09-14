@@ -3203,3 +3203,40 @@ https://developer.betfair.com/.
         untouched); adding Ladbrokes via Enter keeps both highlighted;
         disabling TAB in Settings drops it from `spotlightBookieIds`
         and its header highlight immediately while Ladbrokes' stays on.
+
+- [x] Reworked what actually controls a bookie column's visibility in
+      the Race Table, per explicit direction: Settings > Bookie now
+      *only* gates which bookmakers are available to search/select (the
+      Daily Planner's own Bookmaker(s) field, the sidebar's Bookie
+      Spotlight, and opening a bookie's own race tab) — it no longer
+      shows or hides a column by itself, and a column is no longer
+      highlighted either, only shown or not. So:
+      - **Settings** = enable/disable which bookies can be searched and
+        selected going forward. No longer touches column visibility at
+        all, and no longer prunes an already-made Planner/Spotlight
+        selection just because it was later disabled — pick something,
+        and it stays picked regardless of what Settings does afterward.
+      - **Bookie Spotlight** = select bookies to display.
+      - **Daily Planner** = bookies planned against the *loaded* race
+        display too.
+      - **Race Table** = shows only the union of those two — a bookie
+        column appears if and only if it's planned for this exact race
+        or currently spotlighted; nothing shows automatically just for
+        being enabled, and the whole `th.planned-bookie-col` highlight
+        mechanism (added a few commits back) is gone entirely, replaced
+        by the column just not being there at all when neither applies.
+      - `bestBookmakerPrices` (Best Price, Edge%/Ret%/Lay $/Liability's
+        own underlying price, sort order) now takes this same
+        `displayedBookieIds` set explicitly and only ever considers
+        bookmakers actually shown — previously it (and `metricPercent`/
+        `rowLayDollars`/`sortedRunners`, which all call it) always
+        considered every *enabled* bookmaker regardless of whether its
+        own column was visible, which would have kept badging/scoring
+        a bookie with no column to point at.
+      - Verified via the local static-preview harness: a fresh load
+        with nothing planned or spotlighted shows *zero* bookie
+        columns; spotlighting TAB shows only TAB's; disabling TAB in
+        Settings afterward leaves it fully displayed and spotlighted
+        (only stops it being offered as a *new* pick elsewhere); and
+        Best Price/Edge% on the one visible column render real numbers
+        derived only from it, not `NaN`/`undefined` from a hidden one.
