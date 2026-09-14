@@ -884,34 +884,16 @@ th.col-best-price {
   box-shadow: inset 0 0 0 1.5px var(--amber);
 }
 
-/* Daily Planner's own "pop up" highlight (renderRace, popup.js) — the
-   whole column for whichever bookmaker this loaded race was planned
-   against, so it stands out from row-best/col-best above (different
-   colour, --lay-color, and applied column-wide rather than per-cell)
-   without fighting either of them; a cell can carry all three at once. */
-th.planned-bookie-col {
-  color: var(--lay-color);
-}
-
-th.planned-bookie-col::after {
-  content: "📌";
-  font-size: 9px;
-  margin-left: 3px;
-  vertical-align: middle;
-}
-
-/* box-shadow, not background — renderRace (popup.js) always sets this
-   cell's own background inline (its EV-tier tint, or the row-best green
-   override), which would otherwise beat any background set here on
-   specificity; a box-shadow paints independently of that, same reason
-   .col-bookie.col-best above uses one instead of a border. Two classes
-   (matching .col-bookie.col-best's own specificity) and declared after
-   it in source order, so on the rare cell that's both this race's
-   planned bookie AND that bookie's best-runner outline, the planned
-   highlight is what actually shows — it's the more specific, more
-   deliberate signal of the two. */
-.col-bookie.planned-bookie-col {
+/* Daily Planner's own "pop up" highlight (renderRace, popup.js) — user-
+   requested a plain highlighted box around just the bookmaker's own
+   header icon, not a border on every single runner's cell down the
+   column (too busy) and not a pin emoji either — a solid box around
+   the header alone is enough to show which bookmaker this loaded race
+   was planned against. */
+th.planned-bookie-col .bookie-th {
   box-shadow: inset 0 0 0 1.5px var(--lay-color);
+  border-radius: 4px;
+  padding: 2px 6px;
 }
 
 th, td {
@@ -1610,8 +1592,24 @@ footer {
   border-bottom: none;
 }
 
-#planner-table select {
+#planner-table select,
+#planner-table input[type="text"] {
   width: 100%;
+}
+
+/* Live-updates on every keystroke (plannerRangePreviewHtml, popup.js) —
+   what a typed race range (e.g. "1-5") actually resolves to at that
+   course right now, so a typo or a range with nothing at that course
+   is obvious before Save rather than only surfacing there. */
+.planner-race-preview {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+  min-height: 12px;
+}
+
+.planner-preview-warn {
+  color: var(--accent-neg);
 }
 
 /* Race column needs more room than Course/Bookmaker/Promotion for a
