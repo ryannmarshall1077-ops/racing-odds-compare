@@ -3240,3 +3240,44 @@ https://developer.betfair.com/.
         (only stops it being offered as a *new* pick elsewhere); and
         Best Price/Edge% on the one visible column render real numbers
         derived only from it, not `NaN`/`undefined` from a hidden one.
+
+- [x] Extended the same rule to which bookmaker tabs auto-open —
+      user-requested: "no tabs should open automatically unless its
+      selected in the bookie search bar." `openRaceTabs` (popup.js)
+      used to open/reuse a tab for every *enabled* bookmaker
+      (`visibleBookies()`) on every race selection; it now only does so
+      for whichever bookmakers are currently in `spotlightBookieIds` —
+      Settings > Bookie has no say in this either, consistent with it
+      no longer controlling Race Table column visibility. The Betfair
+      tab itself is unaffected (it's the exchange this whole comparison
+      runs against, not one of the bookmakers being compared) — it
+      keeps opening for every race regardless.
+      - Picking a bookmaker in the Bookie Spotlight now also opens its
+        tab immediately for whatever race is already loaded
+        (`refreshBookieSpotlight` calls `openRaceTabs` alongside its
+        existing `renderRace` call) — without this, a freshly-picked
+        bookmaker's own column would show in the table right away, but
+        its tab wouldn't actually open until the next time some race
+        happened to get (re)selected.
+      - Verified via the local static-preview harness (spying on every
+        `chrome.tabs.create`/`update` call): selecting a race with
+        nothing spotlighted opens only Betfair's own tab, no
+        Sportsbet/TAB/Ladbrokes tab at all; spotlighting TAB
+        immediately opens exactly TAB's own tab at its correct URL,
+        with Sportsbet and Ladbrokes never appearing in either batch.
+      - **Fixed a real bug found immediately after, user-reported**: a
+        race planned against Sportsbet only (Daily Planner) still
+        opened Sportsbet+TAB+Ladbrokes tabs on selection, even though
+        the Race Table itself correctly showed only Sportsbet's column
+        — `openRaceTabs` was checking only the Bookie Spotlight's own
+        picks and never looked at the Planner at all, the exact same
+        set `renderRace` already uses for column visibility. Fixed by
+        factoring both out into one shared `raceDisplayedBookieIds(race)`
+        (planner entries for that race ∪ Bookie Spotlight picks) that
+        `renderRace` and `openRaceTabs` now both call — the two can't
+        drift apart again since there's only one place computing it.
+        Verified via the same harness: planning Sportsbet only for a
+        race opens exactly one bookmaker tab (Sportsbet, at its correct
+        URL) alongside Betfair's, never TAB or Ladbrokes; additionally
+        spotlighting Ladbrokes on top of that plan then opens exactly
+        Sportsbet + Ladbrokes, with TAB still never appearing.

@@ -338,6 +338,21 @@ function plannerEntriesForMarketId(marketId) {
   return dailyPlannerEntries.filter((e) => e.marketId === marketId);
 }
 
+// The single source of truth for "which bookmakers actually belong to
+// this race" — the union of whatever's planned against it (Daily
+// Planner) and whatever's currently picked in the sidebar's Bookie
+// Spotlight. renderRace's own column visibility AND openRaceTabs' own
+// tab-opening both call this same function now, rather than each
+// computing their own copy — user-reported bug, found from exactly
+// that drifting apart: a race planned against Sportsbet only still
+// opened Sportsbet+TAB+Ladbrokes tabs, because openRaceTabs was
+// checking only the Spotlight's own picks and never looked at the
+// Planner at all. Settings > Bookie deliberately has no say here
+// either way — see visibleBookies()'s own comment.
+function raceDisplayedBookieIds(race) {
+  return new Set([...plannerEntriesForMarketId(race?.marketId).map((e) => e.bookieId), ...spotlightBookieIds]);
+}
+
 // Loaded once at startup — this callback runs well after the rest of
 // this script has finished defining everything below (renderFilteredRacesList
 // included), same as chrome.storage.local.get(["liveRace"], ...) further
@@ -1569,17 +1584,19 @@ function renderRace(race) {
   if (plannerEntries.length > 0 && isNewMarket && currentMode !== plannerEntries[0].promoType) {
     setMode(plannerEntries[0].promoType);
   }
-  // Which bookie columns actually show at all, for this specific race —
-  // user-clarified this is now the ONLY thing that controls it (not
-  // Settings > Bookie, which just gates what's searchable/selectable in
-  // the first place): a bookmaker's column appears if and only if it's
-  // been planned against this exact race (plannerEntries above) or
-  // picked in the sidebar's own Bookie Spotlight (spotlightBookieIds) —
-  // no automatic "every enabled bookie" column any more, and no
-  // separate highlight treatment either (this directly toggles `hidden`
-  // below and in bookieCells/the footer/scratched rows, rather than
-  // adding a CSS class on top of an already-shown column).
-  const displayedBookieIds = new Set([...plannerEntries.map((e) => e.bookieId), ...spotlightBookieIds]);
+  // Which bookie columns actually show at all, for this specific race
+  // (raceDisplayedBookieIds — also what openRaceTabs now opens tabs
+  // for, so the two can never drift apart again) — user-clarified this
+  // is now the ONLY thing that controls it, not Settings > Bookie
+  // (which just gates what's searchable/selectable in the first
+  // place): a bookmaker's column appears if and only if it's been
+  // planned against this exact race or picked in the sidebar's own
+  // Bookie Spotlight — no automatic "every enabled bookie" column any
+  // more, and no separate highlight treatment either (this directly
+  // toggles `hidden` below and in bookieCells/the footer/scratched
+  // rows, rather than adding a CSS class on top of an already-shown
+  // column).
+  const displayedBookieIds = raceDisplayedBookieIds(race);
   for (const th of document.querySelectorAll("#odds-table thead th[data-bookie]")) {
     th.hidden = !displayedBookieIds.has(th.dataset.bookie);
   }
@@ -1998,9 +2015,21 @@ async function openOrNavigateTab(tabId, url, { pinned = false, active = false } 
 // entry in bookies.js. A bookie with no URL for this race (most commonly
 // TAB, before its venue code has been learned — see tabMeetings.js) is
 // simply left untouched, same as Sportsbet already was when unmatched.
-// Settings > Bookie disabled ones are skipped entirely here too (see
-// visibleBookies()) — no tab opened/updated for one at all, same as if
-// it had no URL for this race.
+//
+// User-requested: no bookmaker tab opens automatically at all unless
+// that bookmaker actually belongs to this race — planned against it
+// via the Daily Planner, or currently picked in the sidebar's own
+// Bookie Search Bar (raceDisplayedBookieIds, the exact same set
+// renderRace uses to decide column visibility — user-reported bug,
+// found from these two drifting apart: a race planned against
+// Sportsbet only still opened Sportsbet+TAB+Ladbrokes tabs, because
+// this used to check only the Spotlight's own picks and never looked
+// at the Planner at all). Settings > Bookie has no say in this either
+// way — it only gates what's searchable/selectable in the first
+// place, same as it no longer decides Race Table column visibility.
+// The Betfair tab itself is unaffected — it's the exchange this whole
+// comparison is against, not one of the bookmakers being compared, so
+// it keeps opening for every race regardless.
 //
 // Focus behavior is Settings-driven (Tab and Window management >
 // focusRaceTabsOnOpen): by default every race tab opens/reuses in the
@@ -2011,7 +2040,9 @@ async function openOrNavigateTab(tabId, url, { pinned = false, active = false } 
 // skipping the refocus step wouldn't have been enough on its own, since
 // new tabs are still created inactive either way.
 async function openRaceTabs(race) {
-  const tabIdKeys = visibleBookies().map((b) => `${b.id}TabId`);
+  const displayedBookieIds = raceDisplayedBookieIds(race);
+  const bookiesToOpen = BOOKIE_LIST.filter((b) => displayedBookieIds.has(b.id));
+  const tabIdKeys = bookiesToOpen.map((b) => `${b.id}TabId`);
   const stored = await chrome.storage.local.get(["betfairTabId", ...tabIdKeys]);
 
   const betfairTabId = await openOrNavigateTab(stored.betfairTabId, race.betfairUrl, {
@@ -2020,7 +2051,7 @@ async function openRaceTabs(race) {
   });
 
   const updates = { betfairTabId };
-  for (const bookie of visibleBookies()) {
+  for (const bookie of bookiesToOpen) {
     const urlKey = `${bookie.id}Url`;
     const tabIdKey = `${bookie.id}TabId`;
     let url = race[urlKey];
@@ -2457,7 +2488,15 @@ function refreshBookieSpotlight(searchText) {
   searchInput.focus();
   bookieSpotlightSuggestionsEl.innerHTML = plannerBookieSuggestionsHtml(searchText, spotlightBookieIds);
   bookieSpotlightSuggestionsEl.hidden = bookieSpotlightSuggestionsEl.innerHTML === "";
-  if (currentRace) renderRace(currentRace);
+  if (currentRace) {
+    renderRace(currentRace);
+    // Picking a bookmaker here is now the only thing that opens its
+    // tab at all (openRaceTabs) — without this, a freshly-spotlighted
+    // bookie wouldn't get its tab until the next time some race
+    // happened to be (re)selected, well after picking it should
+    // already show its own live tab.
+    openRaceTabs(currentRace);
+  }
 }
 
 refreshBookieSpotlight(""); // initial render — no chips yet, empty search box
