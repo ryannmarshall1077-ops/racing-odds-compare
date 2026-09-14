@@ -103,6 +103,13 @@ function promoEVPercent(betfair, bookmaker, commission, hedge, stake, retention,
   return (ev / stake) * 100;
 }
 
+// User-specified rule of thumb, used only when the real place market
+// pays 3 (not 2) — see run2ndWinEVPercent below: in a balanced field,
+// finishing 2nd is always slightly more likely than 3rd, so the
+// combined "2nd or 3rd" probability gap a Top 3 market implies is split
+// 55/45 in 2nd's favour rather than treated as an even 50/50 split.
+const TOP3_SECOND_PLACE_SHARE = 0.55;
+
 // Run 2nd You Win mode — user-specified formula (a standard "3 outcome"
 // promo-value calculator, not this file's own hedge-blended QL
 // approach): the raw, UNHEDGED expected value of taking the bookmaker
@@ -116,38 +123,50 @@ function promoEVPercent(betfair, bookmaker, commission, hedge, stake, retention,
 // bookmaker's own (vigged) price — same convention this file already
 // uses elsewhere (e.g. Harville's own raw 1/layOdds):
 //
-//   P(win)  = 1 / betfair       — Betfair's own WIN lay price
-//   P(top2) = 1 / placeBetfair  — Betfair's own PLACE lay price. Only a
-//             genuine Pr(top 2) when the real place market pays
-//             EXACTLY 2 places (currentRace.placeMarketWinners === 2,
-//             a "Top 2 Finish" market) — a 3-place market's own price
-//             is Pr(top 3) instead, which would silently fold 3rd
-//             place into P(2nd) below if used directly, so this is
-//             deliberately left uncomputable (null) in that case.
-//   P(2nd)  = P(top2) - P(win)
-//   P(lose) = 1 - P(top2)
+//   P(win)  = 1 / betfair       — Betfair's own WIN lay price.
+//   P(topK) = 1 / placeBetfair  — Betfair's own PLACE lay price, where
+//             K is whatever the real place market actually pays
+//             (currentRace.placeMarketWinners — 2 or 3; anything else,
+//             including no place market at all, leaves this whole mode
+//             uncomputable).
+//
+// K = 2 (a real "Top 2 Finish" market): P(topK) already isolates
+// win-or-2nd directly, so P(2nd) = P(top2) - P(win), no adjustment
+// needed.
+//
+// K = 3 (a real "Top 3 Finish" market, the common case for a bigger
+// field): P(topK) - P(win) is the COMBINED "2nd or 3rd" probability,
+// not P(2nd) alone — split it via TOP3_SECOND_PLACE_SHARE (55/45)
+// rather than leaving the whole mode uncomputable, since a real Top 2
+// market genuinely doesn't exist for most bigger AU/NZ fields.
+//
+// Either way, P(lose) is then whatever's left over once win and 2nd
+// are both accounted for (1 - P(win) - P(2nd)) — 3rd-or-worse when
+// K=3, since the promo doesn't pay on 3rd even though the market itself
+// prices top 3 together.
 //
 // Payout per outcome: the promo pays 2nd exactly like a win (full
 // price), so profitWin = profit2nd = stake × (bookmaker - 1); a loss is
 // just -stake.
 //
-//   EV = P(win)×profitWin + P(2nd)×profit2nd + P(lose)×(-stake)
+//   EV = P(win)×profitWin + P(2nd)×profit2nd - P(lose)×stake
 //
-// null whenever there's no genuine 2-place market to source P(top2)
-// from, or this runner's own placeBetfair/betfair is missing — same
-// "no reliable number to show" convention used everywhere else here.
+// null whenever there's no real 2- or 3-place market to source P(topK)
+// from, or this runner's own placeBetfair/betfair is missing — same "no
+// reliable number to show" convention used everywhere else here.
 function run2ndWinEVPercent(betfair, bookmaker, stake, placeBetfair) {
-  if (currentRace?.placeMarketWinners !== 2 || placeBetfair == null || betfair == null) return null;
+  const winners = currentRace?.placeMarketWinners;
+  if ((winners !== 2 && winners !== 3) || placeBetfair == null || betfair == null) return null;
 
   const pWin = 1 / betfair;
-  const pTop2 = 1 / placeBetfair;
-  const p2nd = pTop2 - pWin;
-  const pLose = 1 - pTop2;
+  const pTopK = 1 / placeBetfair;
+  const p2ndOr3rdGap = pTopK - pWin;
+  const p2nd = winners === 2 ? p2ndOr3rdGap : p2ndOr3rdGap * TOP3_SECOND_PLACE_SHARE;
+  const pLose = 1 - pWin - p2nd;
 
   const profitWinOr2nd = stake * (bookmaker - 1);
-  const lossLose = -stake;
 
-  const ev = pWin * profitWinOr2nd + p2nd * profitWinOr2nd + pLose * lossLose;
+  const ev = pWin * profitWinOr2nd + p2nd * profitWinOr2nd - pLose * stake;
 
   return (ev / stake) * 100;
 }
