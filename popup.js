@@ -103,6 +103,33 @@ function promoEVPercent(betfair, bookmaker, commission, hedge, stake, retention,
   return (ev / stake) * 100;
 }
 
+// Run 2nd You Win mode: same QL baseline and same trigger (placeProb =
+// Pr(2nd), promoPlaceProb) as Run 2nd above, but a completely different
+// payout on the trigger — the bookmaker settles the bet as a genuine WIN
+// (real cash, stake × bookmaker price) if the runner comes 2nd, not a
+// smaller bonus-bet-equivalent refund. Derived from first principles
+// (see the "Racing Edge & EV Formulas" doc in this repo for the full
+// working): QL already assumes a "not-win" outcome loses the stake
+// (that's baked into qualifyingLoss/layStake's own full-hedge
+// derivation), so the INCREMENTAL value 2nd-place adds on top of that
+// baseline is the full win-style payout (stake × bookmaker) plus the
+// stake QL already assumed lost, i.e. stake × bookmaker — not
+// stake × (bookmaker - 1) and not a retention-adjusted figure. Crucially
+// this does NOT change what to lay: the existing Betfair WIN-market lay
+// (layStake, same as Mug/Run 2nd) still fully hedges the win/not-win
+// split regardless of whether "not-win" turns out to be 2nd or anywhere
+// else — the promo's 2nd-place payout is a pure add-on with no extra
+// staking cost, exactly like Run 2nd's own bonus trigger.
+function run2ndWinEVPercent(betfair, bookmaker, commission, hedge, stake, placeProb) {
+  if (placeProb == null) return null;
+
+  const ql = qualifyingLoss(stake, bookmaker, betfair, commission, hedge);
+  const fullPayout = stake * bookmaker;
+  const ev = ql + placeProb * fullPayout;
+
+  return (ev / stake) * 100;
+}
+
 // Settings > Bookie — user-clarified this now means ONLY "which
 // bookmakers are available to search/select" (the Daily Planner's own
 // Bookmaker(s) field, the sidebar's Bookie Spotlight, and opening a
@@ -216,11 +243,13 @@ let hedgePercent = 100;
 let stakeAmount = 50;
 
 // "mug" (standard Win back+lay), "bonus" (SNR free/bonus bet
-// retention), "run2nd" (qualifying bet + a bonus bet only if 2nd), or
-// "run2nd3rd" (same, but 2nd or 3rd) — see promoEVPercent for the
-// latter two. Determines both which formula the Lay $ and metric
-// columns use, and what the metric column is even called (Edge/Ret%/
-// EV%). Persists the same way as the other controls.
+// retention), "run2nd" (qualifying bet + a bonus bet only if 2nd),
+// "run2nd3rd" (same, but 2nd or 3rd) — see promoEVPercent for these two
+// — or "run2ndwin" (same 2nd-place trigger as run2nd, but the bookmaker
+// pays out the FULL win price as real cash instead of a bonus-bet
+// refund — see run2ndWinEVPercent). Determines both which formula the
+// Lay $ and metric columns use, and what the metric column is even
+// called (Edge/Ret%/EV%). Persists the same way as the other controls.
 let currentMode = "mug";
 
 // Which race types show up in the Upcoming Races list — "horse", "harness",
@@ -1231,6 +1260,10 @@ function computeHarvilleModel(race) {
 function promoPlaceProb(runner) {
   const entry = currentHarvilleModel?.get(runner.selectionId);
   if (!entry) return null;
+  // run2ndwin triggers on the exact same event as run2nd (2nd place,
+  // nothing else) — just a different payout once it fires (see
+  // run2ndWinEVPercent) — so it falls through to the same entry.p2
+  // every other mode besides run2nd3rd already uses here.
   return currentMode === "run2nd3rd" ? entry.p2 + entry.p3 : entry.p2;
 }
 
@@ -1249,6 +1282,9 @@ function metricPercent(runner, commission, hedge, displayedBookieIds) {
       currentSettings.defaultRetention,
       promoPlaceProb(runner)
     );
+  }
+  if (currentMode === "run2ndwin") {
+    return run2ndWinEVPercent(runner.betfair, price, commission, hedge, stakeAmount, promoPlaceProb(runner));
   }
   return currentMode === "bonus"
     ? bonusRetentionPercent(runner.betfair, price, commission, hedge)
@@ -1274,6 +1310,9 @@ function bookieMetricPercent(runner, price, commission, hedge) {
       currentSettings.defaultRetention,
       promoPlaceProb(runner)
     );
+  }
+  if (currentMode === "run2ndwin") {
+    return run2ndWinEVPercent(runner.betfair, price, commission, hedge, stakeAmount, promoPlaceProb(runner));
   }
   return currentMode === "bonus"
     ? bonusRetentionPercent(runner.betfair, price, commission, hedge)
@@ -1363,12 +1402,12 @@ function backLayCellHtml(backPrice, backLiquidity, layPrice, layLiquidity) {
 }
 
 // Which of the Settings > EV Colours and Thresholds per-band keys applies
-// to the current Mode — Run 2nd 3rd/Run 2nd share "promo" (one threshold
-// set, not two) since neither has a verified EV formula yet to actually
-// tell them apart by.
+// to the current Mode — Run 2nd 3rd/Run 2nd/Run 2nd You Win share "promo"
+// (one threshold set, not three) since none of them has a verified EV
+// formula yet to actually tell them apart by.
 function edgeThresholdKey(mode) {
   if (mode === "bonus") return "bonus";
-  if (mode === "run2nd3rd" || mode === "run2nd") return "promo";
+  if (mode === "run2nd3rd" || mode === "run2nd" || mode === "run2ndwin") return "promo";
   return "mug";
 }
 
