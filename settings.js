@@ -54,7 +54,7 @@ const DEFAULT_SETTINGS = {
   // odds table's own column rendering (every bookie's cell is always
   // generated, just hidden), so a newly-added bookie here defaults to
   // enabled the moment it's added to this array, not silently invisible.
-  enabledBookies: ["sportsbet", "tab", "ladbrokes", "neds", "pointsbet"],
+  enabledBookies: ["sportsbet", "tab", "ladbrokes", "neds", "pointsbet", "betr", "tabtouch"],
   showLiquidityColumn: true,
   showLiabilityColumn: false,
   // Scratched (Betfair status REMOVED) runners default to showing as

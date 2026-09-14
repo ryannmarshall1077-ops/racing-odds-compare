@@ -65,6 +65,21 @@
       "matches": ["https://pointsbet.com.au/racing/*/*/*/race/*"],
       "js": ["js/contentScripts/pointsbetWatcher.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.betr.com.au/racing/*"],
+      "js": ["js/contentScripts/betrWatcher.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.tabtouch.com.au/racing/all"],
+      "js": ["js/contentScripts/tabtouchMeetings.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.tabtouch.com.au/racing/*"],
+      "js": ["js/contentScripts/tabtouchWatcher.js"],
+      "run_at": "document_idle"
     }
   ],
   "permissions": ["storage", "scripting", "tabs", "alarms"],
@@ -78,6 +93,9 @@
     "https://www.neds.com.au/*",
     "https://api.neds.com.au/*",
     "https://pointsbet.com.au/*",
-    "https://api.au.pointsbet.com/*"
+    "https://api.au.pointsbet.com/*",
+    "https://www.betr.com.au/*",
+    "https://web20-api.bluebet.com.au/*",
+    "https://www.tabtouch.com.au/*"
   ]
 }

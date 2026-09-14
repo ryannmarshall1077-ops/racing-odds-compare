@@ -2223,6 +2223,24 @@ async function openRaceTabs(race) {
       });
     }
 
+    // TABtouch is the exact same situation as TAB above — no public
+    // feed, venue codes only known once tabtouchMeetings.js has actually
+    // seen this venue/sport on TABtouch's own "All Racing" hub page.
+    if (!url && bookie.id === "tabtouch") {
+      url = await new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          {
+            type: "ENSURE_TABTOUCH_URL",
+            track: race.track,
+            raceType: race.raceType,
+            raceNumber: race.raceNumber,
+            startTime: race.startTime,
+          },
+          (response) => resolve(response?.tabtouchUrl || null)
+        );
+      });
+    }
+
     updates[tabIdKey] = url
       ? await openOrNavigateTab(stored[tabIdKey], url, {
           pinned: currentSettings.pinRaceTabs,

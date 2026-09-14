@@ -5,6 +5,7 @@ importScripts(
   "js/ladbrokes/api.js",
   "js/neds/api.js",
   "js/pointsbet/api.js",
+  "js/betr/api.js",
   "settings.js",
   "bookies.js"
 );
@@ -93,6 +94,16 @@ const BOOKIE_EXTRAS = {
   // (the actual call had already scrolled out of the request buffer by
   // the time it was checked).
   pointsbet: { scraperFile: "js/contentScripts/pointsbet.js", tabIdKey: "pointsbetTabId" },
+  // Betr runs on "BlueBet" infrastructure (Betr is BlueBet's own brand)
+  // — own REST feed too (js/betr/api.js, web20-api.bluebet.com.au, not
+  // betr.com.au itself), found the same fetch-hooking way as PointsBet.
+  betr: { scraperFile: "js/contentScripts/betr.js", tabIdKey: "betrTabId" },
+  // TABtouch (WA's own RWWA-run TAB — a completely separate company
+  // from tab.com.au's Tabcorp) has no public feed found either, same
+  // starting point tab.com.au had — venue codes are instead learned
+  // from real links on its own "All Racing" hub page
+  // (tabtouchMeetings.js), same idea as tabMeetings.js.
+  tabtouch: { scraperFile: "js/contentScripts/tabtouch.js", tabIdKey: "tabtouchTabId" },
 };
 const BOOKIES = Object.fromEntries(
   BOOKIE_LIST.map((b) => [b.id, { ...b, ...BOOKIE_EXTRAS[b.id] }])
@@ -216,6 +227,83 @@ async function ensureTabVenueCodesLearnedToday() {
   await chrome.storage.local.set({ tabVenueCodesLearnedDate: today });
 }
 
+// TABtouch's own equivalent of tabRaceUrlFromCodes/learnTabVenueCodes/
+// visitTabMeetingsPage/ensureTabUrlForRace/ensureTabVenueCodesLearnedToday
+// above — same "no public feed, learn codes from real links on a real
+// page" architecture, but genuinely simpler than tab.com.au's own: ONE
+// page (tabtouch.com.au/racing/all — tabtouchMeetings.js) already lists
+// every meeting across every sport for today, so only one background
+// visit is ever needed (not one per sport), and TABtouch's own race URL
+// has no separate race-type letter to build at all (just
+// /racing/<date>/<code>/<raceNumber> — the code alone is enough).
+function tabtouchRaceUrlFromCodes(tabtouchVenueCodes, track, sport, raceNumber, startTimeIso) {
+  const key = `${normalizeVenue(track)}|${sport}`;
+  const learned = tabtouchVenueCodes[key];
+  if (!learned) return null;
+
+  const date = startTimeIso.slice(0, 10); // YYYY-MM-DD, matches TABtouch's own URL date segment
+  return `https://www.tabtouch.com.au/racing/${date}/${learned.code}/${raceNumber}`;
+}
+
+async function learnTabtouchVenueCodes(entries) {
+  const { tabtouchVenueCodes = {} } = await chrome.storage.local.get(["tabtouchVenueCodes"]);
+  const next = { ...tabtouchVenueCodes };
+
+  for (const { venueName, sport, code } of entries) {
+    const key = `${normalizeVenue(venueName)}|${sport}`;
+    next[key] = { code, learnedAt: Date.now() };
+  }
+
+  await chrome.storage.local.set({ tabtouchVenueCodes: next });
+}
+
+const TABTOUCH_MEETINGS_LEARN_DELAY_MS = 6000;
+
+async function visitTabtouchMeetingsPage() {
+  const tab = await chrome.tabs.create({
+    url: "https://www.tabtouch.com.au/racing/all",
+    active: false,
+  });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, TABTOUCH_MEETINGS_LEARN_DELAY_MS));
+  } finally {
+    await chrome.tabs.remove(tab.id).catch(() => {});
+  }
+}
+
+// Same reasoning as ensureTabUrlForRace — the first click for a
+// not-yet-seen venue triggers one on-demand visit (~6s) instead of
+// silently leaving that bookie's tab untouched until tomorrow's
+// once-a-day background visit.
+async function ensureTabtouchUrlForRace(track, raceType, raceNumber, startTimeIso) {
+  const known = await chrome.storage.local.get(["tabtouchVenueCodes"]);
+  const existingUrl = tabtouchRaceUrlFromCodes(
+    known.tabtouchVenueCodes || {},
+    track,
+    raceType,
+    raceNumber,
+    startTimeIso
+  );
+  if (existingUrl) return existingUrl;
+
+  await visitTabtouchMeetingsPage();
+
+  const fresh = await chrome.storage.local.get(["tabtouchVenueCodes"]);
+  return tabtouchRaceUrlFromCodes(fresh.tabtouchVenueCodes || {}, track, raceType, raceNumber, startTimeIso);
+}
+
+async function ensureTabtouchVenueCodesLearnedToday() {
+  const today = new Date().toISOString().slice(0, 10);
+  const { tabtouchVenueCodesLearnedDate } = await chrome.storage.local.get([
+    "tabtouchVenueCodesLearnedDate",
+  ]);
+  if (tabtouchVenueCodesLearnedDate === today) return;
+
+  await visitTabtouchMeetingsPage();
+
+  await chrome.storage.local.set({ tabtouchVenueCodesLearnedDate: today });
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   console.log("RaceOdds installed");
 });
@@ -250,10 +338,14 @@ async function ensureAutoRefreshAlarm() {
 ensureAutoRefreshAlarm();
 
 // Runs once immediately at service-worker startup too, not just on the
-// next alarm tick (up to a minute away) — so TAB venue codes start being
-// learned as soon as possible after a reload rather than waiting.
+// next alarm tick (up to a minute away) — so TAB/TABtouch venue codes
+// start being learned as soon as possible after a reload rather than
+// waiting.
 ensureTabVenueCodesLearnedToday().catch((err) =>
   console.warn("Learning TAB venue codes skipped:", err.message)
+);
+ensureTabtouchVenueCodesLearnedToday().catch((err) =>
+  console.warn("Learning TABtouch venue codes skipped:", err.message)
 );
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
@@ -265,6 +357,9 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   // setting off shouldn't stop it.
   ensureTabVenueCodesLearnedToday().catch((err) =>
     console.warn("Learning TAB venue codes skipped:", err.message)
+  );
+  ensureTabtouchVenueCodesLearnedToday().catch((err) =>
+    console.warn("Learning TABtouch venue codes skipped:", err.message)
   );
 
   // Other Behaviour and Functionality > "Automatically refresh odds every
@@ -1039,7 +1134,9 @@ async function listUpcomingRacesInner() {
     ladbrokesEvents,
     nedsEvents,
     pointsbetEvents,
+    betrEvents,
     { tabVenueCodes = {} },
+    { tabtouchVenueCodes = {} },
     { pendingResultChecks = [] },
     { liveRace },
   ] = await Promise.all([
@@ -1072,7 +1169,13 @@ async function listUpcomingRacesInner() {
       console.warn("PointsBet meetings skipped:", err.message);
       return [];
     }),
+    // Same again — a Betr-side hiccup just means betrUrl stays null.
+    fetchBetrNextEvents().catch((err) => {
+      console.warn("Betr GroupedRaceCard skipped:", err.message);
+      return [];
+    }),
     chrome.storage.local.get(["tabVenueCodes"]),
+    chrome.storage.local.get(["tabtouchVenueCodes"]),
     chrome.storage.local.get(["pendingResultChecks"]),
     chrome.storage.local.get(["liveRace"]),
   ]);
@@ -1242,6 +1345,16 @@ async function listUpcomingRacesInner() {
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
       );
 
+      // Same matching again — Betr's own feed also never prefixes a
+      // venue name (confirmed live across a full day's AU meetings).
+      const betrMatch = betrEvents.find(
+        (e) =>
+          e.type === raceType &&
+          namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
+          e.raceNumber === raceNumber &&
+          Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
+      );
+
       return {
         track,
         raceNumber,
@@ -1290,6 +1403,13 @@ async function listUpcomingRacesInner() {
         // PointsBet also has a real feed from day one (js/pointsbet/
         // api.js, pbMatch above), same treatment.
         pointsbetUrl: pbMatch ? buildPointsBetRaceUrl(pbMatch) : null,
+        // Betr also has a real feed from day one (js/betr/api.js,
+        // betrMatch above), same treatment.
+        betrUrl: betrMatch ? buildBetrRaceUrl(betrMatch) : null,
+        // TABtouch has no real feed (same starting point TAB itself
+        // had) — built from codes learned off its own "All Racing" hub
+        // page (tabtouchMeetings.js) instead, same idea as tabUrl above.
+        tabtouchUrl: tabtouchRaceUrlFromCodes(tabtouchVenueCodes, track, raceType, raceNumber, market.marketStartTime),
       };
     })
     .filter((r) => r.raceNumber !== null);
@@ -1731,9 +1851,30 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return; // fire-and-forget — the content script isn't awaiting a reply
   }
 
+  if (message.type === "BETR_ODDS_UPDATED") {
+    applyBookieOdds("betr", message.odds).catch((err) =>
+      console.warn("Failed to apply live Betr update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  if (message.type === "TABTOUCH_ODDS_UPDATED") {
+    applyBookieOdds("tabtouch", message.odds).catch((err) =>
+      console.warn("Failed to apply live TABtouch update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
   if (message.type === "TAB_VENUE_CODES_LEARNED") {
     learnTabVenueCodes(message.entries).catch((err) =>
       console.warn("Failed to store learned TAB venue codes:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  if (message.type === "TABTOUCH_VENUE_CODES_LEARNED") {
+    learnTabtouchVenueCodes(message.entries).catch((err) =>
+      console.warn("Failed to store learned TABtouch venue codes:", err.message)
     );
     return; // fire-and-forget — the content script isn't awaiting a reply
   }
@@ -1755,6 +1896,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "ENSURE_TAB_URL") {
     ensureTabUrlForRace(message.track, message.raceType, message.raceNumber, message.startTime)
       .then((tabUrl) => sendResponse({ ok: true, tabUrl }))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === "ENSURE_TABTOUCH_URL") {
+    ensureTabtouchUrlForRace(message.track, message.raceType, message.raceNumber, message.startTime)
+      .then((tabtouchUrl) => sendResponse({ ok: true, tabtouchUrl }))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
