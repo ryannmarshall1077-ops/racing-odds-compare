@@ -3572,3 +3572,46 @@ https://developer.betfair.com/.
         confirmed the dropdown correctly re-selected the saved value
         from scratch (the full round trip, not just the in-memory
         write). No console errors.
+
+- [x] Visual polish pass on the Daily Planner table, user-requested
+      ("clean, professional, all symmetrical, like an end product") —
+      the underlying functionality is unchanged, this is styling only:
+      - Track/Races (plain text inputs) had no explicit styling at all
+        before this — they only looked reasonably dark because of
+        `color-scheme: dark` making the browser render its own native
+        form controls in a dark theme, which happens to look close but
+        doesn't actually match this app's own panel/border tokens, or
+        the Promotion `<select>`/Bookmaker(s) box sitting right next to
+        them. All four (Track, Races, Promotion, Bookmaker(s)) now
+        share the exact same background/border/radius, and Track/
+        Races/Promotion all get an explicit `min-height: 30px` too —
+        matching `.planner-bookie-box`'s own existing min-height
+        exactly, so every cell in a row lines up at the same height.
+      - Added a divider under the header row and between each planner
+        row (`border-top` on `tr + tr td`, not touching the existing
+        `border-bottom: none` override that keeps the main odds table's
+        own generic row-border rule from leaking into this table) — it
+        read as a loose stack of fields rather than an actual table
+        without this.
+      - Rebalanced the 5 column widths: Promotion widened from 18% to
+        31% (needed room for "Run 2nd You Win", the longest of the 3
+        real options, added after these widths were first set — it was
+        truncating), the remove-button column shrunk from 14% to 8%
+        (all it ever needs for one "×"), funding the difference without
+        widening the table itself.
+      - The remove button is now a proper 26px circular icon button
+        with a subtle hover background, rather than a bare "×"
+        character floating with no visible affordance.
+      - Simplified the field-hint paragraph from 4 dense sentences
+        (documenting exactly how typing/suggestions/the dropdown/the
+        bookmaker search box each work) down to 2 short ones covering
+        just the purpose and the payoff — the how is self-evident from
+        the fields themselves (a dropdown is obviously a dropdown), and
+        already covered for a first-time user by the Tutorial's own
+        Daily Planner step.
+      - Verified via the local static-preview harness: checked computed
+        styles directly (not just a screenshot) — Track/Races/Promotion
+        all render at an identical 30px height with matching background/
+        border/radius; the header and inter-row dividers are present;
+        "Run 2nd You Win" renders in full, unclipped, in its own cell.
+        No console errors.
