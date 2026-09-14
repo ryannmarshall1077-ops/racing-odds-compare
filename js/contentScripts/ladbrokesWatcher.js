@@ -77,13 +77,23 @@
   }
 
   let lastSentSignature = null;
+  // See sportsbetWatcher.js's own copy of this flag for the full
+  // reasoning: without it, a page loaded straight onto an already-
+  // resulted race (never seen live) would freeze on an EMPTY runners
+  // array forever instead of ever capturing the real closing price —
+  // user-reported this exact gap for "any bookie but TAB".
+  let everSentRealPrices = false;
 
   function sendUpdateIfChanged() {
     const marketClosed = scrapeMarketClosed();
-    // Same reasoning as sportsbetWatcher.js: stop scraping prices the
-    // moment betting closes rather than risk feeding stale/misaligned
-    // in-play numbers into the comparison table.
-    const runners = marketClosed ? [] : scrapeRunners();
+    // Same reasoning as sportsbetWatcher.js: stop scraping prices once
+    // betting closes, rather than risk feeding stale/misaligned in-play
+    // numbers into the comparison table — unless nothing real has been
+    // captured yet on this page load, in which case there's no frozen
+    // price to protect and this is instead the only chance to capture
+    // the genuine closing price at all.
+    const runners = marketClosed && everSentRealPrices ? [] : scrapeRunners();
+    if (runners.length > 0) everSentRealPrices = true;
     if (runners.length === 0 && marketClosed === undefined) return;
 
     const signature = JSON.stringify({ runners, marketClosed });

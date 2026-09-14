@@ -101,7 +101,16 @@ async function listMarketsByIds(appKey, sessionToken, marketIds) {
 async function getMarketBook(appKey, sessionToken, marketIds) {
   return betfairApiCall(appKey, sessionToken, "listMarketBook", {
     marketIds,
-    priceProjection: { priceData: ["EX_BEST_OFFERS"] },
+    // EX_TRADED alongside EX_BEST_OFFERS purely for lastPriceTraded — a
+    // settled/closed market has nothing left in availableToBack/Lay (no
+    // more live layers once trading's stopped), but Betfair keeps
+    // lastPriceTraded around as the final price a bet actually matched
+    // at. Without EX_TRADED that field isn't reliably populated. This is
+    // what post-race backfill (background.js's refreshRaceInner/
+    // settledRaceFromBook) uses as "Betfair closing price" for a race
+    // nobody watched live long enough to freeze a real availableToLay
+    // price for.
+    priceProjection: { priceData: ["EX_BEST_OFFERS", "EX_TRADED"] },
   });
 }
 
