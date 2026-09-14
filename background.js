@@ -927,12 +927,30 @@ async function listUpcomingRacesInner() {
     sessionToken,
     RACING_SPORTS.map((s) => s.betfairEventType)
   );
+
+  // User-requested: every race for the rest of the day in the sidebar,
+  // still sorted by jump time (listWinMarkets' own FIRST_TO_START sort,
+  // unchanged) so nothing needs scrolling/clicking through track-by-track
+  // to see what's coming up next — a flat list, not grouped by meeting.
+  // UTC-day boundary, same approximation the rest of this codebase
+  // already makes for "today" (e.g. fetchLadbrokesNextEvents' own date
+  // param, tabRaceUrlFromCodes' date segment) rather than trying to
+  // resolve which of AU's several timezones actually applies — good
+  // enough for "the rest of today", not a precise cutoff requirement.
+  // 1000 is Betfair's own documented listMarketCatalogue maxResults
+  // ceiling — the real cap now, not an arbitrary number picked here.
+  const endOfTodayUtc = new Date();
+  endOfTodayUtc.setUTCHours(24, 0, 0, 0);
+
   const [markets, sportsbetEvents, ladbrokesEvents, { tabVenueCodes = {} }, { pendingResultChecks = [] }, { liveRace }] =
     await Promise.all([
-      // 20, not 15 — now split across every supported sport instead of just
-      // horse racing, so the same-ish count needs a bit more headroom to
-      // still show a reasonable spread of both.
-      listWinMarkets(appKey, sessionToken, [...eventTypeIds.values()], 20),
+      listWinMarkets(
+        appKey,
+        sessionToken,
+        [...eventTypeIds.values()],
+        1000,
+        endOfTodayUtc.toISOString()
+      ),
       fetchSportsbetNextEvents(),
       // Best-effort — a Ladbrokes-side hiccup (e.g. their persisted-query
       // hash rotating on a frontend release) shouldn't take the whole
