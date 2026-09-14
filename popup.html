@@ -463,9 +463,11 @@
         <div class="modal-body">
           <p class="field-hint">
             Plan which of today's races you're running a promo on, which bookmaker it's for, and
-            which promotion type &mdash; before you sit down to actually work through them. A
-            saved race is highlighted in the Upcoming Races list; loading it into the table
-            highlights that bookmaker's column and switches the mode tab to match.
+            which promotion type &mdash; before you sit down to actually work through them. Type a
+            single race number or a range (e.g. <code>3</code> or <code>1-5</code>, comma-separate
+            more than one) rather than picking each race one at a time. A saved race is highlighted
+            in the Upcoming Races list; loading it into the table highlights that bookmaker's
+            column and switches the mode tab to match.
           </p>
 
           <div id="planner-table-wrapper">
@@ -473,7 +475,7 @@
               <thead>
                 <tr>
                   <th>Course</th>
-                  <th>Race</th>
+                  <th>Races</th>
                   <th>Bookmaker</th>
                   <th>Promotion</th>
                   <th></th>
@@ -485,7 +487,7 @@
             </table>
           </div>
 
-          <button id="planner-add-row-btn" class="link-btn" type="button">+ Add race</button>
+          <button id="planner-add-row-btn" class="link-btn" type="button">+ Add row</button>
         </div>
 
         <div class="modal-footer">

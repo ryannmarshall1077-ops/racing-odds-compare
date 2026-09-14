@@ -369,14 +369,91 @@ function plannerRaceLabel(race) {
   return `R${race.raceNumber ?? "?"}${time ? ` ${time}` : ""}`;
 }
 
+// "1-5" (inclusive), "3" (single), or a comma-separated mix of either
+// ("1-3,5,7-8") — user-requested: type a range instead of picking one
+// race at a time. Returns a Set of race numbers, or null if any
+// comma-separated chunk doesn't parse (the whole input is treated as
+// invalid then, rather than silently keeping just the parts that did).
+function parseRaceRangeList(text) {
+  const numbers = new Set();
+  for (const part of text.split(",")) {
+    const trimmed = part.trim();
+    if (trimmed === "") continue;
+    const rangeMatch = trimmed.match(/^(\d+)\s*-\s*(\d+)$/);
+    const singleMatch = trimmed.match(/^(\d+)$/);
+    if (rangeMatch) {
+      const start = Number(rangeMatch[1]);
+      const end = Number(rangeMatch[2]);
+      if (end < start) return null;
+      for (let n = start; n <= end; n++) numbers.add(n);
+    } else if (singleMatch) {
+      numbers.add(Number(singleMatch[1]));
+    } else {
+      return null;
+    }
+  }
+  return numbers.size > 0 ? numbers : null;
+}
+
+// The inverse of parseRaceRangeList — collapses a set of race numbers
+// back into the same syntax it accepts (contiguous runs become
+// "start-end", singles stay bare, comma-separated, ascending). Only
+// used when the modal reopens, turning the committed per-race entries
+// (see openPlannerModal) back into one draft row's worth of range text
+// — so an already-planned "1-5" still shows as "1-5" when you come back
+// to edit it, not a flat "1,2,3,4,5".
+function formatRaceRangeList(numbers) {
+  const sorted = [...numbers].sort((a, b) => a - b);
+  const parts = [];
+  let start = null;
+  let prev = null;
+  for (const n of sorted) {
+    if (start === null) {
+      start = n;
+    } else if (n !== prev + 1) {
+      parts.push(start === prev ? `${start}` : `${start}-${prev}`);
+      start = n;
+    }
+    prev = n;
+  }
+  if (start !== null) parts.push(start === prev ? `${start}` : `${start}-${prev}`);
+  return parts.join(",");
+}
+
+// Which of that course's actual races a typed range currently resolves
+// to — shared by the live preview below and the Save handler further
+// down, so what you see before saving is exactly what gets saved.
+function plannerMatchedRaces(track, rangeText) {
+  const numbers = rangeText ? parseRaceRangeList(rangeText) : null;
+  if (!track || !numbers) return [];
+  return plannerRacesForTrack(track)
+    .filter((r) => numbers.has(r.raceNumber))
+    .sort((a, b) => a.raceNumber - b.raceNumber);
+}
+
+// Live feedback under the Races input (updated on every keystroke, see
+// the "input" listener below) — what it actually resolves to right
+// now, or why it doesn't, before Save ever has to say so.
+function plannerRangePreviewHtml(track, rangeText) {
+  const trimmed = (rangeText || "").trim();
+  if (trimmed === "") return "";
+  if (parseRaceRangeList(trimmed) === null) {
+    return `<span class="planner-preview-warn">Enter e.g. 3 or 1-5</span>`;
+  }
+  const matches = plannerMatchedRaces(track, trimmed);
+  if (matches.length === 0) {
+    return `<span class="planner-preview-warn">No races found for that range</span>`;
+  }
+  return `→ ${matches.map((r) => plannerRaceLabel(r)).join(", ")}`;
+}
+
 function plannerRowHtml(entry, index) {
   const courses = plannerCourseOptions();
   // The entry's own track might not be in today's list at all (a brand
   // new, still-empty row, before latestRaces has loaded) or might have
-  // dropped out of it (its race already jumped — see listUpcomingRacesInner)
-  // — either way it still needs to appear as a selectable/selected
-  // option, or the <select> would silently show a different course than
-  // what's actually stored on the entry.
+  // dropped out of it entirely — either way it still needs to appear as
+  // a selectable/selected option, or the <select> would silently show a
+  // different course than what's actually stored on the entry.
   const courseList = entry.track && !courses.includes(entry.track) ? [entry.track, ...courses] : courses;
 
   const courseOptionsHtml = courseList.length
@@ -385,49 +462,26 @@ function plannerRowHtml(entry, index) {
         .join("")
     : `<option value="">No races loaded yet</option>`;
 
-  const racesForTrack = entry.track ? plannerRacesForTrack(entry.track) : [];
-  const raceStillListed = racesForTrack.some((r) => r.marketId === entry.marketId);
-  // Same fallback as the course list above, built from the entry's own
-  // cached fields — keeps a jumped/dropped race visible and selected
-  // instead of the dropdown quietly switching to whichever race happens
-  // to be first at that course.
-  const raceOptions =
-    entry.marketId && !raceStillListed
-      ? [
-          {
-            marketId: entry.marketId,
-            raceNumber: entry.raceNumber,
-            startTime: entry.startTime,
-            track: entry.track,
-            sport: entry.sport,
-          },
-          ...racesForTrack,
-        ]
-      : racesForTrack;
-
-  const raceOptionsHtml = raceOptions.length
-    ? raceOptions
-        .map(
-          (r) =>
-            `<option value="${r.marketId}"${r.marketId === entry.marketId ? " selected" : ""}>${plannerRaceLabel(
-              r
-            )}</option>`
-        )
-        .join("")
-    : `<option value="">Pick a course first</option>`;
-
   const bookieOptionsHtml = BOOKIE_LIST.map(
     (b) => `<option value="${b.id}"${b.id === entry.bookieId ? " selected" : ""}>${b.label}</option>`
   ).join("");
 
-  const promoOptionsHtml = PROMO_MODES.map(
+  // Run 2nd/Run 2nd 3rd only — user-requested (planning ahead only
+  // makes sense for the place-promo modes) — see PLANNER_PROMO_MODES'
+  // own comment, bookies.js.
+  const promoOptionsHtml = PLANNER_PROMO_MODES.map(
     (m) => `<option value="${m.id}"${m.id === entry.promoType ? " selected" : ""}>${m.label}</option>`
   ).join("");
+
+  const rangeValue = (entry.raceRangeText || "").replace(/"/g, "&quot;");
 
   return `
     <tr data-index="${index}">
       <td><select class="planner-course-select">${courseOptionsHtml}</select></td>
-      <td><select class="planner-race-select">${raceOptionsHtml}</select></td>
+      <td>
+        <input type="text" class="planner-race-range-input" placeholder="e.g. 1-5" value="${rangeValue}" />
+        <div class="planner-race-preview">${plannerRangePreviewHtml(entry.track, entry.raceRangeText)}</div>
+      </td>
       <td><select class="planner-bookie-select">${bookieOptionsHtml}</select></td>
       <td><select class="planner-promo-select">${promoOptionsHtml}</select></td>
       <td><button type="button" class="planner-row-remove-btn" title="Remove">&times;</button></td>
@@ -438,7 +492,7 @@ function plannerRowHtml(entry, index) {
 function renderPlannerTable() {
   if (plannerDraftEntries.length === 0) {
     plannerBodyEl.innerHTML =
-      '<tr><td colspan="5" id="planner-empty-row">No races planned yet — click "+ Add race" to start.</td></tr>';
+      '<tr><td colspan="5" id="planner-empty-row">No races planned yet — click "+ Add row" to start.</td></tr>';
     return;
   }
   plannerBodyEl.innerHTML = plannerDraftEntries.map((entry, index) => plannerRowHtml(entry, index)).join("");
@@ -446,21 +500,44 @@ function renderPlannerTable() {
 
 function plannerDefaultEntry() {
   const track = plannerCourseOptions()[0] || null;
-  const race = track ? plannerRacesForTrack(track)[0] : null;
+  const firstRace = track ? plannerRacesForTrack(track)[0] : null;
   return {
     id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    marketId: race?.marketId ?? null,
-    track: race?.track ?? track,
-    raceNumber: race?.raceNumber ?? null,
-    startTime: race?.startTime ?? null,
-    sport: race?.sport ?? null,
+    track,
+    raceRangeText: firstRace ? String(firstRace.raceNumber) : "",
     bookieId: BOOKIE_LIST[0].id,
-    promoType: PROMO_MODES[0].id,
+    promoType: PLANNER_PROMO_MODES[0].id,
   };
 }
 
 function openPlannerModal() {
-  plannerDraftEntries = dailyPlannerEntries.map((e) => ({ ...e }));
+  // The committed list (dailyPlannerEntries) is flat, one entry per real
+  // race — grouping it back into (track, bookieId, promoType) buckets
+  // here, each becoming one draft row with its race numbers collapsed
+  // back into range text (formatRaceRangeList), is the inverse of what
+  // Save does further down. A plan saved as "1-5" therefore still shows
+  // as one "1-5" row when reopened, not five separate rows.
+  const groups = new Map();
+  for (const entry of dailyPlannerEntries) {
+    const key = `${entry.track} ${entry.bookieId} ${entry.promoType}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        track: entry.track,
+        bookieId: entry.bookieId,
+        promoType: entry.promoType,
+        raceNumbers: new Set(),
+      });
+    }
+    groups.get(key).raceNumbers.add(entry.raceNumber);
+  }
+  plannerDraftEntries = [...groups.values()].map((g) => ({
+    id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    track: g.track,
+    raceRangeText: formatRaceRangeList(g.raceNumbers),
+    bookieId: g.bookieId,
+    promoType: g.promoType,
+  }));
+
   plannerStatusEl.textContent = "";
   renderPlannerTable();
   plannerModal.hidden = false;
@@ -500,6 +577,18 @@ plannerBodyEl.addEventListener("click", (event) => {
   renderPlannerTable();
 });
 
+// Live, on every keystroke — updates just this row's own preview text
+// without touching the rest of the table (a full renderPlannerTable()
+// here would blow away focus/cursor position mid-type).
+plannerBodyEl.addEventListener("input", (event) => {
+  if (!event.target.classList.contains("planner-race-range-input")) return;
+  const row = event.target.closest("tr");
+  const entry = plannerDraftEntries[Number(row.dataset.index)];
+  if (!entry) return;
+  entry.raceRangeText = event.target.value;
+  row.querySelector(".planner-race-preview").innerHTML = plannerRangePreviewHtml(entry.track, entry.raceRangeText);
+});
+
 plannerBodyEl.addEventListener("change", (event) => {
   const row = event.target.closest("tr");
   if (!row) return;
@@ -507,28 +596,13 @@ plannerBodyEl.addEventListener("change", (event) => {
   if (!entry) return;
 
   if (event.target.classList.contains("planner-course-select")) {
-    // Changing course resets this row's race to that track's own
-    // soonest one — keeping the old marketId around here would
-    // silently plan a race at the PREVIOUS course under the new
-    // course's own label, since marketId is what actually gets saved.
-    const track = event.target.value;
-    const firstRace = plannerRacesForTrack(track)[0] || null;
-    entry.track = track;
-    entry.marketId = firstRace?.marketId ?? null;
-    entry.raceNumber = firstRace?.raceNumber ?? null;
-    entry.startTime = firstRace?.startTime ?? null;
-    entry.sport = firstRace?.sport ?? null;
-    renderPlannerTable(); // this row's Race <select> needs a fresh option list
-  } else if (event.target.classList.contains("planner-race-select")) {
-    const race = latestRaces.find((r) => r.marketId === event.target.value);
-    if (race) {
-      entry.marketId = race.marketId;
-      entry.raceNumber = race.raceNumber;
-      entry.startTime = race.startTime;
-      entry.sport = race.sport;
-    } else {
-      entry.marketId = event.target.value || null;
-    }
+    // The typed race range stays as-is across a course change (it's
+    // just text, no longer tied to a specific marketId) — the preview
+    // naturally reflects whether it still matches anything at the new
+    // course, so there's nothing to reset here the way picking a
+    // specific race from a dropdown used to need.
+    entry.track = event.target.value;
+    row.querySelector(".planner-race-preview").innerHTML = plannerRangePreviewHtml(entry.track, entry.raceRangeText);
   } else if (event.target.classList.contains("planner-bookie-select")) {
     entry.bookieId = event.target.value;
   } else if (event.target.classList.contains("planner-promo-select")) {
@@ -537,10 +611,41 @@ plannerBodyEl.addEventListener("change", (event) => {
 });
 
 document.getElementById("planner-save-btn").addEventListener("click", () => {
-  // A row with no race actually picked yet (an empty course list, or a
-  // half-finished new row) doesn't get saved — keeping it would just
-  // reappear as a confusing blank line the next time the modal opens.
-  dailyPlannerEntries = plannerDraftEntries.filter((e) => e.marketId);
+  // Each draft row (a course + a typed range of race numbers) expands
+  // into one committed entry per race that range actually matches at
+  // that course — plannerMatchedRaces is the exact same lookup the
+  // live preview already used, so what got shown before Save is
+  // exactly what gets saved.
+  const expanded = [];
+  const unmatchedRanges = [];
+  for (const entry of plannerDraftEntries) {
+    if (!entry.track || !entry.raceRangeText) continue; // a genuinely empty/unstarted row — nothing to save
+    const matches = plannerMatchedRaces(entry.track, entry.raceRangeText);
+    if (matches.length === 0) {
+      unmatchedRanges.push(`${entry.track} ${entry.raceRangeText}`);
+      continue;
+    }
+    for (const race of matches) {
+      expanded.push({
+        id: `plan-${race.marketId}-${entry.bookieId}`,
+        marketId: race.marketId,
+        track: race.track,
+        raceNumber: race.raceNumber,
+        startTime: race.startTime,
+        sport: race.sport,
+        bookieId: entry.bookieId,
+        promoType: entry.promoType,
+      });
+    }
+  }
+
+  // De-duped by marketId — two draft rows whose ranges overlap at the
+  // same course (e.g. "1-3" and "2-4") would otherwise both try to plan
+  // the overlapping races; the later row wins rather than keeping two
+  // conflicting bookie/promo picks for the same race.
+  const byMarketId = new Map();
+  for (const e of expanded) byMarketId.set(e.marketId, e);
+  dailyPlannerEntries = [...byMarketId.values()];
   chrome.storage.local.set({ dailyPlanner: dailyPlannerEntries });
 
   renderFilteredRacesList(); // sidebar pins need to reflect the new/removed entries right away
@@ -556,8 +661,10 @@ document.getElementById("planner-save-btn").addEventListener("click", () => {
     renderRace(currentRace);
   }
 
-  plannerStatusEl.textContent = "Saved.";
-  setTimeout(closePlannerModal, 500);
+  plannerStatusEl.textContent = unmatchedRanges.length
+    ? `Saved. No races found for: ${unmatchedRanges.join(", ")}`
+    : "Saved.";
+  setTimeout(closePlannerModal, unmatchedRanges.length ? 1800 : 500);
 });
 
 function parseRunnerNumber(name) {
@@ -1393,14 +1500,7 @@ function renderRace(race) {
         price != null &&
         bookieMetric != null &&
         bookieMetric === bestBookieMetricByBookie.get(b.id);
-      // Daily Planner's own highlight — this race's planned bookmaker
-      // column (renderRace's own plannerEntry, computed once above and
-      // closed over here), independent of rowBest/colBest so a cell can
-      // carry any combination of the three.
-      const planned = plannerEntry?.bookieId === b.id;
-      const cellClass = `col-bookie${rowBest ? " row-best" : ""}${colBest ? " col-best" : ""}${
-        planned ? " planned-bookie-col" : ""
-      }`;
+      const cellClass = `col-bookie${rowBest ? " row-best" : ""}${colBest ? " col-best" : ""}`;
       const bg = rowBest ? "rgba(61, 220, 151, 0.22)" : edgeMetricHtml(price == null ? null : bookieMetric).bg;
       return `<td class="${cellClass}"${hiddenAttr} style="background:${bg}">${bookieCellHtml(price, bookieMetric)}</td>`;
     }).join("");

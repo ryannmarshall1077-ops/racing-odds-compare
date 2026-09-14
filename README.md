@@ -3016,3 +3016,41 @@ https://developer.betfair.com/.
         unrelated re-render, the highlight clearing on an unplanned
         race, and closing without saving correctly discarding the
         draft.
+
+- [x] Two user-requested changes to the Daily Planner above:
+      - **Type a race range instead of picking one race at a time.**
+        The Races column is now a text input (`3`, `1-5`, or a comma-
+        separated mix like `1-3,5,7-8`) instead of a single-race
+        dropdown — a live preview underneath resolves it against that
+        course's actual races the moment you type (`R1 2:40 pm, R2 3:10
+        pm, ...`), or explains why it doesn't (an unparseable range, or
+        a valid one with nothing at that course), before Save ever has
+        to. One row now expands into as many committed entries as the
+        range matches; reopening the modal groups them back into one
+        row per (course, bookmaker, promotion) with the range text
+        reconstructed (`formatRaceRangeList`) — a plan saved as "1-5"
+        still reads as "1-5" when you come back to edit it, not five
+        separate rows.
+      - **Promotion is Run 2nd/Run 2nd 3rd only.** The Planner's own
+        Promotion dropdown no longer offers Mug/Bonus — planning ahead
+        only makes sense for the place-promo modes. Derived
+        (`PLANNER_PROMO_MODES`, `bookies.js`) from the same list the
+        main table's mode tabs use rather than a separate one, so a
+        label change to either mode still only needs updating in one
+        place.
+      - Also addressed, from a screenshot of the first version: the
+        bookmaker highlight on a loaded planned race was a pink border
+        around *every runner's* cell in that column, plus a 📌 next to
+        the header icon — busy, and not what was asked for. Now it's
+        just a plain highlighted box around the bookmaker's header icon
+        alone (`th.planned-bookie-col .bookie-th`); no per-runner
+        borders, no header emoji.
+      - Verified via the same local harness: typing a range live-
+        updates its own row's preview without disturbing any other
+        row's input focus; an invalid range and a valid-but-unmatched
+        range both show their own distinct warning; saving "1-5"
+        expands into 5 real entries and pins all 5 in the sidebar;
+        reopening collapses those same 5 back into one "1-5" row;
+        loading a planned race still switches the mode tab correctly
+        and highlights only that bookmaker's header box, with the
+        Promotion dropdown showing just the two allowed options.
