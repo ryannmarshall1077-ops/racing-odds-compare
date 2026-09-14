@@ -3830,8 +3830,11 @@ https://developer.betfair.com/.
         "Favourite2.75") — the exact same class of bug as Ladbrokes' own
         "FAV2.90" (see `ladbrokesWatcher.js`) — so the number is
         extracted with a regex rather than trusting the cell's raw text.
-      - Icon (`icons/bookies/tabtouch.png`) is TABtouch's own real
-        apple-touch-icon, fetched live from their site.
+      - Icon (`icons/bookies/tabtouch.png`) was originally TABtouch's own
+        apple-touch-icon, fetched live from their site; replaced shortly
+        after with a cleaner square logo the user had already saved
+        locally (same purple/white TABtouch branding, just a nicer
+        wordmark treatment).
       - Verified via the local static-preview harness (all 7 bookies now
         in sync) and live against real tabtouch.com.au race pages: the
         venue-code scraper against a real day's full "All Racing" hub
