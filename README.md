@@ -53,12 +53,12 @@ https://developer.betfair.com/.
       own public race feed, so an unusual venue-name mismatch between the two
       sites could occasionally leave a race without a Sportsbet link (shown
       with a "!" marker).
-- [x] Other bookmakers (TAB, Ladbrokes, Neds so far — see their own
-      dedicated entries further down for how/when each was actually
-      added) — each needed its own content script since every site's
-      markup differs, though Neds turned out to share Ladbrokes' own
-      platform closely enough to reuse its selectors verbatim. PointsBet
-      and Bet365 not yet done.
+- [x] Other bookmakers (TAB, Ladbrokes, Neds, PointsBet so far — see
+      their own dedicated entries further down for how/when each was
+      actually added) — each needed its own content script since every
+      site's markup differs, though Neds turned out to share Ladbrokes'
+      own platform closely enough to reuse its selectors verbatim.
+      Bet365 not yet done.
 - [x] Greyhound racing (harness already came through under the Horse
       Racing event type in AU — see the dedicated entry further down for
       how greyhound support was added)
@@ -3668,3 +3668,60 @@ https://developer.betfair.com/.
         against real neds.com.au race pages: the exact Ladbrokes
         scraping logic, unmodified, correctly extracted real runner
         names/prices from an actual race card.
+
+- [x] Added **PointsBet** as a fifth bookmaker — user-requested (the
+      second of the two asked for alongside Neds). A genuinely separate
+      platform from the Ladbrokes/Neds family, so this one needed real,
+      from-scratch investigation rather than a clone:
+      - Its own public REST feed
+        (`https://api.au.pointsbet.com/api/racing/v3/meetings`, no query
+        params at all) was found by hooking `window.fetch`/
+        `XMLHttpRequest.prototype.open` *before* loading a real racing
+        page — reading network requests after the fact kept missing it
+        entirely (the real call had already scrolled out of the
+        request-list buffer by the time it was checked). One call
+        returns every meeting for today, already grouped with each
+        meeting's own races (id/number/start time) nested inside — no
+        separate per-race lookup needed at all, simpler than every
+        other bookie's own feed here.
+      - PointsBet's own race URLs are genuinely structured and
+        human-readable (`/racing/<Type>/<Country>/<Venue>/race/<id>`,
+        e.g. `/racing/Greyhound/AUS/Ballarat/race/115131990`) — confirmed
+        live for Thoroughbred/Harness/Greyhound and both an AUS and a
+        GBR race. `js/pointsbet/api.js`'s own `POINTSBET_RACING_TYPE`
+        maps the feed's numeric `racingType` (1/2/4, confirmed live
+        against real AU meetings of each kind) to this codebase's own
+        sport.id convention.
+      - No `data-testid` attributes anywhere on the page at all (unlike
+        the Ladbrokes/Neds family) — its own stable hook is
+        `data-test="racingRunners<N>OutcomeRunnerWinOddsButton"` on each
+        Win odds button specifically (confirmed live these survive,
+        merely `disabled`, on an already-resulted race, still holding
+        the real closing price as their own text). The runner's own
+        NAME has no comparable stable attribute at all — it lives in a
+        hashed CSS-in-JS class that changes across deploys — so
+        `pointsbetWatcher.js`/`pointsbet.js` instead read it from the
+        START of the runner's own row text (every name is reliably
+        rendered first, as `"<number>. <name> (<barrier>)"`), never
+        touching the hashed class.
+      - The market-closed signal is shaped differently here too: rather
+        than one element whose TEXT switches from a duration to a
+        status word (every other bookie's own convention), a
+        `[data-test="duration"]` element only EXISTS at all while still
+        counting down, and is simply gone once closed — confirmed live
+        on both states. Scoped to a bounded ancestor of the page's own
+        `<h1>` rather than the whole document: unscoped, the first
+        `[data-test="duration"]` match on an already-resulted race's own
+        page was reliably some OTHER, unrelated race's own countdown in
+        the "Next To Jump" sidebar ticker instead.
+      - Icon (`icons/bookies/pointsbet.png`) is PointsBet's own real
+        apple-touch-icon (fetched live from their site), matching the
+        solid-colour-square style every other bookie's own icon already
+        uses.
+      - Verified via the local static-preview harness (header/body/
+        footer column counts stay in sync across all 5 bookies now, no
+        console errors) and live against real pointsbet.com.au race
+        pages, including the exact final watcher logic run together in
+        one pass against a genuinely resulted race: correctly reported
+        the market as closed and extracted all 9 real runner names/
+        prices.
