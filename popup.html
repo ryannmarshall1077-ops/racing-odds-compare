@@ -462,12 +462,14 @@
 
         <div class="modal-body">
           <p class="field-hint">
-            Plan which of today's races you're running a promo on, which bookmaker it's for, and
-            which promotion type &mdash; before you sit down to actually work through them. Type a
-            single race number or a range (e.g. <code>3</code> or <code>1-5</code>, comma-separate
-            more than one) rather than picking each race one at a time. A saved race is highlighted
-            in the Upcoming Races list; loading it into the table highlights that bookmaker's
-            column and switches the mode tab to match.
+            Plan which of today's races you're running a promo on, which bookmaker(s) it's for,
+            and which promotion type &mdash; before you sit down to actually work through them.
+            Every field is typeable, with suggestions as you go: type a course, a single race
+            number or a range (e.g. <code>3</code> or <code>1-5</code>, comma-separate more than
+            one), one or more bookmakers (comma-separated, e.g. <code>Sportsbet, TAB</code>), and
+            a promotion type. A saved race is highlighted in the Upcoming Races list; loading it
+            into the table highlights every bookmaker you picked and switches the mode tab to
+            match.
           </p>
 
           <div id="planner-table-wrapper">
@@ -476,7 +478,7 @@
                 <tr>
                   <th>Course</th>
                   <th>Races</th>
-                  <th>Bookmaker</th>
+                  <th>Bookmaker(s)</th>
                   <th>Promotion</th>
                   <th></th>
                 </tr>
@@ -488,6 +490,17 @@
           </div>
 
           <button id="planner-add-row-btn" class="link-btn" type="button">+ Add row</button>
+
+          <!-- Shared across every row (a <datalist> can back more than one
+               input at once) — populated/refreshed by popup.js. Course's
+               own options depend on latestRaces so it's rebuilt each time
+               the table renders; Bookmaker/Promotion are static, filled
+               once from BOOKIE_LIST/PLANNER_PROMO_MODES (bookies.js) so
+               their labels can't drift out of sync with what's actually
+               matched against. -->
+          <datalist id="planner-course-options"></datalist>
+          <datalist id="planner-bookie-options"></datalist>
+          <datalist id="planner-promo-options"></datalist>
         </div>
 
         <div class="modal-footer">

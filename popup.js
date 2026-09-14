@@ -306,12 +306,16 @@ for (const tabBtn of document.querySelectorAll(".modal-tab-btn")) {
 // --- Daily Planner -----------------------------------------------------
 //
 // User-requested: plan ahead of time which of today's races you're
-// running a promo on, on which bookmaker, and under which promo type —
-// instead of figuring that out race by race as you get to it. A saved
-// entry highlights that race's own sidebar card (raceCardHtml's own
-// plannerEntryForMarketId lookup) and, once the race is actually loaded,
-// highlights that bookmaker's whole column in the odds table and
-// switches the mode tab to match (renderRace).
+// running a promo on, on which bookmaker(s), and under which promo
+// type — instead of figuring that out race by race as you get to it.
+// Every field is a plain typeable text input with a <datalist> behind
+// it for suggestions (user-requested — a native <select> needed a
+// click to even see its options; typing is faster once you already
+// know what you want). A saved entry highlights that race's own
+// sidebar card (raceCardHtml's own plannerEntriesForMarketId lookup)
+// and, once the race is actually loaded, highlights every bookmaker
+// column you picked in the odds table and switches the mode tab to
+// match (renderRace).
 let dailyPlannerEntries = [];
 
 // A separate working copy, only edited while the modal is open — Save is
@@ -320,9 +324,12 @@ let dailyPlannerEntries = [];
 // removed, or changed since it was opened.
 let plannerDraftEntries = [];
 
-function plannerEntryForMarketId(marketId) {
-  if (!marketId) return null;
-  return dailyPlannerEntries.find((e) => e.marketId === marketId) || null;
+// Every committed entry for one race — plural, since a single race can
+// now be planned against more than one bookmaker at once (each still
+// its own entry, sharing the same marketId; see the Save handler).
+function plannerEntriesForMarketId(marketId) {
+  if (!marketId) return [];
+  return dailyPlannerEntries.filter((e) => e.marketId === marketId);
 }
 
 // Loaded once at startup — this callback runs well after the rest of
@@ -332,12 +339,22 @@ function plannerEntryForMarketId(marketId) {
 // here before its own declaration is safe.
 chrome.storage.local.get(["dailyPlanner"], (stored) => {
   dailyPlannerEntries = stored.dailyPlanner || [];
-  renderFilteredRacesList(); // picks up each row's own sidebar pin, in case the list already rendered first
+  renderFilteredRacesList(); // picks up each row's own sidebar highlight, in case the list already rendered first
 });
 
 const plannerModal = document.getElementById("planner-modal");
 const plannerBodyEl = document.getElementById("planner-body");
 const plannerStatusEl = document.getElementById("planner-status");
+const plannerCourseDatalistEl = document.getElementById("planner-course-options");
+const plannerBookieDatalistEl = document.getElementById("planner-bookie-options");
+const plannerPromoDatalistEl = document.getElementById("planner-promo-options");
+
+// Bookmaker/Promotion datalists never change (BOOKIE_LIST/
+// PLANNER_PROMO_MODES are both static, loaded from bookies.js before
+// this script runs) — filled once, rather than rebuilt on every render
+// the way Course's own datalist needs to be further down.
+plannerBookieDatalistEl.innerHTML = BOOKIE_LIST.map((b) => `<option value="${b.label}"></option>`).join("");
+plannerPromoDatalistEl.innerHTML = PLANNER_PROMO_MODES.map((m) => `<option value="${m.label}"></option>`).join("");
 
 // Every distinct track currently in the sidebar's own list, still in
 // jump-time order (latestRaces already comes sorted that way —
@@ -355,8 +372,50 @@ function plannerCourseOptions() {
   return tracks;
 }
 
+// Course's own datalist DOES change (depends on latestRaces) — rebuilt
+// every time the table renders; cheap enough not to bother diffing.
+function refreshPlannerCourseDatalist() {
+  plannerCourseDatalistEl.innerHTML = plannerCourseOptions()
+    .map((track) => `<option value="${track}"></option>`)
+    .join("");
+}
+
 function plannerRacesForTrack(track) {
   return latestRaces.filter((r) => r.track === track);
+}
+
+// Exact, case-insensitive match against today's actual course names —
+// same tradeoff a plain <select> already had (you could only ever pick
+// a real option), just typed instead of clicked; free text that
+// doesn't match anything real simply doesn't resolve to a course yet.
+function plannerMatchTrack(text) {
+  const trimmed = (text || "").trim().toLowerCase();
+  if (trimmed === "") return null;
+  return plannerCourseOptions().find((t) => t.toLowerCase() === trimmed) || null;
+}
+
+// "Sportsbet, TAB" -> ["sportsbet", "tab"] — user-requested: plan more
+// than one bookmaker in the same row. Comma-separated, each piece
+// matched case-insensitively against BOOKIE_LIST's own labels; an
+// unmatched piece (a typo) is simply dropped rather than aborting the
+// whole field — plannerBookiePreviewHtml (below) is what surfaces that
+// to the user before Save does.
+function plannerMatchBookieIds(text) {
+  return (text || "")
+    .split(",")
+    .map((part) => part.trim().toLowerCase())
+    .filter((part) => part !== "")
+    .map((part) => BOOKIE_LIST.find((b) => b.label.toLowerCase() === part))
+    .filter(Boolean)
+    .map((b) => b.id);
+}
+
+// Single value, matched the same way — only Run 2nd/Run 2nd 3rd are
+// ever valid here (PLANNER_PROMO_MODES, bookies.js).
+function plannerMatchPromoId(text) {
+  const trimmed = (text || "").trim().toLowerCase();
+  if (trimmed === "") return null;
+  return PLANNER_PROMO_MODES.find((m) => m.label.toLowerCase() === trimmed)?.id || null;
 }
 
 // R6 3:32 pm — same 12-hour formatting raceCardHtml's own time already
@@ -423,7 +482,10 @@ function formatRaceRangeList(numbers) {
 // Which of that course's actual races a typed range currently resolves
 // to — shared by the live preview below and the Save handler further
 // down, so what you see before saving is exactly what gets saved.
-function plannerMatchedRaces(track, rangeText) {
+// Takes the raw typed course text (not an already-resolved track name)
+// so every caller resolves it the same way, via plannerMatchTrack.
+function plannerMatchedRaces(courseText, rangeText) {
+  const track = plannerMatchTrack(courseText);
   const numbers = rangeText ? parseRaceRangeList(rangeText) : null;
   if (!track || !numbers) return [];
   return plannerRacesForTrack(track)
@@ -434,62 +496,69 @@ function plannerMatchedRaces(track, rangeText) {
 // Live feedback under the Races input (updated on every keystroke, see
 // the "input" listener below) — what it actually resolves to right
 // now, or why it doesn't, before Save ever has to say so.
-function plannerRangePreviewHtml(track, rangeText) {
+function plannerRangePreviewHtml(courseText, rangeText) {
   const trimmed = (rangeText || "").trim();
   if (trimmed === "") return "";
   if (parseRaceRangeList(trimmed) === null) {
     return `<span class="planner-preview-warn">Enter e.g. 3 or 1-5</span>`;
   }
-  const matches = plannerMatchedRaces(track, trimmed);
+  if (!plannerMatchTrack(courseText)) {
+    return `<span class="planner-preview-warn">Pick a valid course first</span>`;
+  }
+  const matches = plannerMatchedRaces(courseText, trimmed);
   if (matches.length === 0) {
     return `<span class="planner-preview-warn">No races found for that range</span>`;
   }
   return `→ ${matches.map((r) => plannerRaceLabel(r)).join(", ")}`;
 }
 
+// Same idea for the Bookmaker(s) field — which typed names actually
+// matched a real bookmaker, or a warning naming whichever didn't.
+function plannerBookiePreviewHtml(text) {
+  const trimmed = (text || "").trim();
+  if (trimmed === "") return "";
+  const pieces = trimmed
+    .split(",")
+    .map((p) => p.trim())
+    .filter((p) => p !== "");
+  const unmatched = pieces.filter((p) => !BOOKIE_LIST.some((b) => b.label.toLowerCase() === p.toLowerCase()));
+  if (unmatched.length > 0) {
+    return `<span class="planner-preview-warn">Not recognised: ${unmatched.join(", ")}</span>`;
+  }
+  const labels = plannerMatchBookieIds(trimmed).map((id) => BOOKIE_LIST.find((b) => b.id === id).label);
+  return `→ ${labels.join(", ")}`;
+}
+
 function plannerRowHtml(entry, index) {
-  const courses = plannerCourseOptions();
-  // The entry's own track might not be in today's list at all (a brand
-  // new, still-empty row, before latestRaces has loaded) or might have
-  // dropped out of it entirely — either way it still needs to appear as
-  // a selectable/selected option, or the <select> would silently show a
-  // different course than what's actually stored on the entry.
-  const courseList = entry.track && !courses.includes(entry.track) ? [entry.track, ...courses] : courses;
-
-  const courseOptionsHtml = courseList.length
-    ? courseList
-        .map((track) => `<option value="${track}"${track === entry.track ? " selected" : ""}>${track}</option>`)
-        .join("")
-    : `<option value="">No races loaded yet</option>`;
-
-  const bookieOptionsHtml = BOOKIE_LIST.map(
-    (b) => `<option value="${b.id}"${b.id === entry.bookieId ? " selected" : ""}>${b.label}</option>`
-  ).join("");
-
-  // Run 2nd/Run 2nd 3rd only — user-requested (planning ahead only
-  // makes sense for the place-promo modes) — see PLANNER_PROMO_MODES'
-  // own comment, bookies.js.
-  const promoOptionsHtml = PLANNER_PROMO_MODES.map(
-    (m) => `<option value="${m.id}"${m.id === entry.promoType ? " selected" : ""}>${m.label}</option>`
-  ).join("");
-
-  const rangeValue = (entry.raceRangeText || "").replace(/"/g, "&quot;");
+  const escape = (s) => (s || "").replace(/"/g, "&quot;");
 
   return `
     <tr data-index="${index}">
-      <td><select class="planner-course-select">${courseOptionsHtml}</select></td>
+      <td><input type="text" class="planner-course-input" list="planner-course-options" placeholder="Course" value="${escape(
+        entry.courseText
+      )}" /></td>
       <td>
-        <input type="text" class="planner-race-range-input" placeholder="e.g. 1-5" value="${rangeValue}" />
-        <div class="planner-race-preview">${plannerRangePreviewHtml(entry.track, entry.raceRangeText)}</div>
+        <input type="text" class="planner-race-range-input" placeholder="e.g. 1-5" value="${escape(
+          entry.raceRangeText
+        )}" />
+        <div class="planner-race-preview">${plannerRangePreviewHtml(entry.courseText, entry.raceRangeText)}</div>
       </td>
-      <td><select class="planner-bookie-select">${bookieOptionsHtml}</select></td>
-      <td><select class="planner-promo-select">${promoOptionsHtml}</select></td>
+      <td>
+        <input type="text" class="planner-bookie-input" list="planner-bookie-options" placeholder="Sportsbet, TAB" value="${escape(
+          entry.bookieText
+        )}" />
+        <div class="planner-bookie-preview">${plannerBookiePreviewHtml(entry.bookieText)}</div>
+      </td>
+      <td><input type="text" class="planner-promo-input" list="planner-promo-options" placeholder="Run 2nd 3rd" value="${escape(
+        entry.promoText
+      )}" /></td>
       <td><button type="button" class="planner-row-remove-btn" title="Remove">&times;</button></td>
     </tr>
   `;
 }
 
 function renderPlannerTable() {
+  refreshPlannerCourseDatalist();
   if (plannerDraftEntries.length === 0) {
     plannerBodyEl.innerHTML =
       '<tr><td colspan="5" id="planner-empty-row">No races planned yet — click "+ Add row" to start.</td></tr>';
@@ -503,39 +572,54 @@ function plannerDefaultEntry() {
   const firstRace = track ? plannerRacesForTrack(track)[0] : null;
   return {
     id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    track,
+    courseText: track || "",
     raceRangeText: firstRace ? String(firstRace.raceNumber) : "",
-    bookieId: BOOKIE_LIST[0].id,
-    promoType: PLANNER_PROMO_MODES[0].id,
+    bookieText: BOOKIE_LIST[0].label,
+    promoText: PLANNER_PROMO_MODES[0].label,
   };
 }
 
 function openPlannerModal() {
-  // The committed list (dailyPlannerEntries) is flat, one entry per real
-  // race — grouping it back into (track, bookieId, promoType) buckets
-  // here, each becoming one draft row with its race numbers collapsed
-  // back into range text (formatRaceRangeList), is the inverse of what
-  // Save does further down. A plan saved as "1-5" therefore still shows
-  // as one "1-5" row when reopened, not five separate rows.
-  const groups = new Map();
+  // The committed list (dailyPlannerEntries) is flat, one entry per
+  // (race, bookmaker) pair — reconstructing draft rows is the inverse
+  // of what Save does further down, in two passes: first, group by
+  // (track, raceNumber, promoType) to see which bookmakers were
+  // actually planned together for each individual race; then group
+  // races that share the exact same (track, promoType, bookmaker set)
+  // into one draft row, with those race numbers collapsed back into
+  // range text (formatRaceRangeList). A plan saved as "1-5" on
+  // "Sportsbet, TAB" therefore still shows as one such row when
+  // reopened, not ten separate ones.
+  const perRace = new Map();
   for (const entry of dailyPlannerEntries) {
-    const key = `${entry.track} ${entry.bookieId} ${entry.promoType}`;
-    if (!groups.has(key)) {
-      groups.set(key, {
+    const key = [entry.track, entry.raceNumber, entry.promoType].join("|");
+    if (!perRace.has(key)) {
+      perRace.set(key, {
         track: entry.track,
-        bookieId: entry.bookieId,
+        raceNumber: entry.raceNumber,
         promoType: entry.promoType,
-        raceNumbers: new Set(),
+        bookieIds: new Set(),
       });
     }
-    groups.get(key).raceNumbers.add(entry.raceNumber);
+    perRace.get(key).bookieIds.add(entry.bookieId);
   }
-  plannerDraftEntries = [...groups.values()].map((g) => ({
+
+  const rowGroups = new Map();
+  for (const { track, raceNumber, promoType, bookieIds } of perRace.values()) {
+    const bookieKey = [...bookieIds].sort().join(",");
+    const key = [track, promoType, bookieKey].join("|");
+    if (!rowGroups.has(key)) {
+      rowGroups.set(key, { track, promoType, bookieIds: [...bookieIds], raceNumbers: new Set() });
+    }
+    rowGroups.get(key).raceNumbers.add(raceNumber);
+  }
+
+  plannerDraftEntries = [...rowGroups.values()].map((g) => ({
     id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    track: g.track,
+    courseText: g.track || "",
     raceRangeText: formatRaceRangeList(g.raceNumbers),
-    bookieId: g.bookieId,
-    promoType: g.promoType,
+    bookieText: g.bookieIds.map((id) => BOOKIE_LIST.find((b) => b.id === id)?.label || id).join(", "),
+    promoText: PLANNER_PROMO_MODES.find((m) => m.id === g.promoType)?.label || g.promoType,
   }));
 
   plannerStatusEl.textContent = "";
@@ -567,8 +651,7 @@ document.getElementById("planner-clear-btn").addEventListener("click", () => {
 
 // Delegated on the table body (bound once — matching bindRaceCardClicks'
 // own reasoning further down) rather than one listener per row/button,
-// since renderPlannerTable rebuilds the whole tbody on every add/remove/
-// course change.
+// since renderPlannerTable rebuilds the whole tbody on every add/remove.
 plannerBodyEl.addEventListener("click", (event) => {
   const removeBtn = event.target.closest(".planner-row-remove-btn");
   if (!removeBtn) return;
@@ -577,78 +660,92 @@ plannerBodyEl.addEventListener("click", (event) => {
   renderPlannerTable();
 });
 
-// Live, on every keystroke — updates just this row's own preview text
-// without touching the rest of the table (a full renderPlannerTable()
-// here would blow away focus/cursor position mid-type).
+// Every field is a plain text input now (user-requested — typeable with
+// datalist suggestions, not a click-to-open <select>), so everything is
+// live on every keystroke via one delegated "input" listener — updating
+// just this row's own state and preview text, never the whole table
+// (that would blow away focus/cursor position mid-type).
 plannerBodyEl.addEventListener("input", (event) => {
-  if (!event.target.classList.contains("planner-race-range-input")) return;
-  const row = event.target.closest("tr");
-  const entry = plannerDraftEntries[Number(row.dataset.index)];
-  if (!entry) return;
-  entry.raceRangeText = event.target.value;
-  row.querySelector(".planner-race-preview").innerHTML = plannerRangePreviewHtml(entry.track, entry.raceRangeText);
-});
-
-plannerBodyEl.addEventListener("change", (event) => {
   const row = event.target.closest("tr");
   if (!row) return;
   const entry = plannerDraftEntries[Number(row.dataset.index)];
   if (!entry) return;
 
-  if (event.target.classList.contains("planner-course-select")) {
-    // The typed race range stays as-is across a course change (it's
-    // just text, no longer tied to a specific marketId) — the preview
-    // naturally reflects whether it still matches anything at the new
-    // course, so there's nothing to reset here the way picking a
-    // specific race from a dropdown used to need.
-    entry.track = event.target.value;
-    row.querySelector(".planner-race-preview").innerHTML = plannerRangePreviewHtml(entry.track, entry.raceRangeText);
-  } else if (event.target.classList.contains("planner-bookie-select")) {
-    entry.bookieId = event.target.value;
-  } else if (event.target.classList.contains("planner-promo-select")) {
-    entry.promoType = event.target.value;
+  if (event.target.classList.contains("planner-course-input")) {
+    entry.courseText = event.target.value;
+    row.querySelector(".planner-race-preview").innerHTML = plannerRangePreviewHtml(
+      entry.courseText,
+      entry.raceRangeText
+    );
+  } else if (event.target.classList.contains("planner-race-range-input")) {
+    entry.raceRangeText = event.target.value;
+    row.querySelector(".planner-race-preview").innerHTML = plannerRangePreviewHtml(
+      entry.courseText,
+      entry.raceRangeText
+    );
+  } else if (event.target.classList.contains("planner-bookie-input")) {
+    entry.bookieText = event.target.value;
+    row.querySelector(".planner-bookie-preview").innerHTML = plannerBookiePreviewHtml(entry.bookieText);
+  } else if (event.target.classList.contains("planner-promo-input")) {
+    entry.promoText = event.target.value;
   }
 });
 
 document.getElementById("planner-save-btn").addEventListener("click", () => {
-  // Each draft row (a course + a typed range of race numbers) expands
-  // into one committed entry per race that range actually matches at
-  // that course — plannerMatchedRaces is the exact same lookup the
-  // live preview already used, so what got shown before Save is
-  // exactly what gets saved.
+  // Each draft row (a course + a typed range of race numbers + one or
+  // more typed bookmakers + one promo type) expands into one committed
+  // entry per (race, bookmaker) pair — plannerMatchedRaces/
+  // plannerMatchBookieIds/plannerMatchPromoId are the exact same
+  // lookups the live previews already used, so what got shown before
+  // Save is exactly what gets saved.
   const expanded = [];
-  const unmatchedRanges = [];
+  const problems = [];
   for (const entry of plannerDraftEntries) {
-    if (!entry.track || !entry.raceRangeText) continue; // a genuinely empty/unstarted row — nothing to save
-    const matches = plannerMatchedRaces(entry.track, entry.raceRangeText);
+    if (!entry.courseText && !entry.raceRangeText && !entry.bookieText) continue; // a genuinely empty/unstarted row
+
+    const matches = plannerMatchedRaces(entry.courseText, entry.raceRangeText);
+    const bookieIds = plannerMatchBookieIds(entry.bookieText);
+    const promoType = plannerMatchPromoId(entry.promoText);
+    const label = `${entry.courseText || "?"} ${entry.raceRangeText || "?"}`;
+
     if (matches.length === 0) {
-      unmatchedRanges.push(`${entry.track} ${entry.raceRangeText}`);
+      problems.push(`${label}: no matching races`);
+      continue;
+    }
+    if (bookieIds.length === 0) {
+      problems.push(`${label}: no valid bookmaker`);
+      continue;
+    }
+    if (!promoType) {
+      problems.push(`${label}: no valid promotion`);
       continue;
     }
     for (const race of matches) {
-      expanded.push({
-        id: `plan-${race.marketId}-${entry.bookieId}`,
-        marketId: race.marketId,
-        track: race.track,
-        raceNumber: race.raceNumber,
-        startTime: race.startTime,
-        sport: race.sport,
-        bookieId: entry.bookieId,
-        promoType: entry.promoType,
-      });
+      for (const bookieId of bookieIds) {
+        expanded.push({
+          id: `plan-${race.marketId}-${bookieId}`,
+          marketId: race.marketId,
+          track: race.track,
+          raceNumber: race.raceNumber,
+          startTime: race.startTime,
+          sport: race.sport,
+          bookieId,
+          promoType,
+        });
+      }
     }
   }
 
-  // De-duped by marketId — two draft rows whose ranges overlap at the
-  // same course (e.g. "1-3" and "2-4") would otherwise both try to plan
-  // the overlapping races; the later row wins rather than keeping two
-  // conflicting bookie/promo picks for the same race.
-  const byMarketId = new Map();
-  for (const e of expanded) byMarketId.set(e.marketId, e);
-  dailyPlannerEntries = [...byMarketId.values()];
+  // De-duped by (marketId, bookieId) — two draft rows that both plan
+  // the same race on the same bookmaker (e.g. overlapping ranges) would
+  // otherwise create two conflicting entries for that exact pair; the
+  // later row wins.
+  const byKey = new Map();
+  for (const e of expanded) byKey.set([e.marketId, e.bookieId].join("|"), e);
+  dailyPlannerEntries = [...byKey.values()];
   chrome.storage.local.set({ dailyPlanner: dailyPlannerEntries });
 
-  renderFilteredRacesList(); // sidebar pins need to reflect the new/removed entries right away
+  renderFilteredRacesList(); // sidebar highlights need to reflect the new/removed entries right away
 
   // If the race currently loaded into the main table is itself one of
   // the saved entries, apply its planned mode/highlight immediately too
@@ -656,15 +753,13 @@ document.getElementById("planner-save-btn").addEventListener("click", () => {
   // happens to get (re)loaded, which renderRace's own isNewMarket check
   // wouldn't fire again for a race that's already the one on screen.
   if (currentRace) {
-    const entry = plannerEntryForMarketId(currentRace.marketId);
-    if (entry) setMode(entry.promoType);
+    const entries = plannerEntriesForMarketId(currentRace.marketId);
+    if (entries.length > 0) setMode(entries[0].promoType);
     renderRace(currentRace);
   }
 
-  plannerStatusEl.textContent = unmatchedRanges.length
-    ? `Saved. No races found for: ${unmatchedRanges.join(", ")}`
-    : "Saved.";
-  setTimeout(closePlannerModal, unmatchedRanges.length ? 1800 : 500);
+  plannerStatusEl.textContent = problems.length ? `Saved, but: ${problems.join("; ")}` : "Saved.";
+  setTimeout(closePlannerModal, problems.length ? 2200 : 500);
 });
 
 function parseRunnerNumber(name) {
@@ -1375,14 +1470,16 @@ function renderRace(race) {
   // promo on switches the mode tab to match (only on an actual race
   // change, not every re-render triggered by Stake/Hedge/Mode itself —
   // otherwise picking a different mode by hand on a planned race would
-  // just get immediately overridden back) and highlights that
-  // bookmaker's whole column further down (bookieCells).
-  const plannerEntry = plannerEntryForMarketId(race.marketId);
-  if (plannerEntry && isNewMarket && currentMode !== plannerEntry.promoType) {
-    setMode(plannerEntry.promoType);
+  // just get immediately overridden back) and highlights every
+  // bookmaker column you planned it against — plural, since a race can
+  // now be planned on more than one bookmaker at once.
+  const plannerEntries = plannerEntriesForMarketId(race.marketId);
+  if (plannerEntries.length > 0 && isNewMarket && currentMode !== plannerEntries[0].promoType) {
+    setMode(plannerEntries[0].promoType);
   }
+  const plannedBookieIds = new Set(plannerEntries.map((e) => e.bookieId));
   for (const th of document.querySelectorAll("#odds-table thead th[data-bookie]")) {
-    th.classList.toggle("planned-bookie-col", th.dataset.bookie === plannerEntry?.bookieId);
+    th.classList.toggle("planned-bookie-col", plannedBookieIds.has(th.dataset.bookie));
   }
 
   // Race Result / Display > Betfair commission discount — percentage
@@ -1876,8 +1973,8 @@ async function openRaceTabs(race) {
 function raceCardHtml(race) {
   const code = RACE_TYPE_CODE[race.raceType] || RACE_TYPE_CODE[race.sport] || "?";
   const selected = race.marketId === selectedMarketId ? " selected" : "";
-  const plannerEntry = plannerEntryForMarketId(race.marketId);
-  const planned = plannerEntry ? " planned" : "";
+  const plannerEntries = plannerEntriesForMarketId(race.marketId);
+  const planned = plannerEntries.length > 0 ? " planned" : "";
 
   // hour12 explicit (not left to the browser's own locale default) so
   // this can never silently drift from formatJumpTime's own guaranteed
@@ -1910,26 +2007,29 @@ function raceCardHtml(race) {
     race.hasLiveBookie ? "true" : ""
   );
 
-  const plannerBookieLabel = plannerEntry
-    ? BOOKIE_LIST.find((b) => b.id === plannerEntry.bookieId)?.label || plannerEntry.bookieId
-    : "";
-  const plannerPromoLabel = plannerEntry
-    ? PROMO_MODES.find((m) => m.id === plannerEntry.promoType)?.label || plannerEntry.promoType
-    : "";
+  // No icon/emoji on the card itself (user-requested — the left-border
+  // accent, .race-card.planned, is the only visual signal now) — what's
+  // actually planned lives on the <li>'s own title attribute instead,
+  // so hovering the row still tells you. Plural: lists every planned
+  // bookmaker/promo pair for this race, not just one.
+  const plannerTitle = plannerEntries
+    .map((e) => {
+      const bookieLabel = BOOKIE_LIST.find((b) => b.id === e.bookieId)?.label || e.bookieId;
+      const promoLabel = PROMO_MODES.find((m) => m.id === e.promoType)?.label || e.promoType;
+      return `${bookieLabel} – ${promoLabel}`;
+    })
+    .join(", ");
+  const titleAttr = plannerTitle ? ` title="Planned: ${plannerTitle.replace(/"/g, "&quot;")}"` : "";
 
   return `
-    <li class="race-card sport-${race.raceType}${selected}${planned}" data-market-id="${race.marketId}">
+    <li class="race-card sport-${race.raceType}${selected}${planned}" data-market-id="${race.marketId}"${titleAttr}>
       <span class="race-sport-badge">${code}</span>
       <span class="race-card-body">
         <span class="race-card-title-row">
           <span class="race-live-dot${marketClosed ? " closed" : ""}" title="${
     marketClosed ? "Market closed" : "Market open"
   }"></span>
-          <span class="race-card-title">R${race.raceNumber} ${race.track}</span>${
-    plannerEntry
-      ? `<span class="planner-pin" title="Planned: ${plannerBookieLabel} – ${plannerPromoLabel}">\u{1F4CC}</span>`
-      : ""
-  }
+          <span class="race-card-title">R${race.raceNumber} ${race.track}</span>
         </span>
         <span class="race-card-sub">${time}${
     race.country ? `<span class="race-country">${race.country}</span>` : ""
