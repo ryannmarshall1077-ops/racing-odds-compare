@@ -603,14 +603,30 @@ async function refreshRaceInner(marketId) {
   const bookieMarketClosedConfirmed =
     stored.liveRace?.marketId === market.marketId && stored.liveRace?.bookieMarketClosed === true;
 
-  // Once a race settles, Betfair marks every runner WINNER or LOSER (never
-  // ACTIVE again) and the REST call stops returning fresh prices for any
-  // of them — filtering to ACTIVE-only would empty the whole table out
-  // right when we want to keep showing it with the result. REMOVED
-  // (scratched) runners are kept too, purely so the UI can render them as
-  // placeholder rows (a full-field view) — nothing below computes a real
-  // price for one, and the final filter explicitly keeps them anyway.
+  // Whether each bookie's own recent scan matched ANY runner at all in
+  // this race — computed in its own pass, fully, before the main
+  // runners.map() below decides any single runner's own price, since
+  // the Sportsbet placeholder decision (right below) needs the
+  // race-WIDE result, not just "did this one runner's name happen to
+  // match". User-caught live: a real recent Sportsbet scan existing but
+  // matching zero runners here meant that scan was for a completely
+  // different race (Sportsbet's own tracked tab hadn't caught up to
+  // this one yet, most likely because it hasn't listed a market this
+  // far ahead of jump) — not "no data yet". The placeholder kept
+  // showing anyway, styled identically to a real price with nothing
+  // distinguishing it, for every runner in a race Sportsbet plainly
+  // hadn't loaded.
   const bookmakerMatched = Object.fromEntries(Object.keys(BOOKIES).map((id) => [id, 0]));
+  for (const r of book.runners) {
+    const name = runnerNames.get(r.selectionId) || `Runner ${r.selectionId}`;
+    for (const bookieId of Object.keys(BOOKIES)) {
+      const recent = recentBookieRunners[bookieId];
+      if (recent && findBookmakerPrice(name, recent) !== undefined) bookmakerMatched[bookieId]++;
+    }
+  }
+  const sportsbetScanIsForADifferentRace =
+    recentBookieRunners.sportsbet && bookmakerMatched.sportsbet === 0;
+
   const runners = book.runners
     .map((r) => {
       const name = runnerNames.get(r.selectionId) || `Runner ${r.selectionId}`;
@@ -696,16 +712,19 @@ async function refreshRaceInner(marketId) {
       // before the first real scan; a newer bookie just shows nothing
       // (null -> "—" in the UI) until its own first real scrape/watch
       // update arrives, rather than inventing a second synthetic guess.
+      // Suppressed outright when sportsbetScanIsForADifferentRace (see
+      // its own comment above) — a synthetic number the very next real
+      // scan will never actually replace, since Sportsbet's own tab
+      // isn't even looking at this race, is worse than showing nothing.
       const bookmakers = {};
       for (const bookieId of Object.keys(BOOKIES)) {
         const recent = recentBookieRunners[bookieId];
         const scannedPrice = recent ? findBookmakerPrice(name, recent) : undefined;
-        if (scannedPrice !== undefined) bookmakerMatched[bookieId]++;
 
         bookmakers[bookieId] =
           scannedPrice !== undefined
             ? scannedPrice
-            : bookieId === "sportsbet" && betfairPrice
+            : bookieId === "sportsbet" && betfairPrice && !sportsbetScanIsForADifferentRace
             ? Number((betfairPrice * 1.08).toFixed(2))
             : null;
       }
@@ -752,6 +771,13 @@ async function refreshRaceInner(marketId) {
         bookmakers,
       };
     })
+    // Once a race settles, Betfair marks every runner WINNER or LOSER
+    // (never ACTIVE again) and the REST call stops returning fresh
+    // prices for any of them — filtering to ACTIVE-only would empty
+    // the whole table out right when we want to keep showing it with
+    // the result. REMOVED (scratched) runners are kept too, purely so
+    // the UI can render them as placeholder rows (a full-field view) —
+    // nothing above computes a real price for one, kept here anyway.
     .filter((r) => r.betfair !== null || r.result === "REMOVED");
 
   const winner = runners.find((r) => r.result === "WINNER")?.name ?? null;
