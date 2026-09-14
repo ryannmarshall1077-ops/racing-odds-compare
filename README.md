@@ -3725,3 +3725,117 @@ https://developer.betfair.com/.
         one pass against a genuinely resulted race: correctly reported
         the market as closed and extracted all 9 real runner names/
         prices.
+
+- [x] Added **Betr** as a sixth bookmaker — user-requested (alongside
+      TABtouch, its own separate entry below). Turns out Betr runs on
+      "BlueBet" infrastructure (Betr is BlueBet's own brand) — its real
+      API lives at `web20-api.bluebet.com.au`, not betr.com.au itself,
+      found the same fetch/XHR-hooking way PointsBet's own was (reading
+      network requests after the fact kept missing it — the real call
+      had already scrolled out of the request buffer).
+      `GroupedRaceCard?DaysToRace=0` means "today" with no date string
+      to compute at all — simpler than every other bookie's own feed
+      here.
+      - A genuine structural difference from every other bookie added
+        so far: Betr's race page (a Material-UI/Next.js build, no
+        `data-testid`/`data-test` attributes anywhere) renders a live,
+        still-open runner's Win price as a clickable `<button>`, but
+        once resulted — betting no longer actionable at all — the exact
+        same price renders as a plain `<div>` instead. Confirmed live on
+        two real races (one open, one resulted): both states
+        consistently wrap the runner's own "N. Name (barrier)" text in
+        3 sibling `<span>`s inside a `div[style*="font-weight: 600"]`,
+        so the name is read from the second such span (no dependency on
+        either state's own hashed class), and the price from the first
+        *visible* leaf element (button or div) elsewhere in the card
+        holding a bare number — explicitly excluding the name block
+        itself, since the barrier number ("10"/"(1)") is itself a bare
+        leaf number and would otherwise be picked up as if it were a
+        price.
+      - A runner scratched *after* bets were already placed on it shows
+        a "Deduction applied" rate (e.g. "0.15") in the exact same price
+        slot instead of a real price — confirmed live this would
+        otherwise get scraped as if it were a genuine (absurdly short)
+        quoted price; excluded by checking for that text explicitly.
+      - The market-closed signal: the race's own info line ("1590m |
+        Soft5, Overcast | Today, 2:00pm") sits alone in its own wrapper
+        while open; once resulted, a status word ("Correct Weight"
+        confirmed live) renders as a second, sibling element in that
+        same wrapper — checking "a second child exists" rather than
+        allow-listing specific wording covers whatever that word
+        actually is.
+      - Icon (`icons/bookies/betr.png`) is Betr's own real favicon —
+        oddly only reachable at the bare `/favicon.ico` path (no `<link
+        rel="icon">` at all in the page's own `<head>`), and itself an
+        ICO container wrapping a real embedded 256×256 PNG rather than
+        classic ICO bitmap data — extracted by finding the PNG file
+        signature inside the downloaded bytes and slicing from there.
+      - Verified via the local static-preview harness (6 bookies now in
+        sync across header/body/footer) and live against real
+        betr.com.au race pages — the exact final scraping logic run
+        against both a genuinely open race and a genuinely resulted one,
+        correctly extracting real runner names/prices from both states
+        and correctly excluding the deduction-rate runner in each.
+
+- [x] Added **TABtouch** as a seventh bookmaker — user-requested
+      (alongside Betr above). Not to be confused with tab.com.au
+      (already integrated) — TABtouch is Western Australia's own
+      RWWA-run TAB, a completely separate company from tab.com.au's
+      Tabcorp, running its own separate site with its own separate
+      markup.
+      - No public feed found (same starting point tab.com.au itself
+        had) — venue codes are instead learned from real `<a href>`
+        links on TABtouch's own "All Racing" hub page
+        (`tabtouchMeetings.js`), same idea as `tabMeetings.js`. Genuinely
+        simpler than tab.com.au's own version though: ONE page already
+        lists every meeting across every sport and country for today
+        (confirmed live), so only one background visit is ever needed —
+        not one per sport — and TABtouch's own race URL
+        (`/racing/<date>/<code>/<raceNumber>`) has no separate race-type
+        letter to build at all, unlike tab.com.au's own `/R|H|G/`
+        segment. New `tabtouchRaceUrlFromCodes`/`learnTabtouchVenueCodes`/
+        `visitTabtouchMeetingsPage`/`ensureTabtouchUrlForRace`/
+        `ensureTabtouchVenueCodesLearnedToday` (background.js) mirror
+        their tab.com.au namesakes function-for-function; popup.js's own
+        `openRaceTabs` got the same on-demand-learn-on-first-click
+        fallback TAB's own click handler already has.
+      - Each meeting row on the hub page carries its own sport as a
+        sibling `<span class="image-matrix race-type dogs-black">`
+        (or `trots-black`/`horse-black`) — confirmed live across a real
+        day's full card spanning all three.
+      - The race page itself turned out to have a real, unexpected trap:
+        it defaults to "Field" view (the full field) while a race is
+        still open, but the *moment* it results, it silently switches to
+        "Results" view instead — a placings/dividends panel covering
+        only the runners that actually placed. Confirmed live: "Results"
+        view's own name/price cells reuse the *exact same*
+        `td.acceptor`/`.dividend` classes the real field table uses, and
+        a separate "Scratchings and Fixed Odds Deductions" panel
+        (also reusing those same classes) sits alongside it — both
+        would otherwise get scraped as if they were genuine runners,
+        the first one with a `WIN` value blank for anything that didn't
+        actually win (silently pairing a non-winner with what was
+        really its own *Place* dividend instead — a real wrong-value
+        bug caught only by cross-checking against the page's own
+        displayed numbers, not just an empty-data gap). Fixed by
+        switching back to "Field" view unconditionally before every
+        scrape (`ensureFieldView()`) rather than trying to scrape
+        "Results" view's own different shape at all — deliberately
+        means that if you have a resulted race's tab open and manually
+        switch to "Results" to check placings, this switches it back to
+        "Field" on the next odds-changing mutation (harmless, and
+        reversible by clicking "Results" again, but worth knowing).
+      - The favourite runner's own price cell prepends a hidden
+        "Favourite" label with no separator (confirmed live: raw text
+        "Favourite2.75") — the exact same class of bug as Ladbrokes' own
+        "FAV2.90" (see `ladbrokesWatcher.js`) — so the number is
+        extracted with a regex rather than trusting the cell's raw text.
+      - Icon (`icons/bookies/tabtouch.png`) is TABtouch's own real
+        apple-touch-icon, fetched live from their site.
+      - Verified via the local static-preview harness (all 7 bookies now
+        in sync) and live against real tabtouch.com.au race pages: the
+        venue-code scraper against a real day's full "All Racing" hub
+        (dozens of venues, all three sports, correct codes); the runner
+        scraper against both a genuinely open race and an already-
+        resulted one, in each case confirming the wrong-value bug above
+        was real before the "Field" view fix and gone after it.
