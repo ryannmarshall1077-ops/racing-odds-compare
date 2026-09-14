@@ -1724,6 +1724,16 @@ footer {
   position: relative;
 }
 
+/* The sidebar's own instance of this same widget (#bookie-spotlight,
+   popup.html) — same "position: relative so the dropdown can float"
+   need as .planner-bookie-cell above, plus the sidebar's own
+   .search-field spacing so it lines up flush with the track-search box
+   directly under it. */
+#bookie-spotlight {
+  position: relative;
+  margin: 0 14px 10px;
+}
+
 .planner-bookie-box {
   display: flex;
   align-items: center;
@@ -1761,11 +1771,12 @@ footer {
   height: 20px;
 }
 
-/* #planner-table-prefixed to beat #planner-table input[type="text"]'s
-   own width:100%/box-sizing rule above on specificity — this input
-   needs flex-basis sizing instead, to sit inline after the logo chips
-   rather than filling the whole box on its own line. */
-#planner-table .planner-bookie-search {
+/* Shared by the Daily Planner's own Bookmaker(s) field AND the sidebar's
+   Bookie Spotlight search box (#bookie-spotlight, popup.html/popup.js)
+   — same widget, two different places it's used. flex-basis sizing (not
+   width) is what lets it sit inline after the logo chips rather than
+   filling the whole box on its own line. */
+.planner-bookie-search {
   width: auto;
   flex: 1 1 60px;
   min-width: 60px;
@@ -1774,6 +1785,13 @@ footer {
   padding: 0;
   color: var(--text);
   font-size: 13px;
+}
+
+/* #planner-table-prefixed to beat #planner-table input[type="text"]'s
+   own width:100%/box-sizing rule above on specificity, which the plain
+   class rule just above can't on its own inside that specific table. */
+#planner-table .planner-bookie-search {
+  width: auto;
 }
 
 .planner-bookie-search:focus {
