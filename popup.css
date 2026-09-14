@@ -1621,14 +1621,27 @@ footer {
   font-size: 11px;
   color: var(--muted);
   font-weight: 600;
-  padding: 0 6px 6px;
+  padding: 4px 8px 10px;
+  border-bottom: 1px solid var(--border);
 }
 
 #planner-table td {
-  padding: 5px 6px;
+  padding: 8px 8px;
   text-align: left;
   white-space: normal;
   border-bottom: none;
+}
+
+/* One clean divider between rows (not under the last one — border-
+   collapse merges each into the row above it, so this alone is enough)
+   instead of every row running edge-to-edge into the next with nothing
+   between them — user-reported the table read as a loose stack of
+   fields rather than an actual table without this. A fresh property
+   (border-top, not the border-bottom every td explicitly cancels right
+   above) so it can't reintroduce whatever that cancellation was
+   originally there to prevent. */
+#planner-table tbody tr + tr td {
+  border-top: 1px solid var(--border);
 }
 
 /* min-width: 0 overrides the browser's own intrinsic minimum width on
@@ -1645,56 +1658,85 @@ footer {
   min-width: 0;
 }
 
+/* Track/Races/Promotion all styled identically (background/border/
+   radius/padding/height) — before this, only Promotion (a <select>)
+   had any explicit styling at all; Track/Races fell back to the
+   browser's own native dark-mode form-control rendering (color-scheme:
+   dark, :root above), which happens to look dark too but doesn't
+   actually match this app's own panel/border tokens or the Bookmaker(s)
+   box's own look right next to it — user-reported the row read as
+   mismatched rather than one consistent set of fields. min-height: 30px
+   matches .planner-bookie-box's own min-height exactly, so every cell
+   in a row lines up at the same height even when Bookmaker(s) has no
+   chips yet. */
 #planner-table input[type="text"],
 #planner-table select {
   width: 100%;
   box-sizing: border-box;
+  min-height: 30px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  color: var(--text);
+  font-size: 12px;
 }
 
-/* Course/Races/Bookmaker(s)/Promotion/remove-button — explicit
+/* Track/Races/Bookmaker(s)/Promotion/remove-button — explicit
    percentages summing to exactly 100%, so table-layout: fixed has an
    unambiguous width for every column instead of guessing from content.
-   Bookmaker(s) gets the most room since it can hold several chips plus
-   its own search box; the remove-button column just needs to fit a
-   single "×". */
+   Bookmaker(s) still gets the most room (several chips plus its own
+   search box); Promotion widened from its original share so "Run 2nd
+   You Win" (the longest of the 3 real options, added after these
+   widths were first set) doesn't truncate; the remove-button column
+   shrunk to what a single "×" actually needs, freeing up the room
+   Promotion needed without growing the table itself. */
 #planner-table th:nth-child(1),
 #planner-table td:nth-child(1) {
-  width: 18%;
+  width: 17%;
 }
 
 #planner-table th:nth-child(2),
 #planner-table td:nth-child(2) {
-  width: 13%;
+  width: 10%;
 }
 
 #planner-table th:nth-child(3),
 #planner-table td:nth-child(3) {
-  width: 37%;
+  width: 34%;
 }
 
 #planner-table th:nth-child(4),
 #planner-table td:nth-child(4) {
-  width: 18%;
+  width: 31%;
 }
 
 #planner-table th:nth-child(5),
 #planner-table td:nth-child(5) {
-  width: 14%;
+  width: 8%;
 }
 
 #planner-row-remove-btn,
 .planner-row-remove-btn {
   background: none;
   border: none;
+  border-radius: 50%;
   color: var(--muted);
   font-size: 16px;
   line-height: 1;
   cursor: pointer;
-  padding: 2px 6px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0 auto;
 }
 
 .planner-row-remove-btn:hover {
   color: var(--accent-neg);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 #planner-empty-row {
