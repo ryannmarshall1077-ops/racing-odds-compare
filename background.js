@@ -3,6 +3,7 @@ importScripts(
   "js/betfair/api.js",
   "js/sportsbet/api.js",
   "js/ladbrokes/api.js",
+  "js/neds/api.js",
   "settings.js",
   "bookies.js"
 );
@@ -73,10 +74,17 @@ function sportForMarket(market) {
 // from that in listUpcomingRacesInner now, same as sportsbetUrl/tabUrl,
 // so scrapeBookieTab's periodic re-scan for it actually runs once
 // openRaceTabs opens a tab there.
+// Neds turned out to run on the exact same platform Ladbrokes does
+// (confirmed live while adding it: same GraphQL router, same persisted-
+// query hash, same race-page data-testid attributes) — so it starts
+// with a real feed of its own from day one (js/neds/api.js), same as
+// Ladbrokes now has, rather than going through the URL-less phase
+// Ladbrokes/Sportsbet/TAB each did first.
 const BOOKIE_EXTRAS = {
   sportsbet: { scraperFile: "js/contentScripts/sportsbet.js", tabIdKey: "sportsbetTabId" },
   tab: { scraperFile: "js/contentScripts/tab.js", tabIdKey: "tabTabId" },
   ladbrokes: { scraperFile: "js/contentScripts/ladbrokes.js", tabIdKey: "ladbrokesTabId" },
+  neds: { scraperFile: "js/contentScripts/neds.js", tabIdKey: "nedsTabId" },
 };
 const BOOKIES = Object.fromEntries(
   BOOKIE_LIST.map((b) => [b.id, { ...b, ...BOOKIE_EXTRAS[b.id] }])
@@ -1017,29 +1025,42 @@ async function listUpcomingRacesInner() {
   const endOfTodayUtc = new Date();
   endOfTodayUtc.setUTCHours(24, 0, 0, 0);
 
-  const [markets, sportsbetEvents, ladbrokesEvents, { tabVenueCodes = {} }, { pendingResultChecks = [] }, { liveRace }] =
-    await Promise.all([
-      listWinMarkets(
-        appKey,
-        sessionToken,
-        [...eventTypeIds.values()],
-        1000,
-        endOfTodayUtc.toISOString()
-      ),
-      fetchSportsbetNextEvents(),
-      // Best-effort — a Ladbrokes-side hiccup (e.g. their persisted-query
-      // hash rotating on a frontend release) shouldn't take the whole
-      // sidebar down, same reasoning listUpcomingRacesInner already
-      // applies elsewhere; just means ladbrokesUrl stays null for this
-      // fetch, same as a venue tabRaceUrlFromCodes hasn't learned yet.
-      fetchLadbrokesNextEvents(new Date().toISOString().slice(0, 10)).catch((err) => {
-        console.warn("Ladbrokes RacingHomeScreenWeb skipped:", err.message);
-        return [];
-      }),
-      chrome.storage.local.get(["tabVenueCodes"]),
-      chrome.storage.local.get(["pendingResultChecks"]),
-      chrome.storage.local.get(["liveRace"]),
-    ]);
+  const [
+    markets,
+    sportsbetEvents,
+    ladbrokesEvents,
+    nedsEvents,
+    { tabVenueCodes = {} },
+    { pendingResultChecks = [] },
+    { liveRace },
+  ] = await Promise.all([
+    listWinMarkets(
+      appKey,
+      sessionToken,
+      [...eventTypeIds.values()],
+      1000,
+      endOfTodayUtc.toISOString()
+    ),
+    fetchSportsbetNextEvents(),
+    // Best-effort — a Ladbrokes-side hiccup (e.g. their persisted-query
+    // hash rotating on a frontend release) shouldn't take the whole
+    // sidebar down, same reasoning listUpcomingRacesInner already
+    // applies elsewhere; just means ladbrokesUrl stays null for this
+    // fetch, same as a venue tabRaceUrlFromCodes hasn't learned yet.
+    fetchLadbrokesNextEvents(new Date().toISOString().slice(0, 10)).catch((err) => {
+      console.warn("Ladbrokes RacingHomeScreenWeb skipped:", err.message);
+      return [];
+    }),
+    // Same best-effort treatment, same reasoning — a Neds-side hiccup
+    // just means nedsUrl stays null for this fetch.
+    fetchNedsNextEvents(new Date().toISOString().slice(0, 10)).catch((err) => {
+      console.warn("Neds RacingHomeScreenWeb skipped:", err.message);
+      return [];
+    }),
+    chrome.storage.local.get(["tabVenueCodes"]),
+    chrome.storage.local.get(["pendingResultChecks"]),
+    chrome.storage.local.get(["liveRace"]),
+  ]);
 
   // checkPendingResults stamps a real OPEN/SUSPENDED/CLOSED market status
   // onto a pending race once its scheduled start time has passed and it's
@@ -1183,6 +1204,19 @@ async function listUpcomingRacesInner() {
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
       );
 
+      // Same matching as lbMatch above, no brand-prefix strip needed —
+      // confirmed live across a full day's AU meeting list, Neds' own
+      // feed never prefixes a meeting name the way Ladbrokes'
+      // occasionally does (e.g. "Ladbrokes Geelong"); every one seen was
+      // already bare (e.g. "Corowa", "Sandown Park").
+      const nedsMatch = nedsEvents.find(
+        (e) =>
+          e.type === raceType &&
+          namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
+          e.raceNumber === raceNumber &&
+          Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
+      );
+
       return {
         track,
         raceNumber,
@@ -1224,6 +1258,10 @@ async function listUpcomingRacesInner() {
         // itself is null — a real Ladbrokes-side hiccup, or just no
         // Ladbrokes market for this particular race.
         ladbrokesUrl: lbMatch ? buildLadbrokesRaceUrl(lbMatch) : null,
+        // Neds started with a real feed from day one (js/neds/api.js,
+        // nedsMatch above) — same "nothing to open for this one"
+        // null-when-unmatched treatment as every other bookie's own URL.
+        nedsUrl: nedsMatch ? buildNedsRaceUrl(nedsMatch) : null,
       };
     })
     .filter((r) => r.raceNumber !== null);
@@ -1640,6 +1678,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "LADBROKES_ODDS_UPDATED") {
     applyBookieOdds("ladbrokes", message.odds).catch((err) =>
       console.warn("Failed to apply live Ladbrokes update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  if (message.type === "NEDS_ODDS_UPDATED") {
+    applyBookieOdds("neds", message.odds).catch((err) =>
+      console.warn("Failed to apply live Neds update:", err.message)
     );
     return; // fire-and-forget — the content script isn't awaiting a reply
   }

@@ -53,8 +53,12 @@ https://developer.betfair.com/.
       own public race feed, so an unusual venue-name mismatch between the two
       sites could occasionally leave a race without a Sportsbet link (shown
       with a "!" marker).
-- [ ] Other bookmakers (TAB, Ladbrokes, Neds, ...) — each needs its own
-      content script since every site's markup differs
+- [x] Other bookmakers (TAB, Ladbrokes, Neds so far — see their own
+      dedicated entries further down for how/when each was actually
+      added) — each needed its own content script since every site's
+      markup differs, though Neds turned out to share Ladbrokes' own
+      platform closely enough to reuse its selectors verbatim. PointsBet
+      and Bet365 not yet done.
 - [x] Greyhound racing (harness already came through under the Horse
       Racing event type in AU — see the dedicated entry further down for
       how greyhound support was added)
@@ -3615,3 +3619,52 @@ https://developer.betfair.com/.
         border/radius; the header and inter-row dividers are present;
         "Run 2nd You Win" renders in full, unclipped, in its own cell.
         No console errors.
+
+- [x] Added **Neds** as a fourth bookmaker — user-requested (alongside
+      PointsBet, not yet done). Turned out to be by far the easiest
+      addition so far: confirmed live that Neds runs on the exact same
+      underlying platform Ladbrokes does — the identical GraphQL router
+      (`api.neds.com.au/gql/router`, same persisted-query hash for
+      `RacingHomeScreenWeb`, byte-identical response shape) and race
+      pages sharing the exact same `data-testid` attributes
+      (`runner-row`/`runner-name`/`price-button`/`price-button-racing`/
+      `race-card-header-countdown`, right down to the same lowercase
+      "final" text on a resulted race). `js/neds/api.js`,
+      `js/contentScripts/neds.js`, and `js/contentScripts/nedsWatcher.js`
+      are deliberately near-verbatim clones of their Ladbrokes
+      counterparts rather than a shared file — if Neds' platform ever
+      diverges from Ladbrokes' down the line, there's nothing shared to
+      accidentally break for both at once.
+      - Unlike Ladbrokes' own history (no derivable race URL for a long
+        while, tab-open-only until a public feed was later found), Neds
+        starts with a real feed (and therefore a real `nedsUrl`, matched
+        the same way `ladbrokesUrl`/`sportsbetUrl` already are) from day
+        one — `openRaceTabs`/`raceDisplayedBookieIds`/the odds table's
+        own column rendering all needed zero changes, since every one
+        of them already drives off `BOOKIE_LIST` generically rather
+        than a hardcoded per-bookie list.
+      - The one genuinely hand-written piece: a static 4th `<th
+        data-bookie="neds">` column header (popup.html) — the header row
+        turned out to be the one part of the odds table NOT built from
+        `BOOKIE_LIST` (every body row/footer cell already is), so it
+        needed its own matching entry the same way Sportsbet/TAB/
+        Ladbrokes' each already have one.
+      - Icon (`icons/bookies/neds.png`) is Neds' own real app icon
+        (fetched live from their site — a proper square orange mark,
+        matching the solid-colour-square style every other bookie's own
+        icon already uses), not the white wordmark SVG their homepage
+        actually links first (that one's designed for a coloured
+        background and would've rendered invisible against this app's
+        own dark cell background).
+      - Also added `neds` to `DEFAULT_SETTINGS.enabledBookies`
+        (settings.js) so it's enabled by default for a fresh install —
+        same as every existing bookie already is. Note this only
+        affects a fresh install; an existing user's already-saved
+        settings won't retroactively gain it (same accepted limitation
+        this settings system already had before Neds — array fields
+        replace rather than merge).
+      - Verified via the local static-preview harness (header/body/
+        footer column counts stay in sync, no console errors) and live
+        against real neds.com.au race pages: the exact Ladbrokes
+        scraping logic, unmodified, correctly extracted real runner
+        names/prices from an actual race card.

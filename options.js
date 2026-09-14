@@ -102,8 +102,8 @@ const raceTypeCheckboxes = {
 
 // Settings > Bookie — built from BOOKIE_LIST (bookies.js) rather than a
 // fixed set of ids like raceTypeCheckboxes above: bookies get added to
-// this extension over time (Sportsbet/TAB/Ladbrokes so far), and a new
-// one should show up here automatically rather than needing its own
+// this extension over time (Sportsbet/TAB/Ladbrokes/Neds so far), and a
+// new one should show up here automatically rather than needing its own
 // checkbox added by hand every time. Each checkbox saves the full
 // selection immediately on change, same pattern as race types.
 const bookieCheckboxesEl = document.getElementById("bookie-checkboxes");
