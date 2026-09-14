@@ -464,12 +464,11 @@
           <p class="field-hint">
             Plan which of today's races you're running a promo on, which bookmaker(s) it's for,
             and which promotion type &mdash; before you sit down to actually work through them.
-            Every field is typeable, with suggestions as you go: type a course, a single race
-            number or a range (e.g. <code>3</code> or <code>1-5</code>, comma-separate more than
-            one), one or more bookmakers (comma-separated, e.g. <code>Sportsbet, TAB</code>), and
-            a promotion type. A saved race is highlighted in the Upcoming Races list; loading it
-            into the table highlights every bookmaker you picked and switches the mode tab to
-            match.
+            Course/Races/Promotion are typeable, with suggestions as you go (a single race number
+            or a range, e.g. <code>3</code> or <code>1-5</code>, comma-separate more than one).
+            Bookmaker(s): search and click to add one, then keep typing to add another. A saved
+            race is highlighted in the Upcoming Races list; loading it into the table highlights
+            every bookmaker you picked and switches the mode tab to match.
           </p>
 
           <div id="planner-table-wrapper">
@@ -494,12 +493,13 @@
           <!-- Shared across every row (a <datalist> can back more than one
                input at once) — populated/refreshed by popup.js. Course's
                own options depend on latestRaces so it's rebuilt each time
-               the table renders; Bookmaker/Promotion are static, filled
-               once from BOOKIE_LIST/PLANNER_PROMO_MODES (bookies.js) so
-               their labels can't drift out of sync with what's actually
-               matched against. -->
+               the table renders; Promotion is static, filled once from
+               PLANNER_PROMO_MODES (bookies.js) so its labels can't drift
+               out of sync with what's actually matched against.
+               Bookmaker(s) has no datalist — it's its own search-and-pick
+               widget (plannerBookieCellHtml, popup.js), not a typed value
+               with suggestions. -->
           <datalist id="planner-course-options"></datalist>
-          <datalist id="planner-bookie-options"></datalist>
           <datalist id="planner-promo-options"></datalist>
         </div>
 
