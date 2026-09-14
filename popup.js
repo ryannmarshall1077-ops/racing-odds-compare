@@ -472,8 +472,19 @@ function fitHarvilleLambda(pNormalized, realTargets, topK) {
     return total;
   }
 
+  // hi capped at MAX_HARVILLE_LAMBDA, not 1.5 — user-requested: don't
+  // prioritize favourites as much, dampen the spread. A fitted lambda
+  // above 1 SHARPENS the favourite/longshot gap (the opposite of what
+  // this whole power-adjustment exists for), and real races have
+  // genuinely fit there (1.02-1.15, confirmed live) — nothing before
+  // this stopped the search from landing above 1 if that's what best
+  // matched the real place data. Capping the search range itself,
+  // rather than clamping the result afterward, means the cap is baked
+  // into what "best fit" even means here — the model will never credit
+  // a favourite more than the no-data fallback (DEFAULT_HARVILLE_LAMBDA)
+  // already does.
   let lo = 0.3;
-  let hi = 1.5;
+  let hi = MAX_HARVILLE_LAMBDA;
   for (let iter = 0; iter < 60; iter++) {
     const m1 = lo + (hi - lo) / 3;
     const m2 = hi - (hi - lo) / 3;
@@ -482,6 +493,13 @@ function fitHarvilleLambda(pNormalized, realTargets, topK) {
   }
   return (lo + hi) / 2;
 }
+
+// The ceiling fitHarvilleLambda's own search is capped at (see its
+// comment above) — same value as DEFAULT_HARVILLE_LAMBDA below, so
+// calibration can only ever match-or-beat that baseline's own
+// flattening, never fall back toward raw Harville's sharper,
+// favourite-crediting shape.
+const MAX_HARVILLE_LAMBDA = 0.85;
 
 // No real place-market data to calibrate against at all (place market
 // missing entirely, placeMarketWinners neither 2 nor 3, or every
