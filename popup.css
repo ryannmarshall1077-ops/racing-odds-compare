@@ -893,16 +893,13 @@ th.col-best-price {
   box-shadow: inset 0 0 0 1.5px var(--amber);
 }
 
-/* Daily Planner's own "pop up" highlight (renderRace, popup.js) — user-
-   requested a plain highlighted box, no border on every single
-   runner's cell down the column (too busy) and no pin emoji either.
-   On the <th> itself (not just the inner .bookie-th icon wrapper —
-   user-reported the first version only outlined the small logo, not
-   the whole header box) so the whole column header reads as
-   highlighted, not just its icon. */
-th.planned-bookie-col {
-  box-shadow: inset 0 0 0 1.5px var(--promo-color);
-}
+/* A planned/spotlighted bookmaker's column used to also get a
+   highlighted header box on top of just being shown — user-requested
+   that go away entirely: the column either shows (it's planned or
+   spotlighted) or it doesn't, no extra highlight layered on top of a
+   displayed one. See renderRace's own displayedBookieIds for what
+   decides visibility now (the `hidden` attribute directly, not a CSS
+   class). */
 
 th, td {
   padding: 8px 10px;
