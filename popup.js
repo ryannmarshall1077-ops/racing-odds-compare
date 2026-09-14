@@ -353,6 +353,35 @@ function raceDisplayedBookieIds(race) {
   return new Set([...plannerEntriesForMarketId(race?.marketId).map((e) => e.bookieId), ...spotlightBookieIds]);
 }
 
+// User-requested: deselecting a bookmaker (removing its chip from the
+// Bookie Spotlight, or a Daily Planner Save that no longer plans it
+// against the loaded race) should close its own currently-open tab
+// automatically, not just stop opening new ones for it going forward
+// — even if that tab had already been open from before the
+// deselection. Uses the exact same raceDisplayedBookieIds openRaceTabs
+// itself opens tabs for, so "still needed" can never disagree between
+// the two: a bookmaker still planned for this race or still
+// spotlighted is always left alone, regardless of which one of those
+// changed just now. Safe to call broadly any time either changes —
+// every bookie still needed is simply skipped.
+async function closeUnneededBookieTabs(race) {
+  if (!race) return;
+  const neededIds = raceDisplayedBookieIds(race);
+  for (const bookie of BOOKIE_LIST) {
+    if (neededIds.has(bookie.id)) continue;
+    const tabIdKey = `${bookie.id}TabId`;
+    const stored = await chrome.storage.local.get([tabIdKey]);
+    const tabId = stored[tabIdKey];
+    if (!tabId) continue;
+    try {
+      await chrome.tabs.remove(tabId);
+    } catch {
+      // Already closed by the user in the meantime — nothing to do.
+    }
+    await chrome.storage.local.remove([tabIdKey]);
+  }
+}
+
 // Loaded once at startup — this callback runs well after the rest of
 // this script has finished defining everything below (renderFilteredRacesList
 // included), same as chrome.storage.local.get(["liveRace"], ...) further
@@ -861,10 +890,19 @@ document.getElementById("planner-save-btn").addEventListener("click", () => {
   // — otherwise this would wait for the next time this exact race
   // happens to get (re)loaded, which renderRace's own isNewMarket check
   // wouldn't fire again for a race that's already the one on screen.
+  // Same reasoning for its tabs: a bookmaker just planned against it
+  // should open its tab right away, not wait for a re-selection, and
+  // one just un-planned (row edited/removed, no longer covered by the
+  // Bookie Spotlight either) should close automatically — user-
+  // requested for the Spotlight's own deselection, applied here too
+  // since a Save can change what this exact race needs just as
+  // directly.
   if (currentRace) {
     const entries = plannerEntriesForMarketId(currentRace.marketId);
     if (entries.length > 0) setMode(entries[0].promoType);
     renderRace(currentRace);
+    openRaceTabs(currentRace);
+    closeUnneededBookieTabs(currentRace);
   }
 
   plannerStatusEl.textContent = problems.length ? `Saved, but: ${problems.join("; ")}` : "Saved.";
@@ -2543,6 +2581,9 @@ bookieSpotlightEl.addEventListener("click", (event) => {
   if (chip) {
     spotlightBookieIds = spotlightBookieIds.filter((id) => id !== chip.dataset.bookie);
     refreshBookieSpotlight("");
+    // Deselecting here closes that bookmaker's own tab too, unless
+    // it's still planned against the loaded race some other way.
+    closeUnneededBookieTabs(currentRace);
     return;
   }
   if (event.target.id === "bookie-spotlight-box") {

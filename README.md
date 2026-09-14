@@ -3281,3 +3281,28 @@ https://developer.betfair.com/.
         URL) alongside Betfair's, never TAB or Ladbrokes; additionally
         spotlighting Ladbrokes on top of that plan then opens exactly
         Sportsbet + Ladbrokes, with TAB still never appearing.
+
+- [x] Deselecting a bookmaker now closes its tab automatically —
+      user-requested: "If I then deselect TAB from the Bookie Search
+      bar, any currently open TAB tabs should automatically close,"
+      explicitly "even if the bookmaker tab was already open before I
+      deselected it," and "for all bookmakers, not just TAB." Added
+      `closeUnneededBookieTabs(race)`, which closes any bookmaker's own
+      currently-open tab that's fallen out of `raceDisplayedBookieIds`
+      entirely (the exact same set `openRaceTabs` opens tabs for and
+      `renderRace` shows columns for) — a bookmaker still planned
+      against the race, or still spotlighted, is always left alone
+      regardless of which one of those just changed.
+      - Wired into the two places that can actually shrink that set:
+        removing a chip from the Bookie Spotlight, and a Daily Planner
+        Save that no longer plans a bookmaker against the loaded race
+        (which now also opens tabs for anything newly planned, the
+        same way the Spotlight already does immediately on pick,
+        rather than waiting for a re-selection).
+      - Verified via the local static-preview harness (spying on every
+        `chrome.tabs.create`/`update`/`remove` call): spotlighting
+        Sportsbet then TAB opens both tabs; deselecting TAB's chip
+        fires a `remove` for exactly TAB's own tab id, while
+        Sportsbet's tab only ever gets `update`d, never removed;
+        planning Ladbrokes against the loaded race via Save opens its
+        tab immediately without touching Sportsbet's.
