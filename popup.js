@@ -1585,7 +1585,12 @@ function renderRace(race) {
   if (plannerEntries.length > 0 && isNewMarket && currentMode !== plannerEntries[0].promoType) {
     setMode(plannerEntries[0].promoType);
   }
-  const plannedBookieIds = new Set(plannerEntries.map((e) => e.bookieId));
+  // Unioned with the sidebar's own Bookie Spotlight picks
+  // (spotlightBookieIds) — a bookmaker highlighted either way (a saved
+  // plan, or just spotlighted for this session) gets the same header
+  // treatment; spotlighting never touches the mode tab above, since it
+  // isn't tied to any particular promo type.
+  const plannedBookieIds = new Set([...plannerEntries.map((e) => e.bookieId), ...spotlightBookieIds]);
   for (const th of document.querySelectorAll("#odds-table thead th[data-bookie]")) {
     th.classList.toggle("planned-bookie-col", plannedBookieIds.has(th.dataset.bookie));
   }
@@ -2431,6 +2436,104 @@ function renderFilteredRacesList() {
   renderRacesList(latestRaces.filter(matchesFilter));
 }
 
+// --- Bookie Spotlight (sidebar, above the track search box) -----------
+//
+// User-requested: search and pick one or more bookmakers to
+// automatically highlight their own column in the main odds table for
+// whatever race is loaded — reusing the exact same search-and-pick
+// widget (chips of logos inside one box, mousedown-to-select so the
+// search field never loses focus) the Daily Planner's own Bookmaker(s)
+// field already uses, just standalone rather than tied to a saved
+// plan entry. "if it's on" (only enabled bookmakers are ever offered)
+// comes for free from plannerBookieSuggestions already filtering
+// through visibleBookies().
+let spotlightBookieIds = [];
+
+const bookieSpotlightEl = document.getElementById("bookie-spotlight");
+const bookieSpotlightBoxEl = document.getElementById("bookie-spotlight-box");
+const bookieSpotlightSuggestionsEl = document.getElementById("bookie-spotlight-suggestions");
+
+// Rebuilds the box's chips + a fresh search input, focuses that input
+// with the given text, and reopens its suggestions dropdown to match —
+// same "type, pick, keep typing the next one" flow as
+// refreshPlannerBookieCell, just against spotlightBookieIds instead of
+// one draft row's own bookieIds. Also re-renders the currently loaded
+// race so the header highlight picks up the change immediately.
+function refreshBookieSpotlight(searchText) {
+  bookieSpotlightBoxEl.innerHTML = `
+    ${spotlightBookieIds.map(plannerBookieChipHtml).join("")}
+    <input type="text" class="planner-bookie-search" id="bookie-spotlight-search" placeholder="Spotlight a bookie..." autocomplete="off" />
+  `;
+  const searchInput = document.getElementById("bookie-spotlight-search");
+  searchInput.value = searchText;
+  searchInput.focus();
+  bookieSpotlightSuggestionsEl.innerHTML = plannerBookieSuggestionsHtml(searchText, spotlightBookieIds);
+  bookieSpotlightSuggestionsEl.hidden = bookieSpotlightSuggestionsEl.innerHTML === "";
+  if (currentRace) renderRace(currentRace);
+}
+
+refreshBookieSpotlight(""); // initial render — no chips yet, empty search box
+
+bookieSpotlightEl.addEventListener("input", (event) => {
+  if (!event.target.classList.contains("planner-bookie-search")) return;
+  bookieSpotlightSuggestionsEl.innerHTML = plannerBookieSuggestionsHtml(event.target.value, spotlightBookieIds);
+  bookieSpotlightSuggestionsEl.hidden = bookieSpotlightSuggestionsEl.innerHTML === "";
+});
+
+bookieSpotlightEl.addEventListener("focusin", (event) => {
+  if (!event.target.classList.contains("planner-bookie-search")) return;
+  bookieSpotlightSuggestionsEl.innerHTML = plannerBookieSuggestionsHtml(event.target.value, spotlightBookieIds);
+  bookieSpotlightSuggestionsEl.hidden = bookieSpotlightSuggestionsEl.innerHTML === "";
+});
+
+// Delayed, not immediate — same reason as the planner's own version:
+// the "mousedown" listener below needs its own chance to fire and add
+// the bookmaker first.
+bookieSpotlightEl.addEventListener(
+  "focusout",
+  (event) => {
+    if (!event.target.classList.contains("planner-bookie-search")) return;
+    setTimeout(() => {
+      bookieSpotlightSuggestionsEl.hidden = true;
+    }, 150);
+  },
+  true
+);
+
+// mousedown, not click — keeps focus on the search box instead of
+// briefly moving it to this button, so picking one bookmaker and
+// immediately typing the next stays one continuous motion.
+bookieSpotlightEl.addEventListener("mousedown", (event) => {
+  const suggestionBtn = event.target.closest(".planner-bookie-suggestion");
+  if (!suggestionBtn) return;
+  event.preventDefault();
+  spotlightBookieIds.push(suggestionBtn.dataset.bookie);
+  refreshBookieSpotlight("");
+});
+
+bookieSpotlightEl.addEventListener("click", (event) => {
+  const chip = event.target.closest(".planner-bookie-chip");
+  if (chip) {
+    spotlightBookieIds = spotlightBookieIds.filter((id) => id !== chip.dataset.bookie);
+    refreshBookieSpotlight("");
+    return;
+  }
+  if (event.target.id === "bookie-spotlight-box") {
+    document.getElementById("bookie-spotlight-search")?.focus();
+  }
+});
+
+// Enter picks the top visible suggestion — same nicety as the
+// planner's own field.
+bookieSpotlightEl.addEventListener("keydown", (event) => {
+  if (!event.target.classList.contains("planner-bookie-search") || event.key !== "Enter") return;
+  event.preventDefault();
+  const top = plannerBookieSuggestions(event.target.value, spotlightBookieIds)[0];
+  if (!top) return;
+  spotlightBookieIds.push(top.id);
+  refreshBookieSpotlight("");
+});
+
 const trackSearchInput = document.getElementById("track-search");
 trackSearchInput.addEventListener("input", () => {
   trackSearchQuery = trackSearchInput.value;
@@ -2533,6 +2636,15 @@ function applyTheme(theme) {
 function applyDisplaySettings(settings) {
   currentSettings = settings;
   pruneDailyPlannerToEnabledBookies();
+
+  // Same "a disabled bookmaker doesn't get to keep being highlighted"
+  // treatment as the prune above, for the sidebar's own Bookie
+  // Spotlight picks.
+  const keptSpotlightIds = spotlightBookieIds.filter((id) => settings.enabledBookies.includes(id));
+  if (keptSpotlightIds.length !== spotlightBookieIds.length) {
+    spotlightBookieIds = keptSpotlightIds;
+    refreshBookieSpotlight("");
+  }
 
   applyTheme(settings.theme);
   // An untouched accentColor (still DEFAULT_SETTINGS' own dark-mode

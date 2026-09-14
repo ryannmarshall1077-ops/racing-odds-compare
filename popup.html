@@ -45,6 +45,20 @@
           <button class="country-btn active" data-country="NZ" title="New Zealand races">NZ</button>
         </div>
 
+        <!-- User-requested: search-and-pick one or more bookmakers to
+             spotlight — whichever one(s) are selected highlight their
+             own column in the main odds table the same way a Daily
+             Planner entry already does (renderRace, popup.js), without
+             needing to actually plan a race against them first. Reuses
+             the exact same search-and-pick widget markup/behaviour the
+             planner's own Bookmaker(s) field already uses (bookieSpotlight,
+             popup.js) — only bookmakers enabled in Settings > Bookie are
+             ever offered here, same as there. -->
+        <div id="bookie-spotlight" title="Highlight a bookmaker's column in the odds table">
+          <div class="planner-bookie-box" id="bookie-spotlight-box"></div>
+          <div class="planner-bookie-suggestions" id="bookie-spotlight-suggestions" hidden></div>
+        </div>
+
         <div class="search-field">
           <svg class="search-field-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
           <input type="search" id="track-search" placeholder="Search track..." />

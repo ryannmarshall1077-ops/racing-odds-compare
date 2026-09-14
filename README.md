@@ -3175,3 +3175,31 @@ https://developer.betfair.com/.
         in Settings updates `--promo-color` live and persists to
         storage, without touching the genuinely-unrelated `--lay-color`
         (Betfair's own Lay-price cells) anywhere else in the table.
+
+- [x] Added a **Bookie Spotlight** — user-requested: "a textbox where
+      you can search and select bookie to automatically show up in the
+      race table if its on," placed above the sidebar's own track
+      search box. Search and pick one or more bookmakers (reusing the
+      exact same logo-chips-in-a-box widget the Daily Planner's own
+      Bookmaker(s) field already uses — same mousedown-to-select
+      behaviour, so search-pick-search-pick-again stays one continuous
+      motion) and that bookmaker's own column highlights in the main
+      odds table for whatever race is loaded, without needing to
+      actually plan a race against it first. "if it's on" — only
+      bookmakers enabled in Settings > Bookie are ever offered, and
+      disabling one afterward drops it from the spotlight immediately,
+      same treatment the planner's own bookmaker picks already get.
+      - Session-only (not persisted to storage) — a quick, ad-hoc way
+        to eyeball one bookmaker's column against the field, not
+        something that needs to survive a popup close the way an
+        actual saved plan does.
+      - Unioned with (not replacing) whatever the Daily Planner has
+        actually planned for the loaded race — a bookmaker highlighted
+        either way gets the same header treatment; spotlighting never
+        touches the mode tab, since it isn't tied to any particular
+        promo type the way a planner entry is.
+      - Verified via the local static-preview harness: picking TAB
+        highlights only its own header box (Sportsbet's stays
+        untouched); adding Ladbrokes via Enter keeps both highlighted;
+        disabling TAB in Settings drops it from `spotlightBookieIds`
+        and its header highlight immediately while Ladbrokes' stays on.
