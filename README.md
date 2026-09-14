@@ -3416,3 +3416,50 @@ https://developer.betfair.com/.
         limitation: there's still no derivable race URL for it (see
         `ladbrokesWatcher.js`), so it only ever works if the user had a
         matching Ladbrokes tab open at some point.
+
+- [x] Added a new Mode: **Run 2nd You Win** — user-requested, alongside
+      the existing Mug/Bonus/Run 2nd 3rd/Run 2nd tabs (`#mode-tabs`,
+      popup.html). Triggers on the exact same event as Run 2nd (the
+      runner comes 2nd, nothing else — same `promoPlaceProb`/Harville
+      Pr(2nd) source), but pays out completely differently: the
+      bookmaker settles the bet as a genuine WIN at the original price
+      (real cash, stake × bookmaker price) instead of a smaller
+      bonus-bet-equivalent refund.
+      - Derived from first principles (see the "Racing Edge & EV
+        Formulas" doc in this repo) rather than reusing Run 2nd's own
+        `promoEVPercent` with a different refund value straight off:
+        `qualifyingLoss`'s existing full-hedge derivation already
+        assumes a "not-win" outcome loses the stake, so the
+        *incremental* value 2nd place adds on top of that baseline is
+        the full win-style payout (stake × bookmaker) — not
+        stake × (bookmaker − 1), and not a retention-adjusted figure.
+        New `run2ndWinEVPercent` (popup.js), same QL baseline as
+        `promoEVPercent`, different (larger) refund term.
+      - Confirmed this does NOT change what to lay on Betfair — the
+        existing WIN-market lay (`layStake`, same as Mug/Run 2nd)
+        already fully hedges the win/not-win split regardless of
+        whether "not-win" turns out to be 2nd or anywhere else; the
+        promo's 2nd-place payout is a pure add-on with no extra staking
+        cost. `rowLayDollars`/Lay $/Liability needed no change at all —
+        they already fall through to the same plain `layStake` branch
+        every other non-Bonus mode uses.
+      - New mode bucketed under the existing "Promo" EV Colour
+        threshold key (Settings), same as Run 2nd/Run 2nd 3rd — no new
+        threshold fields needed, though its own numbers run
+        noticeably higher than Run 2nd's (a full win-price payout vs. a
+        retention-capped bonus bet) so the existing Promo thresholds
+        may need a user tweak in Settings to stay meaningfully
+        discriminating for it.
+      - Added to `PROMO_MODES`/`PLANNER_PROMO_MODES` (bookies.js — so
+        it's also plannable in the Daily Planner, same as Run 2nd/Run
+        2nd 3rd), the mode-tabs row (popup.html), and the Default Mode
+        dropdown in *both* Settings surfaces — the in-popup Settings
+        modal and the separate `options.html` page each keep their own
+        independent copy of that `<select>`, so both needed the new
+        `<option>`.
+      - Verified via the local static-preview harness: switched
+        through all 5 modes against the same mock runner and hand-
+        verified the exact EV% figure (QL + Pr(2nd) × stake×bookmaker,
+        worked out by hand against the live-computed value — matched
+        to 10+ significant figures); confirmed Mug/Bonus/Run 2nd/Run
+        2nd 3rd's own numbers are completely unchanged by this addition.

@@ -30,12 +30,19 @@ const PROMO_MODES = [
   { id: "bonus", label: "Bonus" },
   { id: "run2nd3rd", label: "Run 2nd 3rd" },
   { id: "run2nd", label: "Run 2nd" },
+  // Same 2nd-place trigger as "run2nd" above, but the bookmaker pays
+  // the FULL win price as real cash if it comes 2nd, instead of a
+  // smaller bonus-bet-equivalent refund — see popup.js's
+  // run2ndWinEVPercent for the actual formula/derivation.
+  { id: "run2ndwin", label: "Run 2nd You Win" },
 ];
 
-// The Daily Planner's own Promotion dropdown only ever offers these two
-// — user-requested: planning ahead only makes sense for the place-
-// promo modes (Mug/Bonus aren't the kind of thing you schedule a
-// specific race for in advance). Derived from PROMO_MODES rather than
-// its own separate list, so a label change to either mode still only
-// needs updating in one place.
-const PLANNER_PROMO_MODES = PROMO_MODES.filter((m) => m.id === "run2nd3rd" || m.id === "run2nd");
+// The Daily Planner's own Promotion dropdown only ever offers the
+// place-triggered promo modes — user-requested: planning ahead only
+// makes sense for those (Mug/Bonus aren't the kind of thing you
+// schedule a specific race for in advance). Derived from PROMO_MODES
+// rather than its own separate list, so a label change to any of them
+// still only needs updating in one place.
+const PLANNER_PROMO_MODES = PROMO_MODES.filter(
+  (m) => m.id === "run2nd3rd" || m.id === "run2nd" || m.id === "run2ndwin"
+);
