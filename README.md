@@ -3265,3 +3265,19 @@ https://developer.betfair.com/.
         Sportsbet/TAB/Ladbrokes tab at all; spotlighting TAB
         immediately opens exactly TAB's own tab at its correct URL,
         with Sportsbet and Ladbrokes never appearing in either batch.
+      - **Fixed a real bug found immediately after, user-reported**: a
+        race planned against Sportsbet only (Daily Planner) still
+        opened Sportsbet+TAB+Ladbrokes tabs on selection, even though
+        the Race Table itself correctly showed only Sportsbet's column
+        — `openRaceTabs` was checking only the Bookie Spotlight's own
+        picks and never looked at the Planner at all, the exact same
+        set `renderRace` already uses for column visibility. Fixed by
+        factoring both out into one shared `raceDisplayedBookieIds(race)`
+        (planner entries for that race ∪ Bookie Spotlight picks) that
+        `renderRace` and `openRaceTabs` now both call — the two can't
+        drift apart again since there's only one place computing it.
+        Verified via the same harness: planning Sportsbet only for a
+        race opens exactly one bookmaker tab (Sportsbet, at its correct
+        URL) alongside Betfair's, never TAB or Ladbrokes; additionally
+        spotlighting Ladbrokes on top of that plan then opens exactly
+        Sportsbet + Ladbrokes, with TAB still never appearing.
