@@ -1595,6 +1595,168 @@ footer {
   color: var(--positive);
 }
 
+/* Settings > Bookie's own tiered layout (user-requested, replacing a
+   flat 21-item checkbox list) — grouped by underlying platform, not
+   scoped to #settings-modal like most of this file's own form styling
+   above, since options.html's standalone Bookie section (options.js
+   builds both from the exact same BOOKIE_TIERS/bookieTierSectionHtml)
+   needs these same rules too and only loads popup.css, not a page-
+   specific copy of them. */
+#bookie-quick-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.bookie-pill-btn {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.bookie-pill-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+#bookie-tiers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bookie-tier {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-raised);
+  overflow: hidden;
+}
+
+.bookie-tier-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Rotates to point down once expanded (see toggleBookieTier, options.js,
+   which flips this via [data-expanded] rather than the body's own
+   [hidden] alone, so the arrow and the body always agree). */
+.bookie-tier-chevron {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.bookie-tier[data-expanded="true"] .bookie-tier-chevron {
+  transform: rotate(90deg);
+}
+
+.bookie-tier-title-group {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.bookie-tier-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.bookie-tier-desc {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookie-tier-count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.bookie-tier-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+}
+
+/* Smaller than the page-wide .bookie-pill-btn above, and stops the
+   click from also toggling the header's own expand/collapse (see
+   bookieTierSectionHtml's own listener, options.js). */
+.bookie-tier-actions .bookie-pill-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+}
+
+.bookie-tier-body {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px 14px;
+  padding: 4px 10px 10px;
+  border-top: 1px solid var(--border);
+}
+
+/* !important needed for the same reason #settings-modal .checkbox-label
+   already needs it just above — #settings-modal label (this file, plain
+   element selector but scoped by id) outranks a same-page plain class
+   selector on specificity alone. */
+.bookie-tier-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px;
+}
+
+.bookie-tier-row input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--accent);
+}
+
+.bookie-tier-row img {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  object-fit: contain;
+  background: var(--panel);
+  flex: 0 0 auto;
+}
+
+.bookie-tier-row span {
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Narrower Settings modal (popup.html) than options.html's own full-page
+   layout — 3 columns of bookie names/logos would overflow it, so this
+   drops to 2 there specifically. */
+#settings-modal .bookie-tier-body {
+  grid-template-columns: repeat(2, 1fr);
+}
+
 #settings-modal .status.error,
 #planner-modal .status.error {
   color: var(--accent-neg);

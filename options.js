@@ -100,38 +100,162 @@ const raceTypeCheckboxes = {
   greyhound: document.getElementById("setting-race-type-greyhound"),
 };
 
-// Settings > Bookie — built from BOOKIE_LIST (bookies.js) rather than a
-// fixed set of ids like raceTypeCheckboxes above: bookies get added to
-// this extension over time (Sportsbet/TAB/Ladbrokes/Neds/PointsBet so
-// far), and a new one should show up here automatically rather than
-// needing its own checkbox added by hand every time. Each checkbox
-// saves the full selection immediately on change, same pattern as race
-// types.
-const bookieCheckboxesEl = document.getElementById("bookie-checkboxes");
+// Settings > Bookie — user-requested tiered layout, grouped by
+// underlying platform (BOOKIE_TIERS, bookies.js) rather than one flat
+// 21-item list: each tier is its own collapsible section with a live
+// checked/total count and its own "All"/"None" pair, plus 3 page-wide
+// quick actions below (bookieTier1OnlyBtn/bookieEnableAllBtn/
+// bookieDisableAllBtn). Built from BOOKIE_LIST/BOOKIE_TIERS rather than
+// a fixed set of ids like raceTypeCheckboxes above — a bookie added to
+// either list shows up here automatically. bookieCheckboxes keeps the
+// exact same {id: checkboxEl} shape the rest of this file already
+// expects (selectedBookiesFromForm/applyToForm below), so nothing past
+// this block needs to know the checkboxes now live inside tiered
+// sections rather than one flat fieldset.
+const bookieTiersEl = document.getElementById("bookie-tiers");
 const bookieCheckboxes = {};
-for (const bookie of BOOKIE_LIST) {
-  const label = document.createElement("label");
-  label.className = "checkbox-label";
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.id = `setting-bookie-${bookie.id}`;
-  label.append(checkbox, ` ${bookie.label}`);
-  bookieCheckboxesEl.append(label);
-  bookieCheckboxes[bookie.id] = checkbox;
+const bookieTierCountEls = {};
+
+function bookieTierCountText(tier) {
+  const checked = tier.bookieIds.filter((id) => bookieCheckboxes[id]?.checked).length;
+  return `${checked}/${tier.bookieIds.length}`;
 }
+
+function refreshBookieTierCounts() {
+  for (const tier of BOOKIE_TIERS) {
+    if (bookieTierCountEls[tier.id]) {
+      bookieTierCountEls[tier.id].textContent = bookieTierCountText(tier);
+    }
+  }
+}
+
+function saveBookieSelection() {
+  refreshBookieTierCounts();
+  saveSettings({ enabledBookies: selectedBookiesFromForm() }).then(() =>
+    flashSettingsStatus("Saved")
+  );
+}
+
+const bookiesById = Object.fromEntries(BOOKIE_LIST.map((b) => [b.id, b]));
+
+for (const tier of BOOKIE_TIERS) {
+  const section = document.createElement("div");
+  section.className = "bookie-tier";
+  section.dataset.expanded = "true";
+
+  const header = document.createElement("div");
+  header.className = "bookie-tier-header";
+
+  const chevron = document.createElement("span");
+  chevron.className = "bookie-tier-chevron";
+  chevron.textContent = "▸"; // ▸ — rotated via CSS (data-expanded) rather than swapped per state
+  header.append(chevron);
+
+  const titleGroup = document.createElement("div");
+  titleGroup.className = "bookie-tier-title-group";
+  const title = document.createElement("span");
+  title.className = "bookie-tier-title";
+  title.textContent = tier.label;
+  const desc = document.createElement("span");
+  desc.className = "bookie-tier-desc";
+  desc.textContent = tier.description;
+  titleGroup.append(title, desc);
+  header.append(titleGroup);
+
+  const count = document.createElement("span");
+  count.className = "bookie-tier-count";
+  bookieTierCountEls[tier.id] = count;
+  header.append(count);
+
+  const actions = document.createElement("span");
+  actions.className = "bookie-tier-actions";
+  const allBtn = document.createElement("button");
+  allBtn.type = "button";
+  allBtn.className = "bookie-pill-btn";
+  allBtn.textContent = "All";
+  const noneBtn = document.createElement("button");
+  noneBtn.type = "button";
+  noneBtn.className = "bookie-pill-btn";
+  noneBtn.textContent = "None";
+  actions.append(allBtn, noneBtn);
+  header.append(actions);
+
+  const body = document.createElement("div");
+  body.className = "bookie-tier-body";
+
+  for (const id of tier.bookieIds) {
+    const bookie = bookiesById[id];
+    if (!bookie) continue; // shouldn't happen — every BOOKIE_LIST id belongs to exactly one tier
+
+    const row = document.createElement("label");
+    row.className = "bookie-tier-row";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.id = `setting-bookie-${bookie.id}`;
+    checkbox.addEventListener("change", saveBookieSelection);
+    const logo = document.createElement("img");
+    logo.src = bookie.logo;
+    logo.alt = "";
+    const name = document.createElement("span");
+    name.textContent = bookie.label;
+    row.append(checkbox, logo, name);
+    body.append(row);
+    bookieCheckboxes[id] = checkbox;
+  }
+
+  // Only the header's own chevron/title/count area toggles expand/
+  // collapse — the All/None buttons need their own click to just act,
+  // not also collapse the section they're acting on.
+  header.addEventListener("click", (event) => {
+    if (event.target === allBtn || event.target === noneBtn) return;
+    const expanded = section.dataset.expanded === "true";
+    section.dataset.expanded = expanded ? "false" : "true";
+    body.hidden = expanded;
+  });
+
+  allBtn.addEventListener("click", () => {
+    for (const id of tier.bookieIds) {
+      if (bookieCheckboxes[id]) bookieCheckboxes[id].checked = true;
+    }
+    saveBookieSelection();
+  });
+  noneBtn.addEventListener("click", () => {
+    for (const id of tier.bookieIds) {
+      if (bookieCheckboxes[id]) bookieCheckboxes[id].checked = false;
+    }
+    saveBookieSelection();
+  });
+
+  section.append(header, body);
+  bookieTiersEl.append(section);
+}
+
+refreshBookieTierCounts();
+
+// Page-wide quick actions, below every tier — "Tier 1 only" keeps just
+// the Corporates tier (BOOKIE_TIERS[0], the smallest/most mainstream
+// set) enabled and disables every other tier's own bookies, same idea
+// as a per-tier "None" above just applied to everything else too.
+document.getElementById("bookie-tier1-only-btn").addEventListener("click", () => {
+  const tier1Ids = new Set(BOOKIE_TIERS[0].bookieIds);
+  for (const [id, checkbox] of Object.entries(bookieCheckboxes)) {
+    checkbox.checked = tier1Ids.has(id);
+  }
+  saveBookieSelection();
+});
+document.getElementById("bookie-enable-all-btn").addEventListener("click", () => {
+  for (const checkbox of Object.values(bookieCheckboxes)) checkbox.checked = true;
+  saveBookieSelection();
+});
+document.getElementById("bookie-disable-all-btn").addEventListener("click", () => {
+  for (const checkbox of Object.values(bookieCheckboxes)) checkbox.checked = false;
+  saveBookieSelection();
+});
 
 function selectedBookiesFromForm() {
   return Object.entries(bookieCheckboxes)
     .filter(([, checkbox]) => checkbox.checked)
     .map(([id]) => id);
-}
-
-for (const checkbox of Object.values(bookieCheckboxes)) {
-  checkbox.addEventListener("change", () => {
-    saveSettings({ enabledBookies: selectedBookiesFromForm() }).then(() =>
-      flashSettingsStatus("Saved")
-    );
-  });
 }
 
 // Reflects a settings object into every control on the page — used both on
@@ -201,6 +325,7 @@ function applySettingsToForm(settings) {
   for (const [id, checkbox] of Object.entries(bookieCheckboxes)) {
     checkbox.checked = settings.enabledBookies.includes(id);
   }
+  refreshBookieTierCounts();
 
   applyEdgeBandsToForm(settings.edgeColorBands);
   applyEdgeBelowColorToForm(settings.edgeBelowThresholdColor);

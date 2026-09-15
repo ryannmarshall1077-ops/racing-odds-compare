@@ -338,9 +338,21 @@
             <p class="field-hint">
               Which bookmakers show as their own column in the odds table, and count toward Best
               Price/Edge%. Unchecking one hides it everywhere without losing its odds &mdash;
-              re-check it and it picks back up immediately, no rescan needed.
+              re-check it and it picks back up immediately, no rescan needed. Grouped by
+              platform (see bookies.js's own BOOKIE_TIERS) &mdash; Corporates are each their own
+              separate integration, Bet Makers/Gen Web are white-label families that share one
+              underlying platform (and thus one scraper) between several brands.
             </p>
-            <fieldset class="checkbox-group" id="bookie-checkboxes"></fieldset>
+            <!-- User-requested quick actions — "Tier 1 only" keeps just the
+                 Corporates tier enabled (the smallest, most mainstream set),
+                 same idea as a per-tier "All"/"None" pair (bookieTierSectionHtml,
+                 options.js) just scoped to the whole list instead of one tier. -->
+            <div id="bookie-quick-actions">
+              <button type="button" class="bookie-pill-btn" id="bookie-tier1-only-btn">Tier 1 only</button>
+              <button type="button" class="bookie-pill-btn" id="bookie-enable-all-btn">Enable all</button>
+              <button type="button" class="bookie-pill-btn" id="bookie-disable-all-btn">Disable all</button>
+            </div>
+            <div id="bookie-tiers"></div>
           </div>
 
           <div class="modal-tab-panel" data-tab="behaviour" hidden>

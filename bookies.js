@@ -37,6 +37,64 @@ const BOOKIE_LIST = [
   { id: "marantellibet", label: "MarantelliBet", logo: "icons/bookies/marantellibet.png" },
 ];
 
+// Settings > Bookie's own tiered layout (user-requested, replacing a
+// flat checkbox list) — grouped by underlying platform, exactly the
+// grouping the user themselves gave: "Corporates" (each its own
+// separate integration — a genuinely different backend/DOM per site),
+// "Bet Makers" (js/betmaker/api.js's own shared GraphQL platform — every
+// tenant OKEbet's own architecture turned out to be shared with, see
+// that file's own comment for the full story), and "Gen Web" (GoldBet's
+// own "GenerationBet" platform — currently a single tenant, but its own
+// footer credit ("Betting System by GenerationWeb 201") names the
+// platform the same way BetMaker's tenants do, so it gets its own tier
+// rather than being lumped into Corporates). bookieTierSectionHtml
+// (options.js) is the only reader of this — BOOKIE_LIST/BOOKIE_EXTRAS
+// above are unaffected, so a bookie missing from every tier here would
+// simply never render a checkbox at all rather than breaking anything
+// else; every id in BOOKIE_LIST must appear in exactly one tier below.
+const BOOKIE_TIERS = [
+  {
+    id: "corporates",
+    label: "Corporates",
+    description: "Each its own separate integration",
+    bookieIds: [
+      "sportsbet",
+      "tab",
+      "ladbrokes",
+      "neds",
+      "pointsbet",
+      "betr",
+      "tabtouch",
+      "unibet",
+      "picklebet",
+      "palmerbet",
+      "betdeluxe",
+      "betright",
+    ],
+  },
+  {
+    id: "betmakers",
+    label: "Bet Makers",
+    description: 'Shared "BetMaker" platform white-label brands',
+    bookieIds: [
+      "okebet",
+      "readybet",
+      "realbookie",
+      "baggybet",
+      "betyoucan",
+      "playwest",
+      "knucklebet",
+      "marantellibet",
+    ],
+  },
+  {
+    id: "genweb",
+    label: "Gen Web",
+    description: '"GenerationBet" platform white-label brands',
+    bookieIds: ["goldbet"],
+  },
+];
+
 // Single-letter race-type code shown in the compact race-info bar (e.g.
 // "Angle Park G1 (G)") and the sidebar's race cards — purely cosmetic,
 // deliberately its own copy rather than shared with background.js's
