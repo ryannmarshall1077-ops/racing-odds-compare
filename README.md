@@ -4464,3 +4464,47 @@ https://developer.betfair.com/.
       hand, and what a missed entry looks like from the outside (which
       is exactly this bug), so a future tenant addition doesn't repeat
       it silently.
+
+- [x] Fixed GoldBet's own tab opening onto the correct race but never
+      showing odds — user-reported, and a genuinely different bug from
+      every DOM/name-matching issue investigated so far this session.
+      Live diagnosis (with the user directly running a one-liner in the
+      extension's own service worker console, since content scripts run
+      in an isolated world this session's own browser tooling can't see
+      into, and `chrome-extension://` pages themselves refuse JS
+      execution from any of that tooling too) showed the tracked
+      GoldBet tab's own scraped odds were coming from a completely
+      different race (Shepparton harness R4) than the one actually
+      loaded in the popup (Townsville greyhound R4) — GoldBet's own
+      "next to race" carousel had auto-advanced the tab to an unrelated
+      race once the originally-loaded one jumped, with nothing in this
+      codebase ever re-asserting the tab's own URL after the initial
+      open to notice or correct it. Every runner-name match against the
+      actually-loaded race silently failed (0 matches out of two
+      completely unrelated fields), which is indistinguishable from
+      "odds never arrived" from the popup's own side — no error
+      anywhere to see, which is what made this one so much harder to
+      pin down than GoldBet's earlier hydration-glitch report.
+      - Fixed generally, not just for GoldBet — every DOM-scraped
+        bookie is equally capable of this, since it's the bookmaker's
+        own page doing the navigating, not anything specific to
+        GoldBet. `openRaceTabs` (popup.js) now records
+        `${bookieId}ExpectedUrl` in storage at the one moment it
+        actually knows the right answer (liveRace itself, unlike the
+        sidebar's own race objects, carries no per-bookie url fields at
+        all to re-derive this from later). Two independent checks
+        against it: `ensureBookieTabMatchesExpectedUrl` on every ~60s
+        auto-refresh tick (background.js), and a check inside
+        `applyBookieOdds` itself checking every single live watcher
+        update's own `url` field — the second one catches drift almost
+        the instant it happens, since a DOM watcher fires on every
+        mutation, far more often than the 60s tick. Either one
+        re-navigates the drifted tab back and discards/skips the
+        mismatched scrape rather than ever trying to match it.
+      - Verified the control flow in isolation with a mocked `chrome`
+        object (both functions' own logic, not the real extension,
+        which no tooling available this session can attach to):
+        confirmed a mismatched url triggers exactly one re-navigation
+        and is discarded/skipped, and a matched url applies normally,
+        for both the auto-refresh check and the `applyBookieOdds`
+        check.

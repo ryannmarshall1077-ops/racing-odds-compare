@@ -722,6 +722,14 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     const tabId = trackedTabIds[bookie.tabIdKey];
     if (!tabId) continue;
     try {
+      // Checked every tick, not just once at open time — a page can
+      // navigate itself away at any point afterward (see
+      // ensureBookieTabMatchesExpectedUrl's own comment for the live
+      // GoldBet case this was built for). Skips this tick's scrape if
+      // it just had to re-navigate; the tab's own fresh page is ready
+      // to scrape by the next tick, ~1 minute later.
+      const onExpectedUrl = await ensureBookieTabMatchesExpectedUrl(bookie.id, tabId);
+      if (!onExpectedUrl) continue;
       await scrapeBookieTab(bookie.id, tabId);
     } catch (err) {
       console.warn(`Auto-scan of ${bookie.label} tab skipped:`, err.message);
@@ -2156,6 +2164,57 @@ async function listUpcomingRaces() {
   return withSessionRetry(listUpcomingRacesInner);
 }
 
+// Guards against a bookmaker's own page silently navigating itself away
+// from the race popup.js actually opened this tab for — confirmed live
+// on GoldBet: its own "next to race" carousel auto-advances to a
+// completely different, unrelated race once the loaded one jumps/
+// results, with no warning at all. User-reported as "loading tabs and
+// correct race but not displaying odds" — traced to exactly this: the
+// tab really had drifted onto an unrelated race, so goldbetWatcher.js
+// kept scraping real prices from THAT race, and every runner-name
+// match against the actually-selected race silently failed (0 matches,
+// applyBookieOdds' own early-return, no error anywhere to see).
+//
+// `${bookieId}ExpectedUrl` (set by openRaceTabs, popup.js, the one
+// place that ever actually knows the right URL for this bookie's
+// currently-tracked tab — liveRace itself carries no per-bookie url
+// fields at all, so nothing else could re-derive this) is the source
+// of truth here. Best-effort by design, same as every other bookie
+// check in this file: a bookie never opened this session (no expected
+// url yet) or a tab that's since closed just reads as "nothing to
+// check", not an error.
+//
+// Returns true if the tab is (now) on the right page and safe to
+// scrape this tick; false if it just re-navigated it (the page hasn't
+// loaded yet — scrapeBookieTab immediately after would just find an
+// empty/wrong-race DOM again) or couldn't tell, so the caller should
+// skip scraping until the NEXT tick once the fresh page has settled.
+async function ensureBookieTabMatchesExpectedUrl(bookieId, tabId) {
+  const key = `${bookieId}ExpectedUrl`;
+  const stored = await chrome.storage.local.get([key]);
+  const expectedUrl = stored[key];
+  if (!expectedUrl) return true; // never recorded (e.g. this bookie wasn't matched/opened this way) — nothing to enforce
+
+  let tab;
+  try {
+    tab = await chrome.tabs.get(tabId);
+  } catch {
+    return true; // gone — scrapeBookieTab's own "no tab with id" handling deals with this right after
+  }
+
+  if (tab.url === expectedUrl) return true;
+
+  console.warn(
+    `${bookieId} tab drifted off its own race (now at ${tab.url}, expected ${expectedUrl}) — re-navigating.`
+  );
+  try {
+    await chrome.tabs.update(tabId, { url: expectedUrl });
+  } catch (err) {
+    console.warn(`Failed to re-navigate drifted ${bookieId} tab back to its race:`, err.message);
+  }
+  return false;
+}
+
 // Scrapes Win odds off the given tab's currently displayed bookmaker race
 // page. The tab must already be showing that bookie's own racing page.
 async function scrapeBookieTab(bookieId, tabId) {
@@ -2205,6 +2264,30 @@ async function scrapeBookieTab(bookieId, tabId) {
 // time its own page does, rather than waiting for the next scheduled
 // refresh.
 async function applyBookieOdds(bookieId, odds) {
+  // Same drift guard as ensureBookieTabMatchesExpectedUrl (its own
+  // comment has the full live-GoldBet story) but checked here too, not
+  // just on the ~60s auto-refresh tick — a DOM watcher pushes updates
+  // on every mutation, far more often than that, so this catches a
+  // page having navigated itself away almost the instant it happens
+  // instead of waiting up to a minute for it. odds.url is
+  // `url: location.href`, already sent by every watcher in this
+  // codebase.
+  const expectedUrlKey = `${bookieId}ExpectedUrl`;
+  const stored = await chrome.storage.local.get([expectedUrlKey]);
+  const expectedUrl = stored[expectedUrlKey];
+  if (odds.url && expectedUrl && odds.url !== expectedUrl) {
+    console.warn(
+      `${bookieId} odds update came from a different race than expected (got ${odds.url}, expected ${expectedUrl}) — discarding and re-navigating its tab back.`
+    );
+    const tabIdKey = BOOKIES[bookieId]?.tabIdKey;
+    if (tabIdKey) {
+      const tabStored = await chrome.storage.local.get([tabIdKey]);
+      const tabId = tabStored[tabIdKey];
+      if (tabId) chrome.tabs.update(tabId, { url: expectedUrl }).catch(() => {});
+    }
+    return; // never cache or apply odds scraped from the wrong race
+  }
+
   const { bookmakerOdds = {} } = await chrome.storage.local.get(["bookmakerOdds"]);
   // Once betting's closed, sportsbetWatcher.js deliberately stops
   // scraping runner prices at all (its own market having gone in-play —
