@@ -4125,3 +4125,62 @@ https://developer.betfair.com/.
         exact same fix, run against today's real data, now returns 208
         real events with no error (was 0, silent `ValidationError`,
         before the fix).
+
+- [x] Added **GoldBet** and **OKEbet** — two more bookmakers, user-
+      requested. Both real "GenerationBet"-platform bookies (GoldBet's
+      own race page literally credits "Betting System by GenerationWeb
+      201 (GenerationBet v1.7)" in its footer) — same shared-platform
+      heritage BetDeluxe/BetRight already showed for a different vendor
+      — but each still needed its own separate integration:
+      - **GoldBet** has its own plain public REST feed
+        (`js/goldbet/api.js`, `api.goldbet.com.au`) for the daily race
+        list, but no live per-race JSON feed at all — several
+        plausible endpoint names all confirmed 404 live. Falls back to
+        DOM scraping (`goldbetWatcher.js`/`goldbet.js`) against a
+        genuinely simple, semantic runners `<table>` — the Win price is
+        found by its own `<thead>` text ("WIN"), not a fixed column
+        position. Its own race URLs need BOTH the venue AND a full
+        race-description slug exactly right (confirmed live: a near-
+        miss 404s outright, unlike Ladbrokes'/BetRight's own id-only
+        routing) — `goldBetSlugify` reproduces GoldBet's own algorithm
+        (lowercase, every run of non-alphanumeric characters collapsed
+        to one hyphen) plus a `-race-<N>` suffix, confirmed live
+        against a race with parentheses in its own title. Market-closed
+        (a standalone "Final" badge near the race header) and scratched
+        runners (rendered in a completely separate list, never even
+        appearing in the main runners table at all) both confirmed live.
+      - **OKEbet** has its own GraphQL feed
+        (`racing.okebet.bmapollo.com`) — genuinely needed a header
+        (`x-api-key`, a plain public key every visitor's browser already
+        sends, not a secret) that a URL-only fetch/XHR hook (every other
+        GraphQL bookie here) wasn't enough to discover on its own this
+        time; the actual query body/headers had to be hooked directly.
+        Its own `meetingsBetween` query hands back a race's real page
+        slug verbatim (`<meetingSlug>/<raceSlug>`) — no slugify
+        algorithm to keep in sync with OKEbet's own routing at all,
+        unlike GoldBet. The live per-race query needs a UUID this
+        extension has no way to derive from the race's own URL (a
+        completely separate id system from the one the URL itself
+        uses), so `okebetWatcher.js` DOM-scrapes instead — a div-based
+        layout (no real `<table>` at all) with exactly one genuinely
+        stable, semantic class surviving among the rest of the Tailwind-
+        utility noise (`gs-runner-name-label`), used as the one anchor
+        to find each runner row from. Market-closed (a standalone
+        "Closed" badge) and scratched runners (no Win/Place buttons
+        rendered at all) both confirmed live.
+      - **A second near-miss of the exact same BetDeluxe bug, caught
+        this time before shipping, not after**: OKEbet's own
+        `meetingsBetween` also rejects a too-wide date window (32h max,
+        confirmed live) — the originally-planned ±20h-around-now window
+        would have failed here too. Checked live specifically because
+        of that recent lesson, and fixed the same way: `okeBetTodayWindowUtc`
+        computes its own fixed ~24h AEST-day window internally instead
+        of accepting an arbitrary caller-supplied one, mirroring
+        `betDeluxeTodayWindowUtc` exactly.
+      - Icons fetched live from each site's own favicon (both plain
+        PNGs this time, no ICO-unwrapping needed).
+      - Verified via the local static-preview harness: all 14 bookies
+        now render correctly (header, each row's own cells, and the
+        footer all still exactly in sync); both new logos load without
+        a broken-image icon. Every new/touched file syntax-checked and
+        null-byte checked before committing.

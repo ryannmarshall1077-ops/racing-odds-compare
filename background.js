@@ -10,6 +10,8 @@ importScripts(
   "js/palmerbet/api.js",
   "js/betdeluxe/api.js",
   "js/betright/api.js",
+  "js/goldbet/api.js",
+  "js/okebet/api.js",
   "settings.js",
   "bookies.js"
 );
@@ -137,6 +139,16 @@ const BOOKIE_EXTRAS = {
   // BetRight — own public REST feed (js/betright/api.js), same
   // discovery method, same no-DOM-scraper shape.
   betright: { scraperFile: null, tabIdKey: "betrightTabId" },
+  // GoldBet has no live per-race JSON feed found (same starting point
+  // TAB/TABtouch/Picklebet each started from) — DOM-scraped by
+  // goldbetWatcher.js/goldbet.js instead, so it does get a scraperFile
+  // the same way those do.
+  goldbet: { scraperFile: "js/contentScripts/goldbet.js", tabIdKey: "goldbetTabId" },
+  // OKEbet's real feed is GraphQL (js/okebet/api.js) but the per-race
+  // query needs a UUID this extension has no way to derive from the
+  // race's own URL — see okebetWatcher.js's own comment — so it's
+  // DOM-scraped too, same shape as GoldBet above.
+  okebet: { scraperFile: "js/contentScripts/okebet.js", tabIdKey: "okebetTabId" },
 };
 const BOOKIES = Object.fromEntries(
   BOOKIE_LIST.map((b) => [b.id, { ...b, ...BOOKIE_EXTRAS[b.id] }])
@@ -1318,6 +1330,8 @@ async function listUpcomingRacesInner() {
     palmerbetEvents,
     betdeluxeEvents,
     betrightEvents,
+    goldbetEvents,
+    okebetEvents,
     { tabVenueCodes = {} },
     { tabtouchVenueCodes = {} },
     { picklebetVenueCodes = {} },
@@ -1391,6 +1405,23 @@ async function listUpcomingRacesInner() {
     // null for this fetch.
     fetchBetRightNextEvents(new Date().toISOString().slice(0, 10)).catch((err) => {
       console.warn("BetRight GroupedRaceCard skipped:", err.message);
+      return [];
+    }),
+    // Same again — a GoldBet-side hiccup just means goldbetUrl stays
+    // null for this fetch.
+    fetchGoldBetNextEvents().catch((err) => {
+      console.warn("GoldBet race-card skipped:", err.message);
+      return [];
+    }),
+    // Same again — an OKEbet-side hiccup just means okebetUrl stays
+    // null for this fetch. No window params passed here — see
+    // fetchOkeBetNextEvents' own comment (js/okebet/api.js): checked
+    // live before shipping this time, and it turns out OKEbet's own
+    // endpoint has the exact same class of width limit BetDeluxe's did
+    // (32h here, vs BetDeluxe's ~25h) — caught before it ever became a
+    // second live "silently returns zero events" bug, not after.
+    fetchOkeBetNextEvents().catch((err) => {
+      console.warn("OKEbet meetingsBetween skipped:", err.message);
       return [];
     }),
     chrome.storage.local.get(["tabVenueCodes"]),
@@ -1623,6 +1654,29 @@ async function listUpcomingRacesInner() {
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
       );
 
+      // Same matching again — GoldBet's own feed also never prefixes a
+      // venue name (confirmed live across real AU meetings — Wodonga,
+      // Bowen, Angle Park, Albion Park all came back exactly as plain
+      // as Betfair's own venue names).
+      const goldbetMatch = goldbetEvents.find(
+        (e) =>
+          e.type === raceType &&
+          namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
+          e.raceNumber === raceNumber &&
+          Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
+      );
+
+      // Same matching again — OKEbet's own feed also never prefixes a
+      // venue name (confirmed live: Wodonga, Darwin all came back
+      // exactly as plain as Betfair's own venue names).
+      const okebetMatch = okebetEvents.find(
+        (e) =>
+          e.type === raceType &&
+          namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
+          e.raceNumber === raceNumber &&
+          Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
+      );
+
       return {
         track,
         raceNumber,
@@ -1699,6 +1753,12 @@ async function listUpcomingRacesInner() {
         // BetRight also has a real feed from day one (js/betright/
         // api.js, betrightMatch above), same treatment.
         betrightUrl: betrightMatch ? buildBetRightRaceUrl(betrightMatch) : null,
+        // GoldBet also has a real feed from day one (js/goldbet/api.js,
+        // goldbetMatch above), same treatment.
+        goldbetUrl: goldbetMatch ? buildGoldBetRaceUrl(goldbetMatch) : null,
+        // OKEbet also has a real feed from day one (js/okebet/api.js,
+        // okebetMatch above), same treatment.
+        okebetUrl: okebetMatch ? buildOkeBetRaceUrl(okebetMatch) : null,
       };
     })
     .filter((r) => r.raceNumber !== null);
@@ -2185,6 +2245,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "BETRIGHT_ODDS_UPDATED") {
     applyBookieOdds("betright", message.odds).catch((err) =>
       console.warn("Failed to apply live BetRight update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  if (message.type === "GOLDBET_ODDS_UPDATED") {
+    applyBookieOdds("goldbet", message.odds).catch((err) =>
+      console.warn("Failed to apply live GoldBet update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  if (message.type === "OKEBET_ODDS_UPDATED") {
+    applyBookieOdds("okebet", message.odds).catch((err) =>
+      console.warn("Failed to apply live OKEbet update:", err.message)
     );
     return; // fire-and-forget — the content script isn't awaiting a reply
   }

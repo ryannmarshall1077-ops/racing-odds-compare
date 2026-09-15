@@ -67,6 +67,8 @@ const DEFAULT_SETTINGS = {
     "palmerbet",
     "betdeluxe",
     "betright",
+    "goldbet",
+    "okebet",
   ],
   // User-requested: drag a bookie's own column header left/right in the
   // odds table to reorder it — this is what's actually dragged (see
@@ -90,6 +92,8 @@ const DEFAULT_SETTINGS = {
     "palmerbet",
     "betdeluxe",
     "betright",
+    "goldbet",
+    "okebet",
   ],
   showLiquidityColumn: true,
   showLiabilityColumn: false,
