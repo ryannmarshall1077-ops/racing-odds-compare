@@ -13,6 +13,9 @@ const BOOKIE_LIST = [
   { id: "pointsbet", label: "PointsBet", logo: "icons/bookies/pointsbet.png" },
   { id: "betr", label: "Betr", logo: "icons/bookies/betr.png" },
   { id: "tabtouch", label: "TABtouch", logo: "icons/bookies/tabtouch.png" },
+  { id: "unibet", label: "Unibet", logo: "icons/bookies/unibet.png" },
+  { id: "picklebet", label: "Picklebet", logo: "icons/bookies/picklebet.png" },
+  { id: "palmerbet", label: "Palmerbet", logo: "icons/bookies/palmerbet.png" },
 ];
 
 // Single-letter race-type code shown in the compact race-info bar (e.g.

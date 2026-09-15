@@ -6,6 +6,8 @@ importScripts(
   "js/neds/api.js",
   "js/pointsbet/api.js",
   "js/betr/api.js",
+  "js/unibet/api.js",
+  "js/palmerbet/api.js",
   "settings.js",
   "bookies.js"
 );
@@ -104,6 +106,27 @@ const BOOKIE_EXTRAS = {
   // from real links on its own "All Racing" hub page
   // (tabtouchMeetings.js), same idea as tabMeetings.js.
   tabtouch: { scraperFile: "js/contentScripts/tabtouch.js", tabIdKey: "tabtouchTabId" },
+  // Unibet (Kindred Group) — own public persisted-query GraphQL feed
+  // (js/unibet/api.js), discovered the same fetch-hooking way as
+  // PointsBet/Betr. No one-shot scraper file of its own the way every
+  // other bookie here has: unibetWatcher.js polls the exact same live
+  // feed directly instead of scraping the DOM at all, so there's no
+  // separate "scrape once on demand" script to point scraperFile at —
+  // scrapeBookieTab (below) already skips a bookie with no scraperFile.
+  unibet: { scraperFile: null, tabIdKey: "unibetTabId" },
+  // Picklebet has no public feed found (same starting point tab.com.au/
+  // TABtouch each started from) — race URLs are instead learned from
+  // real links on its own pages (picklebetMeetings.js), two levels deep
+  // (meeting, then race) unlike TAB/TABtouch's own single-hub-page
+  // learning — see ensurePicklebetUrlForRace's own comment. Its own
+  // live odds watcher (picklebetWatcher.js) is DOM-based like Betr/
+  // TABtouch, so it does get a scraperFile the same way those do.
+  picklebet: { scraperFile: "js/contentScripts/picklebet.js", tabIdKey: "picklebetTabId" },
+  // Palmerbet — own public REST feed (js/palmerbet/api.js), discovered
+  // the same fetch-hooking way as PointsBet/Betr, no persisted-query
+  // hash fragility at all (plain readable paths). Same "no DOM scraper,
+  // the watcher polls the live feed directly" shape as Unibet above.
+  palmerbet: { scraperFile: null, tabIdKey: "palmerbetTabId" },
 };
 const BOOKIES = Object.fromEntries(
   BOOKIE_LIST.map((b) => [b.id, { ...b, ...BOOKIE_EXTRAS[b.id] }])
@@ -304,6 +327,140 @@ async function ensureTabtouchVenueCodesLearnedToday() {
   await chrome.storage.local.set({ tabtouchVenueCodesLearnedDate: today });
 }
 
+// Picklebet's own equivalent of tabtouchRaceUrlFromCodes/
+// learnTabtouchVenueCodes/ensureTabtouchUrlForRace above — same "no
+// public feed, learn from real links on a real page" starting point,
+// but genuinely TWO levels deep rather than one: Picklebet's race URLs
+// are pure opaque UUID pairs (meetingId + raceId), and the meetingId
+// alone (learned from its "Today" list page, same idea as
+// tabtouch.com.au/racing/all) isn't enough to build a race URL — the
+// raceId only ever appears once you're actually on that one meeting's
+// own page (picklebetMeetings.js's own "Mode 2"). So resolving a race
+// this hasn't seen before can take up to two page visits, not one.
+function picklebetRaceUrlFromCodes(picklebetVenueCodes, picklebetRaceIds, track, sport, raceNumber) {
+  const venueKey = `${normalizeVenue(track)}|${sport}`;
+  const meetingId = picklebetVenueCodes[venueKey]?.meetingId;
+  if (!meetingId) return null;
+
+  const raceId = picklebetRaceIds[meetingId]?.races?.[raceNumber];
+  if (!raceId) return null;
+
+  return `https://picklebet.com/en-au/racing/betting/race/${meetingId}/${raceId}/top4/`;
+}
+
+async function learnPicklebetVenueCodes(entries) {
+  const { picklebetVenueCodes = {} } = await chrome.storage.local.get(["picklebetVenueCodes"]);
+  const next = { ...picklebetVenueCodes };
+
+  for (const { venueName, sport, meetingId } of entries) {
+    const key = `${normalizeVenue(venueName)}|${sport}`;
+    next[key] = { meetingId, learnedAt: Date.now() };
+  }
+
+  await chrome.storage.local.set({ picklebetVenueCodes: next });
+}
+
+// Keyed by meetingId (not venue|sport — a meeting's own races are
+// looked up by raceNumber only once its meetingId is already known via
+// picklebetVenueCodes above), so a meeting whose venue name Picklebet
+// spells differently from Betfair's own (never actually observed, but
+// TAB's own brand-prefix precedent means it's not impossible) still
+// gets its race ids cached correctly under the exact meetingId that was
+// actually visited.
+async function learnPicklebetRaceIds(meetingId, races) {
+  const { picklebetRaceIds = {} } = await chrome.storage.local.get(["picklebetRaceIds"]);
+  const byNumber = {};
+  for (const { number, raceId } of races) byNumber[number] = raceId;
+
+  await chrome.storage.local.set({
+    picklebetRaceIds: { ...picklebetRaceIds, [meetingId]: { races: byNumber, learnedAt: Date.now() } },
+  });
+}
+
+const PICKLEBET_MEETINGS_LEARN_DELAY_MS = 6000;
+
+async function visitPicklebetTodayPage() {
+  const tab = await chrome.tabs.create({
+    url: "https://picklebet.com/en-au/racing/betting/today/",
+    active: false,
+  });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, PICKLEBET_MEETINGS_LEARN_DELAY_MS));
+  } finally {
+    await chrome.tabs.remove(tab.id).catch(() => {});
+  }
+}
+
+async function visitPicklebetMeetingPage(meetingId) {
+  const tab = await chrome.tabs.create({
+    url: `https://picklebet.com/en-au/racing/betting/meeting/${meetingId}/`,
+    active: false,
+  });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, PICKLEBET_MEETINGS_LEARN_DELAY_MS));
+  } finally {
+    await chrome.tabs.remove(tab.id).catch(() => {});
+  }
+}
+
+// Same reasoning as ensureTabtouchUrlForRace — the first click for a
+// not-yet-seen race triggers an on-demand visit instead of silently
+// leaving Picklebet's tab untouched. Up to two visits (~6s each) the
+// very first time a given MEETING is opened this session (one to learn
+// its meetingId if that's not known yet, one to learn its own races'
+// ids) — instant on every later race within that same meeting, and on
+// any race at all once today's background visit (
+// ensurePicklebetVenueCodesLearnedToday) has already learned every
+// venue's meetingId for the day.
+async function ensurePicklebetUrlForRace(track, raceType, raceNumber) {
+  let known = await chrome.storage.local.get(["picklebetVenueCodes", "picklebetRaceIds"]);
+  let url = picklebetRaceUrlFromCodes(
+    known.picklebetVenueCodes || {},
+    known.picklebetRaceIds || {},
+    track,
+    raceType,
+    raceNumber
+  );
+  if (url) return url;
+
+  const venueKey = `${normalizeVenue(track)}|${raceType}`;
+  let meetingId = known.picklebetVenueCodes?.[venueKey]?.meetingId;
+  if (!meetingId) {
+    await visitPicklebetTodayPage();
+    known = await chrome.storage.local.get(["picklebetVenueCodes", "picklebetRaceIds"]);
+    meetingId = known.picklebetVenueCodes?.[venueKey]?.meetingId;
+    if (!meetingId) return null; // genuinely not listed there today — nothing more to try
+  }
+
+  await visitPicklebetMeetingPage(meetingId);
+  const fresh = await chrome.storage.local.get(["picklebetVenueCodes", "picklebetRaceIds"]);
+  return picklebetRaceUrlFromCodes(
+    fresh.picklebetVenueCodes || {},
+    fresh.picklebetRaceIds || {},
+    track,
+    raceType,
+    raceNumber
+  );
+}
+
+// Only the first level (venue -> meetingId) is learned proactively —
+// unlike TAB/TABtouch's own single-hub-page visit, preemptively
+// learning every meeting's own race ids too would mean opening a tab
+// per MEETING, not per sport, a much larger daily burst for no real
+// benefit (see ensurePicklebetUrlForRace's own on-demand second hop,
+// ~6s the first time any one meeting's races are actually needed).
+async function ensurePicklebetVenueCodesLearnedToday() {
+  const today = new Date().toISOString().slice(0, 10);
+  const { picklebetVenueCodesLearnedDate } = await chrome.storage.local.get([
+    "picklebetVenueCodesLearnedDate",
+  ]);
+  if (picklebetVenueCodesLearnedDate === today) return;
+
+  await visitPicklebetTodayPage();
+
+  await chrome.storage.local.set({ picklebetVenueCodesLearnedDate: today });
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   console.log("RaceOdds installed");
 });
@@ -347,6 +504,9 @@ ensureTabVenueCodesLearnedToday().catch((err) =>
 ensureTabtouchVenueCodesLearnedToday().catch((err) =>
   console.warn("Learning TABtouch venue codes skipped:", err.message)
 );
+ensurePicklebetVenueCodesLearnedToday().catch((err) =>
+  console.warn("Learning Picklebet venue codes skipped:", err.message)
+);
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== AUTO_REFRESH_ALARM) return;
@@ -360,6 +520,9 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   );
   ensureTabtouchVenueCodesLearnedToday().catch((err) =>
     console.warn("Learning TABtouch venue codes skipped:", err.message)
+  );
+  ensurePicklebetVenueCodesLearnedToday().catch((err) =>
+    console.warn("Learning Picklebet venue codes skipped:", err.message)
   );
 
   // Other Behaviour and Functionality > "Automatically refresh odds every
@@ -378,6 +541,12 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   const tabIdKeys = Object.values(BOOKIES).map((b) => b.tabIdKey);
   const trackedTabIds = await chrome.storage.local.get(tabIdKeys);
   for (const bookie of Object.values(BOOKIES)) {
+    // Unibet/Palmerbet have no one-shot scraperFile at all (see
+    // BOOKIE_EXTRAS) — their own watcher already polls the real feed
+    // directly on its own interval and pushes updates as they happen,
+    // so this periodic executeScript pull would have nothing to run
+    // and nothing to gain even if it did.
+    if (!bookie.scraperFile) continue;
     const tabId = trackedTabIds[bookie.tabIdKey];
     if (!tabId) continue;
     try {
@@ -1135,8 +1304,12 @@ async function listUpcomingRacesInner() {
     nedsEvents,
     pointsbetEvents,
     betrEvents,
+    unibetEvents,
+    palmerbetEvents,
     { tabVenueCodes = {} },
     { tabtouchVenueCodes = {} },
+    { picklebetVenueCodes = {} },
+    { picklebetRaceIds = {} },
     { pendingResultChecks = [] },
     { liveRace },
   ] = await Promise.all([
@@ -1174,8 +1347,29 @@ async function listUpcomingRacesInner() {
       console.warn("Betr GroupedRaceCard skipped:", err.message);
       return [];
     }),
+    // Same again — a Unibet-side hiccup (e.g. their persisted-query hash
+    // rotating on a frontend release, same fragility Ladbrokes/Neds
+    // already accept) just means unibetUrl stays null for this fetch.
+    // Wide enough either side of "now" to cover every AU/NZ timezone's
+    // own "today", same UTC-day approximation endOfTodayUtc above
+    // already makes.
+    fetchUnibetNextEvents(
+      new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
+      new Date(Date.now() + 20 * 60 * 60 * 1000).toISOString()
+    ).catch((err) => {
+      console.warn("Unibet MeetingsByDateRange skipped:", err.message);
+      return [];
+    }),
+    // Same again — a Palmerbet-side hiccup just means palmerbetUrl stays
+    // null for this fetch.
+    fetchPalmerbetNextEvents(new Date().toISOString().slice(0, 10)).catch((err) => {
+      console.warn("Palmerbet fixtures skipped:", err.message);
+      return [];
+    }),
     chrome.storage.local.get(["tabVenueCodes"]),
     chrome.storage.local.get(["tabtouchVenueCodes"]),
+    chrome.storage.local.get(["picklebetVenueCodes"]),
+    chrome.storage.local.get(["picklebetRaceIds"]),
     chrome.storage.local.get(["pendingResultChecks"]),
     chrome.storage.local.get(["liveRace"]),
   ]);
@@ -1355,6 +1549,30 @@ async function listUpcomingRacesInner() {
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
       );
 
+      // Same matching again — Unibet's own feed also never prefixes a
+      // venue name (confirmed live across real AU meetings — Wodonga,
+      // Moruya, Angle Park, Hobart all came back exactly as plain as
+      // Betfair's own venue names).
+      const unibetMatch = unibetEvents.find(
+        (e) =>
+          e.type === raceType &&
+          namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
+          e.raceNumber === raceNumber &&
+          Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
+      );
+
+      // Same matching again — Palmerbet's own feed also never prefixes
+      // a venue name (confirmed live: real AU meetings like Hamilton,
+      // Wellington came back exactly as plain as Betfair's own venue
+      // names — only non-AU venues get a " - <country>" suffix at all).
+      const palmerbetMatch = palmerbetEvents.find(
+        (e) =>
+          e.type === raceType &&
+          namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
+          e.raceNumber === raceNumber &&
+          Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
+      );
+
       return {
         track,
         raceNumber,
@@ -1410,6 +1628,21 @@ async function listUpcomingRacesInner() {
         // had) — built from codes learned off its own "All Racing" hub
         // page (tabtouchMeetings.js) instead, same idea as tabUrl above.
         tabtouchUrl: tabtouchRaceUrlFromCodes(tabtouchVenueCodes, track, raceType, raceNumber, market.marketStartTime),
+        // Unibet also has a real feed from day one (js/unibet/api.js,
+        // unibetMatch above), same treatment.
+        unibetUrl: unibetMatch ? buildUnibetRaceUrl(unibetMatch) : null,
+        // Picklebet has no real feed either — built from meeting/race
+        // ids learned off its own "Today" list + meeting pages
+        // (picklebetMeetings.js) instead, same idea as tabUrl/
+        // tabtouchUrl above (just two levels deep instead of one — see
+        // picklebetRaceUrlFromCodes' own comment). No "!" warning marker
+        // for this one either, same reasoning tabUrl already has: not
+        // knowing yet is the expected steady state for most races, not
+        // something to flag as wrong.
+        picklebetUrl: picklebetRaceUrlFromCodes(picklebetVenueCodes, picklebetRaceIds, track, raceType, raceNumber),
+        // Palmerbet also has a real feed from day one (js/palmerbet/
+        // api.js, palmerbetMatch above), same treatment.
+        palmerbetUrl: palmerbetMatch ? buildPalmerbetRaceUrl(palmerbetMatch) : null,
       };
     })
     .filter((r) => r.raceNumber !== null);
@@ -1865,6 +2098,27 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return; // fire-and-forget — the content script isn't awaiting a reply
   }
 
+  if (message.type === "UNIBET_ODDS_UPDATED") {
+    applyBookieOdds("unibet", message.odds).catch((err) =>
+      console.warn("Failed to apply live Unibet update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  if (message.type === "PICKLEBET_ODDS_UPDATED") {
+    applyBookieOdds("picklebet", message.odds).catch((err) =>
+      console.warn("Failed to apply live Picklebet update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  if (message.type === "PALMERBET_ODDS_UPDATED") {
+    applyBookieOdds("palmerbet", message.odds).catch((err) =>
+      console.warn("Failed to apply live Palmerbet update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
   if (message.type === "TAB_VENUE_CODES_LEARNED") {
     learnTabVenueCodes(message.entries).catch((err) =>
       console.warn("Failed to store learned TAB venue codes:", err.message)
@@ -1875,6 +2129,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "TABTOUCH_VENUE_CODES_LEARNED") {
     learnTabtouchVenueCodes(message.entries).catch((err) =>
       console.warn("Failed to store learned TABtouch venue codes:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  if (message.type === "PICKLEBET_VENUE_CODES_LEARNED") {
+    learnPicklebetVenueCodes(message.entries).catch((err) =>
+      console.warn("Failed to store learned Picklebet venue codes:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  if (message.type === "PICKLEBET_RACE_IDS_LEARNED") {
+    learnPicklebetRaceIds(message.meetingId, message.races).catch((err) =>
+      console.warn("Failed to store learned Picklebet race ids:", err.message)
     );
     return; // fire-and-forget — the content script isn't awaiting a reply
   }
@@ -1903,6 +2171,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "ENSURE_TABTOUCH_URL") {
     ensureTabtouchUrlForRace(message.track, message.raceType, message.raceNumber, message.startTime)
       .then((tabtouchUrl) => sendResponse({ ok: true, tabtouchUrl }))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === "ENSURE_PICKLEBET_URL") {
+    ensurePicklebetUrlForRace(message.track, message.raceType, message.raceNumber)
+      .then((picklebetUrl) => sendResponse({ ok: true, picklebetUrl }))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }

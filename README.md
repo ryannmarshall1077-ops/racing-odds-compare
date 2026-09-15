@@ -3926,3 +3926,90 @@ https://developer.betfair.com/.
         outline around its whole header box; a second bookmaker merely
         spotlighted alongside it for comparison shows with no highlight
         at all, confirmed side by side in the same screenshot.
+
+- [x] Added **Unibet**, **Picklebet**, and **Palmerbet** — three more
+      bookmakers, user-requested. Each turned out to need a genuinely
+      different integration shape from every bookie already here:
+      - **Unibet** (Kindred Group) has its own public persisted-query
+        GraphQL feed (`js/unibet/api.js`), same kind of feed Ladbrokes/
+        Neds already have — confirmed live: `MeetingsByDateRange` lists
+        every AU/NZ meeting for a date window with real venue names and
+        `eventKey`s, and a fresh tab opened straight at
+        `unibet.com.au/racing#/event/<eventKey>` (not just an in-SPA
+        hash change from an already-loaded page) renders the correct
+        race immediately. `unibetWatcher.js` is a genuinely different
+        shape from every other bookie's own watcher here: rather than a
+        MutationObserver scraping the rendered DOM, it polls the exact
+        same `EventQuery` feed directly on an interval — Unibet's own
+        page turned out to have no fetch/XHR call this extension could
+        hook at all (its own bundle grabs a `fetch` reference before a
+        post-hoc hook installed here could ever see it), but the feed
+        itself is clean, structured JSON, so there was nothing worth
+        scraping the DOM for anyway. Runner scratchings
+        (`competitor.status === "Scratched"`) confirmed live against
+        several real races. One honest gap: market-closed detection
+        (`event.status !== "Open"`) could only be built from the schema
+        shape, not confirmed against a real resulted race — every AU/NZ
+        race checked live while building this was still hours from
+        jumping, so "Open" was the only status value ever actually
+        observed. Worth re-checking against a real resulted Unibet race
+        once one's convenient to look at.
+      - **Picklebet** has no public feed found (same starting point
+        tab.com.au/TABtouch each started from) — confirmed live via the
+        same fetch/XHR/WebSocket hooking technique that found every
+        other bookie's own real feed here, this one genuinely has
+        neither. Falls back to DOM scraping
+        (`picklebetWatcher.js`/`picklebet.js`), matched by the stable,
+        human-readable PREFIX of its CSS-module class names
+        (`[class*="Competitor-module--competitor--"]` etc.), not the
+        trailing content hash a rebuild would change. Its own race URLs
+        are pure opaque UUID pairs (meetingId + raceId, no cosmetic slug
+        or derivable number-based path at all) — genuinely two levels
+        deep to learn, unlike TAB/TABtouch's own single-hub-page
+        learning: `picklebetMeetings.js` runs in two different modes
+        (matched against two different URL patterns in manifest.json)
+        depending on which page it's actually on — the "Today" list
+        page (meeting-level: venue name + meetingId, grouped under a
+        sport heading walked in real document order) or one specific
+        meeting's own page (race-level: every race's own id is already
+        a real link right there in the page's initial markup, no need
+        to click through each race number's own tab first).
+        `ensurePicklebetUrlForRace` (background.js) can take up to two
+        on-demand page visits (~6s each) the very first time a given
+        meeting is opened this session — instant on every later race
+        within that same meeting. Market-closed detection (a "Results"
+        tab appearing in the market-tab strip, absent while a race is
+        genuinely still open) confirmed live against a real resulted
+        race (see Palmerbet below — the same race, cross-checked).
+      - **Palmerbet** has its own public REST feed
+        (`js/palmerbet/api.js`) — plain readable paths, no persisted-
+        query hash fragility to keep in sync with a frontend release at
+        all (confirmed live: the exact same URLs, no session/cookies,
+        return identical data logged out). Same "poll the feed
+        directly, no DOM scraping" shape as Unibet's own watcher, for
+        the same reason (a clean structured feed with nothing worth
+        scraping a DOM for) — `palmerbetWatcher.js` combines two calls
+        per poll (race detail for runners/scratchings/status, then the
+        race's own Win market for live prices — confirmed live neither
+        endpoint alone carries both). Best-verified of the three: its
+        market-closed signal (`race.status: "Open"` → `"Final"`) was
+        confirmed against a REAL resulted race — Hamilton R1, winner
+        "High Falls" running as runner #6 — the exact same real race
+        already cross-checked against Sportsbet/TAB/Neds/PointsBet/
+        Betr/TABtouch throughout this whole project, and Picklebet's own
+        independent data for the identical race (same winner, same
+        runner numbers, same scratching) confirmed it again from a
+        completely separate source.
+      - All three: icons fetched live from each site's own favicon
+        (Unibet, Picklebet — plain PNGs) or extracted from an ICO
+        container wrapping a real PNG (Palmerbet's own `/favicon.ico`,
+        same technique already used for Betr's icon — scanning the
+        downloaded bytes for the PNG signature and slicing from there).
+      - Verified via the local static-preview harness: all 10 bookies
+        now render correctly (header, each row's own cells, and the
+        footer all still exactly in sync); every new logo loads without
+        a broken-image icon; `BOOKIE_LIST`/`enabledBookies`/
+        `bookieColumnOrder` all carry the 3 new ids correctly. Every new
+        `background.js`/content-script file syntax-checked (`new
+        Function(code)` against each file, no execution) and null-byte
+        checked before committing.
