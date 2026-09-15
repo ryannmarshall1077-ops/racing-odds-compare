@@ -4411,3 +4411,37 @@ https://developer.betfair.com/.
       on every real click the whole time, only the CSS never reflected
       it, which is what actually pointed at the real bug instead of
       the click handler.
+
+- [x] Added **CrownBet, Swiftbet, PonyBet, BetAus, BetLocal, and
+      BetEstate** — 6 more bookmakers, user-requested, all confirmed
+      live to be the same "BetMaker" platform already integrated
+      (js/betmaker/api.js) — same GraphQL endpoint family, same shared
+      race-id database, same DOM structure. Found via the exact same
+      multi-tenant config-table discovery already used for the first
+      8 (this time in betestate.com.au's own build of the identical
+      shared `client-*.js` bundle), and every key independently
+      re-verified live before being trusted, same discipline as
+      before.
+      - Because `background.js`'s own fetch/match/URL-building loop,
+        `BOOKIE_EXTRAS`, and the shared content scripts are all
+        already generic over `BETMAKER_TENANTS` (js/betmaker/api.js),
+        this batch needed **no background.js or popup.js changes at
+        all** — adding the 6 new entries to `BETMAKER_TENANTS` plus
+        `bookies.js`/`settings.js`/`manifest.json` was the entire
+        implementation.
+      - CrownBet is a genuine revival of the old (pre-BetEasy-merger)
+        brand name on this completely different, current platform —
+        confirmed by its own config entry living in the exact same
+        BetMaker table as every other tenant here, not the historical
+        CrownBet's own backend at all.
+      - Terrybet (excluded since the first BetMaker batch) was
+        rechecked live while investigating this one — still returns
+        "System is in maintenance" from its own backend.
+      - Icons: all 6 came back as real PNGs directly from each site's
+        own `/favicons/<brand>.png` (same broken-bare-favicon.ico,
+        working-real-path pattern as KnuckleBet earlier), no ICO
+        conversion needed this time.
+      - Verified via the local static-preview harness: all 47 bookies
+        render correctly, including the Bet Makers tier's own updated
+        14/14 count and the odds table's own 47-column header; zero
+        broken images.

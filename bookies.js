@@ -35,6 +35,14 @@ const BOOKIE_LIST = [
   { id: "playwest", label: "Playwest", logo: "icons/bookies/playwest.png" },
   { id: "knucklebet", label: "KnuckleBet", logo: "icons/bookies/knucklebet.png" },
   { id: "marantellibet", label: "MarantelliBet", logo: "icons/bookies/marantellibet.png" },
+  // Second BetMaker batch, user-requested — same platform as the 8
+  // above (see js/betmaker/api.js for the full story).
+  { id: "crownbet", label: "CrownBet", logo: "icons/bookies/crownbet.png" },
+  { id: "swiftbet", label: "Swiftbet", logo: "icons/bookies/swiftbet.png" },
+  { id: "ponybet", label: "PonyBet", logo: "icons/bookies/ponybet.png" },
+  { id: "betaus", label: "BetAus", logo: "icons/bookies/betaus.png" },
+  { id: "betlocal", label: "BetLocal", logo: "icons/bookies/betlocal.png" },
+  { id: "betestate", label: "BetEstate", logo: "icons/bookies/betestate.png" },
   // The rest of the "Amused Group" / "Black Stream" platform family
   // BetDeluxe (above) is also part of — confirmed live to share not
   // just the race listing but the exact same PRICES too (see
@@ -127,6 +135,12 @@ const BOOKIE_TIERS = [
       "playwest",
       "knucklebet",
       "marantellibet",
+      "crownbet",
+      "swiftbet",
+      "ponybet",
+      "betaus",
+      "betlocal",
+      "betestate",
     ],
   },
   {
