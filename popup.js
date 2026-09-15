@@ -2364,6 +2364,28 @@ async function openRaceTabs(race) {
       });
     }
 
+    // Picklebet is the same situation again — no public feed, race ids
+    // only known once picklebetMeetings.js has actually seen this venue
+    // (and, one level deeper, this exact race) on Picklebet's own pages
+    // — see ensurePicklebetUrlForRace's own comment for why this one
+    // can take up to two page visits instead of one. No startTime
+    // needed here (unlike TAB/TABtouch's own date-segmented URLs, a
+    // Picklebet race is resolved purely by venue+raceNumber against
+    // already-learned ids).
+    if (!url && bookie.id === "picklebet") {
+      url = await new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          {
+            type: "ENSURE_PICKLEBET_URL",
+            track: race.track,
+            raceType: race.raceType,
+            raceNumber: race.raceNumber,
+          },
+          (response) => resolve(response?.picklebetUrl || null)
+        );
+      });
+    }
+
     updates[tabIdKey] = url
       ? await openOrNavigateTab(stored[tabIdKey], url, {
           pinned: currentSettings.pinRaceTabs,

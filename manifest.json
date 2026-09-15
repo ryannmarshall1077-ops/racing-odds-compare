@@ -80,6 +80,31 @@
       "matches": ["https://www.tabtouch.com.au/racing/*"],
       "js": ["js/contentScripts/tabtouchWatcher.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.unibet.com.au/racing*", "https://unibet.com.au/racing*"],
+      "js": ["js/contentScripts/unibetWatcher.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.palmerbet.com/racing/*"],
+      "js": ["js/contentScripts/palmerbetWatcher.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://picklebet.com/en-au/racing/betting/today/*"],
+      "js": ["js/contentScripts/picklebetMeetings.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://picklebet.com/en-au/racing/betting/meeting/*"],
+      "js": ["js/contentScripts/picklebetMeetings.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://picklebet.com/en-au/racing/betting/race/*"],
+      "js": ["js/contentScripts/picklebetWatcher.js"],
+      "run_at": "document_idle"
     }
   ],
   "permissions": ["storage", "scripting", "tabs", "alarms"],
@@ -96,6 +121,12 @@
     "https://api.au.pointsbet.com/*",
     "https://www.betr.com.au/*",
     "https://web20-api.bluebet.com.au/*",
-    "https://www.tabtouch.com.au/*"
+    "https://www.tabtouch.com.au/*",
+    "https://www.unibet.com.au/*",
+    "https://unibet.com.au/*",
+    "https://rsa.unibet.com.au/*",
+    "https://picklebet.com/*",
+    "https://www.palmerbet.com/*",
+    "https://fixture.palmerbet.online/*"
   ]
 }
