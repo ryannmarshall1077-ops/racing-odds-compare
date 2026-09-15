@@ -2416,6 +2416,23 @@ async function openRaceTabs(race) {
           pinned: currentSettings.pinRaceTabs,
         })
       : stored[tabIdKey];
+
+    // Recorded only when we actually navigated the tab somewhere (a
+    // real, matched url) — background.js's own auto-refresh tick reads
+    // this back (ensureBookieTabMatchesExpectedUrl) to notice if the
+    // bookie's own page has since navigated ITSELF away (confirmed
+    // live on GoldBet: its "next to race" carousel auto-advances once
+    // the loaded race jumps/results, taking the tab to a completely
+    // different, unrelated race with no warning — user-reported as
+    // "not displaying odds," traced to exactly this: the watcher kept
+    // scraping real prices, just for the wrong race, so every runner
+    // name match against the actually-selected race silently failed).
+    // liveRace itself (unlike this race object, straight from the
+    // sidebar's own listUpcomingRacesInner) carries no per-bookie url
+    // fields at all — see openRaceTabs' other call sites, all fed by
+    // liveRace via currentRace — so this is the only point that ever
+    // knows the right answer to re-assert.
+    if (url) updates[`${bookie.id}ExpectedUrl`] = url;
   }
 
   await chrome.storage.local.set(updates);
