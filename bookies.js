@@ -35,6 +35,22 @@ const BOOKIE_LIST = [
   { id: "playwest", label: "Playwest", logo: "icons/bookies/playwest.png" },
   { id: "knucklebet", label: "KnuckleBet", logo: "icons/bookies/knucklebet.png" },
   { id: "marantellibet", label: "MarantelliBet", logo: "icons/bookies/marantellibet.png" },
+  // The rest of the "Amused Group" / "Black Stream" platform family
+  // BetDeluxe (above) is also part of — confirmed live to share not
+  // just the race listing but the exact same PRICES too (see
+  // js/amused/api.js for the full story). BetDeluxe's own entry stays
+  // where it is above (already shipped, own dedicated files) — these 9
+  // are the newly-added tenants, served through the shared
+  // js/amused/api.js + amusedWatcher.js instead.
+  { id: "betnation", label: "BetNation", logo: "icons/bookies/betnation.png" },
+  { id: "bigbet", label: "BigBet", logo: "icons/bookies/bigbet.png" },
+  { id: "surge", label: "Surge", logo: "icons/bookies/surge.png" },
+  { id: "noisy", label: "Noisy", logo: "icons/bookies/noisy.png" },
+  { id: "pulsebet", label: "PulseBet", logo: "icons/bookies/pulsebet.png" },
+  { id: "betjet", label: "BetJet", logo: "icons/bookies/betjet.png" },
+  { id: "mightybet", label: "MightyBet", logo: "icons/bookies/mightybet.png" },
+  { id: "betexpress", label: "BetExpress", logo: "icons/bookies/betexpress.png" },
+  { id: "yesbet", label: "YesBet", logo: "icons/bookies/yesbet.png" },
 ];
 
 // Settings > Bookie's own tiered layout (user-requested, replacing a
@@ -43,15 +59,19 @@ const BOOKIE_LIST = [
 // separate integration — a genuinely different backend/DOM per site),
 // "Bet Makers" (js/betmaker/api.js's own shared GraphQL platform — every
 // tenant OKEbet's own architecture turned out to be shared with, see
-// that file's own comment for the full story), and "Gen Web" (GoldBet's
+// that file's own comment for the full story), "Gen Web" (GoldBet's
 // own "GenerationBet" platform — currently a single tenant, but its own
 // footer credit ("Betting System by GenerationWeb 201") names the
 // platform the same way BetMaker's tenants do, so it gets its own tier
-// rather than being lumped into Corporates). bookieTierSectionHtml
-// (options.js) is the only reader of this — BOOKIE_LIST/BOOKIE_EXTRAS
-// above are unaffected, so a bookie missing from every tier here would
-// simply never render a checkbox at all rather than breaking anything
-// else; every id in BOOKIE_LIST must appear in exactly one tier below.
+// rather than being lumped into Corporates), and "Amused" (js/amused/
+// api.js's own shared "Black Stream" platform — user-specified this
+// group explicitly by name and membership, moving BetDeluxe out of
+// Corporates into it since it turned out to be the same backend as the
+// other 9). bookieTierSectionHtml (options.js) is the only reader of
+// this — BOOKIE_LIST/BOOKIE_EXTRAS above are unaffected, so a bookie
+// missing from every tier here would simply never render a checkbox at
+// all rather than breaking anything else; every id in BOOKIE_LIST must
+// appear in exactly one tier below.
 const BOOKIE_TIERS = [
   {
     id: "corporates",
@@ -68,7 +88,6 @@ const BOOKIE_TIERS = [
       "unibet",
       "picklebet",
       "palmerbet",
-      "betdeluxe",
       "betright",
     ],
   },
@@ -92,6 +111,23 @@ const BOOKIE_TIERS = [
     label: "Gen Web",
     description: '"GenerationBet" platform white-label brands',
     bookieIds: ["goldbet"],
+  },
+  {
+    id: "amused",
+    label: "Amused",
+    description: 'Shared "Black Stream" platform white-label brands',
+    bookieIds: [
+      "betdeluxe",
+      "betnation",
+      "bigbet",
+      "surge",
+      "noisy",
+      "pulsebet",
+      "betjet",
+      "mightybet",
+      "betexpress",
+      "yesbet",
+    ],
   },
 ];
 

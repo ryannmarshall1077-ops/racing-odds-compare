@@ -13,6 +13,7 @@ importScripts(
   "js/goldbet/api.js",
   "js/okebet/api.js",
   "js/betmaker/api.js",
+  "js/amused/api.js",
   "settings.js",
   "bookies.js"
 );
@@ -166,6 +167,19 @@ const BOOKIE_EXTRAS = {
       id,
       { scraperFile: "js/contentScripts/betmaker.js", tabIdKey: `${id}TabId` },
     ])
+  ),
+  // BetNation, BigBet, Surge, Noisy, PulseBet, BetJet, MightyBet,
+  // BetExpress, YesBet — confirmed live to be the exact same "Black
+  // Stream" backend BetDeluxe already runs on, including identical
+  // PRICES (not just a shared race-id database, unlike the BetMaker
+  // family above) — see js/amused/api.js's own comment for the full
+  // story. No scraperFile at all, same "watcher polls the live feed
+  // directly, nothing to DOM-scrape on demand" shape BetDeluxe's own
+  // entry above already has (scraperFile: null). Generated from
+  // AMUSED_TENANTS itself, same reasoning as the BETMAKER_TENANTS loop
+  // just above.
+  ...Object.fromEntries(
+    Object.keys(AMUSED_TENANTS).map((id) => [id, { scraperFile: null, tabIdKey: `${id}TabId` }])
   ),
 };
 const BOOKIES = Object.fromEntries(
@@ -1681,6 +1695,21 @@ async function listUpcomingRacesInner() {
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
       );
 
+      // Every other Amused/Black Stream tenant (BetNation, BigBet,
+      // Surge, Noisy, PulseBet, BetJet, MightyBet, BetExpress, YesBet)
+      // reuses betdeluxeMatch directly rather than its own separate
+      // match — confirmed live to be the exact same backend/race-id
+      // database/prices as BetDeluxe (see js/amused/api.js), so there's
+      // nothing for a second match to find that betdeluxeMatch hasn't
+      // already found. Only the URL differs per tenant (each one's own
+      // domain), built by buildAmusedRaceUrl.
+      const amusedUrlById = Object.fromEntries(
+        Object.entries(AMUSED_TENANTS).map(([id, tenantConfig]) => [
+          `${id}Url`,
+          betdeluxeMatch ? buildAmusedRaceUrl(tenantConfig, betdeluxeMatch) : null,
+        ])
+      );
+
       // Same matching again — BetRight's own feed also never prefixes a
       // venue name (confirmed live: Wodonga, Angle Park, Wellington all
       // came back exactly as plain as Betfair's own venue names).
@@ -1820,6 +1849,11 @@ async function listUpcomingRacesInner() {
         // spread in generically (readybetUrl, realbookieUrl, etc.) from
         // betmakerUrlById above, same treatment as every bookie above.
         ...betmakerUrlById,
+        // Every other Amused/Black Stream tenant (BetNation, BigBet,
+        // Surge, Noisy, PulseBet, BetJet, MightyBet, BetExpress,
+        // YesBet) — spread in generically (betnationUrl, bigbetUrl,
+        // etc.) from amusedUrlById above, same treatment.
+        ...amusedUrlById,
       };
     })
     .filter((r) => r.raceNumber !== null);
@@ -2330,6 +2364,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   // 7 near-identical ones, since there's nothing tenant-specific left
   // to do once bookieId is known.
   if (message.type === "BETMAKER_ODDS_UPDATED") {
+    applyBookieOdds(message.bookieId, message.odds).catch((err) =>
+      console.warn(`Failed to apply live ${message.bookieId} update:`, err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  // Shared handler for every other Amused/Black Stream tenant
+  // (amusedWatcher.js tags its own message with whichever bookieId it
+  // resolved from location.hostname) — same generic shape
+  // BETMAKER_ODDS_UPDATED above already uses.
+  if (message.type === "AMUSED_ODDS_UPDATED") {
     applyBookieOdds(message.bookieId, message.odds).catch((err) =>
       console.warn(`Failed to apply live ${message.bookieId} update:`, err.message)
     );
