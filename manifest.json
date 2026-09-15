@@ -125,6 +125,26 @@
       "matches": ["https://okebet.com.au/racing/*", "https://www.okebet.com.au/racing/*"],
       "js": ["js/contentScripts/okebetWatcher.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://readybet.com.au/racing/*",
+        "https://www.readybet.com.au/racing/*",
+        "https://realbookie.com.au/racing/*",
+        "https://www.realbookie.com.au/racing/*",
+        "https://baggybet.com/racing/*",
+        "https://www.baggybet.com/racing/*",
+        "https://betyoucan.au/racing/*",
+        "https://www.betyoucan.au/racing/*",
+        "https://playwestbet.com/racing/*",
+        "https://www.playwestbet.com/racing/*",
+        "https://knucklebet.com.au/racing/*",
+        "https://www.knucklebet.com.au/racing/*",
+        "https://marantellibet.com/racing/*",
+        "https://www.marantellibet.com/racing/*"
+      ],
+      "js": ["js/contentScripts/betmakerWatcher.js"],
+      "run_at": "document_idle"
     }
   ],
   "permissions": ["storage", "scripting", "tabs", "alarms"],
@@ -159,6 +179,27 @@
     "https://api.goldbet.com.au/*",
     "https://okebet.com.au/*",
     "https://www.okebet.com.au/*",
-    "https://racing.okebet.bmapollo.com/*"
+    "https://racing.okebet.bmapollo.com/*",
+    "https://readybet.com.au/*",
+    "https://www.readybet.com.au/*",
+    "https://racing.readybet.bmapollo.com/*",
+    "https://realbookie.com.au/*",
+    "https://www.realbookie.com.au/*",
+    "https://racing.realbookie.bmapollo.com/*",
+    "https://baggybet.com/*",
+    "https://www.baggybet.com/*",
+    "https://racing.baggybet.bmapollo.com/*",
+    "https://betyoucan.au/*",
+    "https://www.betyoucan.au/*",
+    "https://racing.betyoucan.bmapollo.com/*",
+    "https://playwestbet.com/*",
+    "https://www.playwestbet.com/*",
+    "https://racing.playwest.bmapollo.com/*",
+    "https://knucklebet.com.au/*",
+    "https://www.knucklebet.com.au/*",
+    "https://racing.knucklebet.bmapollo.com/*",
+    "https://marantellibet.com/*",
+    "https://www.marantellibet.com/*",
+    "https://racing.marantellibet.bmapollo.com/*"
   ]
 }
