@@ -4042,3 +4042,56 @@ https://developer.betfair.com/.
         response: the exact same fix, run against today's real data,
         now returns 580 real events with no error (was 0, uncaught
         exception, before the fix).
+
+- [x] Added **BetDeluxe** and **BetRight** — two more bookmakers, user-
+      requested. Both turned out to run on genuinely clean public REST
+      feeds — no auth, no persisted-query hash fragility at all — found
+      the same fetch-hooking way as every real-feed bookie here:
+      - **BetDeluxe** runs on "Blackstream" infrastructure
+        (`api.blackstream.com.au`, not betdeluxe.com.au itself) —
+        `js/betdeluxe/api.js`'s own `/api/racing/v1/schedule` call
+        returns every AU/NZ (and overseas) meeting for a date window in
+        one shot, grouped under `thoroughbred`/`greyhounds`/`trots`
+        keys. `betdeluxeWatcher.js` polls the race-specific
+        `/racecard` endpoint directly on an interval (same "poll the
+        feed, no DOM scraping needed" shape as Unibet/Palmerbet) — a
+        runner's own `winPrices` array is a short flucs history, its
+        LAST element the current price (confirmed live against the
+        page's own displayed number). Market-closed
+        (`race.status`: `1` → `5`) confirmed against a real resulted
+        Wodonga race.
+      - **BetRight** — its own `/Racing/GroupedRaceCard?raceDate=...`
+        call (`js/betright/api.js`) returns every meeting for one date
+        under the exact same `thoroughbred`/`greyhounds`/`trots` key
+        names BetDeluxe uses (confirmed live — likely a shared platform
+        heritage even though the two run on entirely separate API
+        domains), each race carrying a plain `isOpenForBetting` boolean
+        rather than an enum to guess at. `betrightWatcher.js` polls
+        `/Racing/Event?eventId=...` directly, same shape as the others.
+        Market-closed (`isOpenForBetting`) confirmed against a real
+        resulted Wellington race, winner "Fearn Trick".
+      - **A lesson from the immediately-preceding Betr fix applied
+        directly here**: both `GroupedRaceCard`-style responses also
+        carry an unrelated `multipleShortcutSummary` key alongside the
+        3 real racing-type ones — exactly the shape of key that just
+        broke `js/betr/api.js` once BlueBet's own version of it
+        unexpectedly became an array too. `fetchBetDeluxeNextEvents`/
+        `fetchBetRightNextEvents` both name the 3 real keys explicitly
+        (`Object.entries(BETDELUXE_RACE_TYPE)` /
+        `Object.entries(BETRIGHT_RACE_TYPE)`) rather than walking
+        `Object.values(data)` with a generic "is this an array" check —
+        so a similar future surprise on either of these two just gets
+        ignored instead of crashing the whole fetch.
+      - Icon note: neither site had a real logo file to fetch directly
+        (BetDeluxe's own logo is an inline SVG; BetRight's advertised
+        `logo192.png` actually 404s, serving its SPA's catch-all HTML
+        instead) — both extracted from their own multi-size `favicon.ico`
+        instead, via .NET's `System.Drawing.Icon` (loads a specific
+        frame by size directly, no manual byte-scanning needed — a
+        cleaner tool for a classic BMP-framed ICO than the PNG-signature
+        scan Betr's/Palmerbet's own ICO-wrapping-a-PNG icons needed).
+      - Verified via the local static-preview harness: all 12 bookies
+        now render correctly (header, each row's own cells, and the
+        footer all still exactly in sync); both new logos load without
+        a broken-image icon. Every new/touched file syntax-checked and
+        null-byte checked before committing.

@@ -105,6 +105,16 @@
       "matches": ["https://picklebet.com/en-au/racing/betting/race/*"],
       "js": ["js/contentScripts/picklebetWatcher.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.betdeluxe.com.au/racing/*", "https://betdeluxe.com.au/racing/*"],
+      "js": ["js/contentScripts/betdeluxeWatcher.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.betright.com.au/racing/*", "https://betright.com.au/racing/*"],
+      "js": ["js/contentScripts/betrightWatcher.js"],
+      "run_at": "document_idle"
     }
   ],
   "permissions": ["storage", "scripting", "tabs", "alarms"],
@@ -127,6 +137,12 @@
     "https://rsa.unibet.com.au/*",
     "https://picklebet.com/*",
     "https://www.palmerbet.com/*",
-    "https://fixture.palmerbet.online/*"
+    "https://fixture.palmerbet.online/*",
+    "https://www.betdeluxe.com.au/*",
+    "https://betdeluxe.com.au/*",
+    "https://api.blackstream.com.au/*",
+    "https://www.betright.com.au/*",
+    "https://betright.com.au/*",
+    "https://next-api.betright.com.au/*"
   ]
 }
