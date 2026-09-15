@@ -23,10 +23,38 @@ const BETDELUXE_RACE_TYPE = { thoroughbred: "horse", greyhounds: "greyhound", tr
 // (case-sensitive, e.g. "/racing/Harness/AUS/Menangle/800628/3/11415984").
 const BETDELUXE_URL_SEGMENT = { horse: "Thoroughbred", greyhound: "Greyhound", harness: "Harness" };
 
-// startIso/endIso: a UTC window wide enough to cover "today" in every AU/NZ
-// timezone — same reasoning fetchUnibetNextEvents already documents for
-// its own identical parameter shape.
-async function fetchBetDeluxeNextEvents(startIso, endIso) {
+// This endpoint genuinely rejects any startDateTime/endDateTime window
+// wider than ~25-26 hours — confirmed live: a real user-reported bug
+// traced back to exactly this. An earlier version of this function took
+// a caller-supplied, deliberately-wide ±20h-around-now window (the same
+// shape fetchUnibetNextEvents' own window still uses, which has no such
+// limit) — that request came back HTTP 200 with `{"code":
+// "ValidationError","data":[]}`, which this function didn't check for
+// at all, so it silently returned zero events on every single call
+// instead of ever throwing — meaning betdeluxeUrl stayed null for every
+// race, indistinguishable from "just hasn't matched yet" rather than a
+// real, permanent failure.
+//
+// Fixed by computing the exact same 24h window BetDeluxe's own frontend
+// itself requests (confirmed live, byte-for-byte, while investigating
+// the bug): AEST calendar-day midnight to the next midnight minus 1ms,
+// converted to UTC — rather than accepting an arbitrary caller-supplied
+// window at all, since ~24h is the one width actually confirmed to work.
+// Fixed UTC+10 (AEST, not AEDT) — same "good enough" approximation
+// RACING_SPORTS/endOfTodayUtc elsewhere in this codebase already makes
+// rather than resolving daylight saving/which-AU-state precisely.
+function betDeluxeTodayWindowUtc() {
+  const AEST_OFFSET_MS = 10 * 60 * 60 * 1000;
+  const nowAest = new Date(Date.now() + AEST_OFFSET_MS);
+  const startUtc = new Date(
+    Date.UTC(nowAest.getUTCFullYear(), nowAest.getUTCMonth(), nowAest.getUTCDate()) - AEST_OFFSET_MS
+  );
+  const endUtc = new Date(startUtc.getTime() + 24 * 60 * 60 * 1000 - 1);
+  return { startIso: startUtc.toISOString(), endIso: endUtc.toISOString() };
+}
+
+async function fetchBetDeluxeNextEvents() {
+  const { startIso, endIso } = betDeluxeTodayWindowUtc();
   const url = `${BETDELUXE_SCHEDULE_URL}?startDateTime=${encodeURIComponent(
     startIso
   )}&endDateTime=${encodeURIComponent(endIso)}&topfouroutcomes=true`;
@@ -36,7 +64,18 @@ async function fetchBetDeluxeNextEvents(startIso, endIso) {
     throw new Error(`BetDeluxe schedule error: HTTP ${response.status}`);
   }
 
-  const { data } = await response.json();
+  const { code, message, data } = await response.json();
+  // Confirmed live: a rejected request (e.g. too-wide a window) still
+  // comes back HTTP 200 with an empty `data` and this `code` set to
+  // something other than "Success" instead of a non-2xx status — the
+  // exact shape that let the bug above hide from the HTTP-status check
+  // just above. Checked explicitly now so a future rejection for a
+  // different reason surfaces as a real, logged error (caught by
+  // listUpcomingRacesInner's own best-effort .catch) instead of quietly
+  // returning zero events again.
+  if (code !== "Success") {
+    throw new Error(`BetDeluxe schedule error: ${code} — ${message}`);
+  }
 
   // Flattened into the same {type, meetingName, raceNumber, startTimeMs,
   // id, meetId} shape every other bookie's own fetch{Bookie}NextEvents
