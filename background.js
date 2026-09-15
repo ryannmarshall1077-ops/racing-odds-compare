@@ -14,6 +14,7 @@ importScripts(
   "js/okebet/api.js",
   "js/betmaker/api.js",
   "js/amused/api.js",
+  "js/betcloud/api.js",
   "settings.js",
   "bookies.js"
 );
@@ -180,6 +181,21 @@ const BOOKIE_EXTRAS = {
   // just above.
   ...Object.fromEntries(
     Object.keys(AMUSED_TENANTS).map((id) => [id, { scraperFile: null, tabIdKey: `${id}TabId` }])
+  ),
+  // Bet777, BetGalaxy, BetProfessor, ChromaBet, GoldenBet888, JuicyBet,
+  // JungleBet, QuestBet, TitanBet, WellBet, EpicOdds — the "BetCloud"
+  // platform family. DOM-scraped (js/contentScripts/betcloud.js),
+  // unlike the Amused/BetMaker loops just above which have no
+  // scraperFile at all — BetCloud has no live feed reachable at all
+  // (see js/betcloud/api.js's own comment), so a one-shot DOM scraper
+  // is needed here the same way GoldBet/OKEbet/every BetMaker tenant
+  // already has one. Generated from BETCLOUD_TENANTS itself, same
+  // reasoning as the two loops above.
+  ...Object.fromEntries(
+    Object.keys(BETCLOUD_TENANTS).map((id) => [
+      id,
+      { scraperFile: "js/contentScripts/betcloud.js", tabIdKey: `${id}TabId` },
+    ])
   ),
 };
 const BOOKIES = Object.fromEntries(
@@ -515,6 +531,102 @@ async function ensurePicklebetVenueCodesLearnedToday() {
   await chrome.storage.local.set({ picklebetVenueCodesLearnedDate: today });
 }
 
+// BetCloud's own equivalent of TAB/TABtouch's own "no public feed,
+// learn from real links on a real page" architecture — except BetCloud
+// genuinely has NO public feed at all reachable from this extension
+// (see js/betcloud/api.js's own comment for the full "x-bc-attn"
+// attestation-header story). So unlike every other bookie in this
+// file, BetCloud's own per-race prices are ALSO DOM-scraped (betcloud.js/
+// betcloudWatcher.js) — this section is purely about resolving each
+// tenant's own race URL to open a tab at in the first place.
+// BETCLOUD_TENANTS/betcloudRaceUrlFromCodes themselves live in
+// js/betcloud/api.js (loaded via importScripts, same as every other
+// bookie's own api.js) — everything below needs chrome.storage/
+// chrome.tabs, which is why it stays here instead, same split TAB/
+// TABtouch/Picklebet's own equivalent functions already have.
+//
+// Confirmed live that every BetCloud tenant shares the exact same
+// venueId/raceId for the same real race, so codes are learned from ONE
+// tenant's own pages only (Bet777, picked arbitrarily as the
+// "reference" — see betcloudMeetings.js's own comment) and reused to
+// build every OTHER tenant's own URL, just swapping the domain.
+async function learnBetcloudRaceCodes(entries) {
+  const { betcloudRaceCodes = {} } = await chrome.storage.local.get(["betcloudRaceCodes"]);
+  const next = { ...betcloudRaceCodes };
+
+  for (const { venueSegment, sportSegment, raceNumber, venueId, raceId, meetingDate } of entries) {
+    // venueSegment/sportSegment are BetCloud's own real URL-segment text
+    // (exact casing/spacing, e.g. "Harness Racing", "Albion Park") —
+    // kept verbatim for building the URL, but matched against Betfair's
+    // own venue name via the same normalizeVenue() every other bookie's
+    // own learned-codes table already uses.
+    const sport =
+      sportSegment === "Horse Racing" ? "horse" : sportSegment === "Harness Racing" ? "harness" : "greyhound";
+    const key = `${normalizeVenue(venueSegment)}|${sport}|${raceNumber}`;
+    next[key] = { venueId, raceId, sportSegment, venueSegment, meetingDate, learnedAt: Date.now() };
+  }
+
+  await chrome.storage.local.set({ betcloudRaceCodes: next });
+}
+
+const BETCLOUD_MEETINGS_LEARN_DELAY_MS = 6000;
+
+// Bet777's own "Next To Jump" page (what "/racing" itself redirects
+// to) — confirmed live to carry ~99 upcoming race links across every
+// sport/country in one visit, no per-sport visit needed the way
+// tab.com.au's own equivalent requires.
+async function visitBetcloudMeetingsPage() {
+  const tab = await chrome.tabs.create({ url: "https://bet777.com.au/racing", active: false });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, BETCLOUD_MEETINGS_LEARN_DELAY_MS));
+  } finally {
+    await chrome.tabs.remove(tab.id).catch(() => {});
+  }
+}
+
+// Same reasoning as ensureTabUrlForRace/ensureTabtouchUrlForRace/
+// ensurePicklebetUrlForRace above — the first click for a not-yet-seen
+// race triggers one on-demand visit (~6s) instead of silently leaving
+// that bookie's tab untouched. tenantConfig picks which of the 11
+// BetCloud domains the resolved URL points at; the learned codes
+// themselves are shared across all of them.
+async function ensureBetcloudUrlForRace(tenantConfig, track, raceType, raceNumber) {
+  const known = await chrome.storage.local.get(["betcloudRaceCodes"]);
+  const existingUrl = betcloudRaceUrlFromCodes(
+    known.betcloudRaceCodes || {},
+    tenantConfig,
+    track,
+    raceType,
+    raceNumber
+  );
+  if (existingUrl) return existingUrl;
+
+  await visitBetcloudMeetingsPage();
+
+  const fresh = await chrome.storage.local.get(["betcloudRaceCodes"]);
+  return betcloudRaceUrlFromCodes(fresh.betcloudRaceCodes || {}, tenantConfig, track, raceType, raceNumber);
+}
+
+// Same once-a-day background visit as ensureTabVenueCodesLearnedToday/
+// ensureTabtouchVenueCodesLearnedToday/ensurePicklebetVenueCodesLearnedToday
+// above. Note this is a genuinely ROLLING "next" list, not a full day's
+// schedule (see betcloudMeetings.js's own comment) — a race well
+// outside the visible window at the moment this runs won't be learned
+// until ensureBetcloudUrlForRace's own on-demand visit catches it
+// closer to jump time, or betcloudMeetings.js opportunistically learns
+// it from whatever page a real Bet777 tab happens to be on later.
+async function ensureBetcloudRaceCodesLearnedToday() {
+  const today = new Date().toISOString().slice(0, 10);
+  const { betcloudRaceCodesLearnedDate } = await chrome.storage.local.get([
+    "betcloudRaceCodesLearnedDate",
+  ]);
+  if (betcloudRaceCodesLearnedDate === today) return;
+
+  await visitBetcloudMeetingsPage();
+
+  await chrome.storage.local.set({ betcloudRaceCodesLearnedDate: today });
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   console.log("RaceOdds installed");
 });
@@ -561,6 +673,9 @@ ensureTabtouchVenueCodesLearnedToday().catch((err) =>
 ensurePicklebetVenueCodesLearnedToday().catch((err) =>
   console.warn("Learning Picklebet venue codes skipped:", err.message)
 );
+ensureBetcloudRaceCodesLearnedToday().catch((err) =>
+  console.warn("Learning BetCloud race codes skipped:", err.message)
+);
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== AUTO_REFRESH_ALARM) return;
@@ -577,6 +692,9 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   );
   ensurePicklebetVenueCodesLearnedToday().catch((err) =>
     console.warn("Learning Picklebet venue codes skipped:", err.message)
+  );
+  ensureBetcloudRaceCodesLearnedToday().catch((err) =>
+    console.warn("Learning BetCloud race codes skipped:", err.message)
   );
 
   // Other Behaviour and Functionality > "Automatically refresh odds every
@@ -1369,6 +1487,7 @@ async function listUpcomingRacesInner() {
     { tabtouchVenueCodes = {} },
     { picklebetVenueCodes = {} },
     { picklebetRaceIds = {} },
+    { betcloudRaceCodes = {} },
     { pendingResultChecks = [] },
     { liveRace },
   ] = await Promise.all([
@@ -1480,6 +1599,7 @@ async function listUpcomingRacesInner() {
     chrome.storage.local.get(["tabtouchVenueCodes"]),
     chrome.storage.local.get(["picklebetVenueCodes"]),
     chrome.storage.local.get(["picklebetRaceIds"]),
+    chrome.storage.local.get(["betcloudRaceCodes"]),
     chrome.storage.local.get(["pendingResultChecks"]),
     chrome.storage.local.get(["liveRace"]),
   ]);
@@ -1710,6 +1830,22 @@ async function listUpcomingRacesInner() {
         ])
       );
 
+      // BetCloud — no fetched event list to match against at all (see
+      // js/betcloud/api.js's own comment), so this reads straight from
+      // whatever betcloudMeetings.js has already learned onto
+      // betcloudRaceCodes instead of a `*Match` lookup. No "!" warning
+      // marker for a miss here either, same reasoning tabUrl/
+      // tabtouchUrl already have: not knowing yet is the expected
+      // steady state for a race betcloudMeetings.js's own rolling
+      // "next" window hasn't reached yet (see that file's own comment),
+      // not something to flag as wrong.
+      const betcloudUrlById = Object.fromEntries(
+        Object.entries(BETCLOUD_TENANTS).map(([id, tenantConfig]) => [
+          `${id}Url`,
+          betcloudRaceUrlFromCodes(betcloudRaceCodes, tenantConfig, track, raceType, raceNumber),
+        ])
+      );
+
       // Same matching again — BetRight's own feed also never prefixes a
       // venue name (confirmed live: Wodonga, Angle Park, Wellington all
       // came back exactly as plain as Betfair's own venue names).
@@ -1854,6 +1990,11 @@ async function listUpcomingRacesInner() {
         // YesBet) — spread in generically (betnationUrl, bigbetUrl,
         // etc.) from amusedUrlById above, same treatment.
         ...amusedUrlById,
+        // Every BetCloud tenant (Bet777, BetGalaxy, BetProfessor,
+        // ChromaBet, GoldenBet888, JuicyBet, JungleBet, QuestBet,
+        // TitanBet, WellBet, EpicOdds) — spread in generically
+        // (bet777Url, betgalaxyUrl, etc.) from betcloudUrlById above.
+        ...betcloudUrlById,
       };
     })
     .filter((r) => r.raceNumber !== null);
@@ -2381,6 +2522,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return; // fire-and-forget — the content script isn't awaiting a reply
   }
 
+  // Shared handler for every BetCloud tenant (betcloudWatcher.js tags
+  // its own message with whichever bookieId it resolved from
+  // location.hostname) — same generic shape AMUSED_ODDS_UPDATED/
+  // BETMAKER_ODDS_UPDATED above already use.
+  if (message.type === "BETCLOUD_ODDS_UPDATED") {
+    applyBookieOdds(message.bookieId, message.odds).catch((err) =>
+      console.warn(`Failed to apply live ${message.bookieId} update:`, err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
   if (message.type === "TAB_VENUE_CODES_LEARNED") {
     learnTabVenueCodes(message.entries).catch((err) =>
       console.warn("Failed to store learned TAB venue codes:", err.message)
@@ -2391,6 +2543,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "TABTOUCH_VENUE_CODES_LEARNED") {
     learnTabtouchVenueCodes(message.entries).catch((err) =>
       console.warn("Failed to store learned TABtouch venue codes:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  if (message.type === "BETCLOUD_RACE_CODES_LEARNED") {
+    learnBetcloudRaceCodes(message.entries).catch((err) =>
+      console.warn("Failed to store learned BetCloud race codes:", err.message)
     );
     return; // fire-and-forget — the content script isn't awaiting a reply
   }
@@ -2440,6 +2599,25 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "ENSURE_PICKLEBET_URL") {
     ensurePicklebetUrlForRace(message.track, message.raceType, message.raceNumber)
       .then((picklebetUrl) => sendResponse({ ok: true, picklebetUrl }))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+
+  // Shared handler for every BetCloud tenant — message.bookieId picks
+  // which of the 11 domains the resolved URL points at; the learned
+  // codes themselves (ensureBetcloudUrlForRace's own on-demand visit
+  // included) are shared across all of them. Unknown bookieId
+  // shouldn't happen given popup.js's own BOOKIE_TIERS-driven check
+  // before sending this, but responds with an error rather than
+  // throwing if it ever does.
+  if (message.type === "ENSURE_BETCLOUD_URL") {
+    const tenantConfig = BETCLOUD_TENANTS[message.bookieId];
+    if (!tenantConfig) {
+      sendResponse({ ok: false, error: `Unknown BetCloud tenant: ${message.bookieId}` });
+      return true;
+    }
+    ensureBetcloudUrlForRace(tenantConfig, message.track, message.raceType, message.raceNumber)
+      .then((betcloudUrl) => sendResponse({ ok: true, betcloudUrl }))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }

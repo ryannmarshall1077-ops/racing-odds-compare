@@ -169,6 +169,39 @@
       ],
       "js": ["js/contentScripts/amusedWatcher.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://bet777.com.au/racing/*", "https://www.bet777.com.au/racing/*"],
+      "js": ["js/contentScripts/betcloudMeetings.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://bet777.com.au/racing/*",
+        "https://www.bet777.com.au/racing/*",
+        "https://betgalaxy.com.au/racing/*",
+        "https://www.betgalaxy.com.au/racing/*",
+        "https://betprofessor.com.au/racing/*",
+        "https://www.betprofessor.com.au/racing/*",
+        "https://chromabet.com.au/racing/*",
+        "https://www.chromabet.com.au/racing/*",
+        "https://goldenbet888.com.au/racing/*",
+        "https://www.goldenbet888.com.au/racing/*",
+        "https://juicybet.com.au/racing/*",
+        "https://www.juicybet.com.au/racing/*",
+        "https://junglebet.com.au/racing/*",
+        "https://www.junglebet.com.au/racing/*",
+        "https://questbet.com.au/racing/*",
+        "https://www.questbet.com.au/racing/*",
+        "https://titanbet.com.au/racing/*",
+        "https://www.titanbet.com.au/racing/*",
+        "https://wellbet.com.au/racing/*",
+        "https://www.wellbet.com.au/racing/*",
+        "https://epicodds.com.au/racing/*",
+        "https://www.epicodds.com.au/racing/*"
+      ],
+      "js": ["js/contentScripts/betcloudWatcher.js"],
+      "run_at": "document_idle"
     }
   ],
   "permissions": ["storage", "scripting", "tabs", "alarms"],
@@ -242,6 +275,28 @@
     "https://betexpress.com.au/*",
     "https://www.betexpress.com.au/*",
     "https://yesbet.com.au/*",
-    "https://www.yesbet.com.au/*"
+    "https://www.yesbet.com.au/*",
+    "https://bet777.com.au/*",
+    "https://www.bet777.com.au/*",
+    "https://betgalaxy.com.au/*",
+    "https://www.betgalaxy.com.au/*",
+    "https://betprofessor.com.au/*",
+    "https://www.betprofessor.com.au/*",
+    "https://chromabet.com.au/*",
+    "https://www.chromabet.com.au/*",
+    "https://goldenbet888.com.au/*",
+    "https://www.goldenbet888.com.au/*",
+    "https://juicybet.com.au/*",
+    "https://www.juicybet.com.au/*",
+    "https://junglebet.com.au/*",
+    "https://www.junglebet.com.au/*",
+    "https://questbet.com.au/*",
+    "https://www.questbet.com.au/*",
+    "https://titanbet.com.au/*",
+    "https://www.titanbet.com.au/*",
+    "https://wellbet.com.au/*",
+    "https://www.wellbet.com.au/*",
+    "https://epicodds.com.au/*",
+    "https://www.epicodds.com.au/*"
   ]
 }

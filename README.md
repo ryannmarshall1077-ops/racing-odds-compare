@@ -4329,3 +4329,68 @@ https://developer.betfair.com/.
         odds table's own 30-column header; zero broken images. Every
         new/touched file syntax-checked and null-byte checked before
         committing.
+
+- [x] Added **Bet777, BetGalaxy, BetProfessor, ChromaBet, GoldenBet888,
+      JuicyBet, JungleBet, QuestBet, TitanBet, WellBet, and EpicOdds**
+      — 11 more bookmakers, user-requested, plus a new "BetCloud"
+      Settings > Bookie tier for them. All 11 are confirmed live to run
+      on the "BetCloud" white-label platform — same shared race-id
+      database as the BetMaker/Amused families before it (the exact
+      same venueId/raceId resolves to the same real race on every
+      tenant checked), but genuinely different Win prices per tenant
+      (e.g. the same runner in the same race: Bet777 19.00 vs BetGalaxy
+      19.50) — architecturally like BetMaker, not the fully-identical-
+      pricing Amused platform.
+      - **DOM-scraped only, deliberately, for both the race listing AND
+        the live price** — the only bookie family this session where
+        that's true for both. BetCloud's real API
+        (`api.<tenant>.com.au/punter/...`) sends a proprietary
+        `x-bc-attn` attestation header on every single request (found
+        by hooking `XMLHttpRequest`, since the app uses XHR not
+        `fetch` for this) that looks exactly like a bot-detection/
+        fraud-prevention signature — reverse-engineering or
+        replicating that token to call the API directly would be
+        exactly the kind of anti-automation bypass this project
+        deliberately avoids, the same line drawn during the bet365
+        investigation earlier this session. Reading the DOM the page's
+        own legitimate, already-attested request already rendered has
+        no such concern, so that's the only approach used, for every
+        part of this integration.
+      - Runner rows use `data-cy` attributes (Cypress test hooks —
+        Chakra UI) as anchors, about as stable a selector as exists;
+        the favourite runner's own price button also carries a "Fav"
+        badge sharing the same button, isolated by reading only the
+        LAST direct-child `<p>` rather than the button's whole
+        `textContent` (confirmed live: naively reading the whole thing
+        would produce "Fav1.46" instead of "1.46"). Scratched runners
+        have no Win button at all — naturally excluded, no filtering
+        needed, same convention every other bookie's own scraper here
+        already follows.
+      - No public feed at all means no per-tenant fetch — race codes
+        are instead learned from real `<a href>` links on Bet777's own
+        pages only (picked arbitrarily as the platform's "reference"
+        tenant, confirmed live to share codes with every other tenant
+        — same idea BetDeluxe already is for the Amused family), via a
+        new `js/contentScripts/betcloudMeetings.js`, and reused to
+        build every other tenant's own URL (`betcloudRaceUrlFromCodes`,
+        `js/betcloud/api.js`) by swapping in that tenant's own domain.
+        Same "no public feed" architecture TAB/TABtouch/Picklebet
+        already have (a once-a-day background visit to Bet777's own
+        "Next To Jump" page, `~99` links learned per visit, plus an
+        on-demand visit the moment a not-yet-seen race is actually
+        clicked) — with the same acknowledged limitation: it's a
+        genuinely ROLLING "next" list, not a full day's schedule, so a
+        race well outside the current window won't be learned until it
+        gets closer to its own jump time.
+      - Icons: all 11 favicon.ico downloads were blocked outright by
+        Cloudflare when requested bare (`curl` with no browser-like
+        headers) — including on the exact same path a real browser
+        fetches successfully — resolved by adding realistic
+        `User-Agent`/`Accept`/`Referer`/`Sec-Fetch-*` headers, then
+        converting via .NET's `System.Drawing.Icon` as usual.
+      - Verified via the local static-preview harness: all 41 bookies
+        (11 Corporates + 8 Bet Makers + 1 Gen Web + 10 Amused + 11
+        BetCloud) render correctly, including the new BetCloud tier's
+        own 11 logos and the odds table's own 41-column header; zero
+        broken images. Every new/touched file syntax-checked and
+        null-byte checked before committing.
