@@ -115,6 +115,16 @@
       "matches": ["https://www.betright.com.au/racing/*", "https://betright.com.au/racing/*"],
       "js": ["js/contentScripts/betrightWatcher.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://goldbet.com.au/racing/*", "https://www.goldbet.com.au/racing/*"],
+      "js": ["js/contentScripts/goldbetWatcher.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://okebet.com.au/racing/*", "https://www.okebet.com.au/racing/*"],
+      "js": ["js/contentScripts/okebetWatcher.js"],
+      "run_at": "document_idle"
     }
   ],
   "permissions": ["storage", "scripting", "tabs", "alarms"],
@@ -143,6 +153,12 @@
     "https://api.blackstream.com.au/*",
     "https://www.betright.com.au/*",
     "https://betright.com.au/*",
-    "https://next-api.betright.com.au/*"
+    "https://next-api.betright.com.au/*",
+    "https://goldbet.com.au/*",
+    "https://www.goldbet.com.au/*",
+    "https://api.goldbet.com.au/*",
+    "https://okebet.com.au/*",
+    "https://www.okebet.com.au/*",
+    "https://racing.okebet.bmapollo.com/*"
   ]
 }

@@ -18,6 +18,8 @@ const BOOKIE_LIST = [
   { id: "palmerbet", label: "Palmerbet", logo: "icons/bookies/palmerbet.png" },
   { id: "betdeluxe", label: "BetDeluxe", logo: "icons/bookies/betdeluxe.png" },
   { id: "betright", label: "BetRight", logo: "icons/bookies/betright.png" },
+  { id: "goldbet", label: "GoldBet", logo: "icons/bookies/goldbet.png" },
+  { id: "okebet", label: "OKEbet", logo: "icons/bookies/okebet.png" },
 ];
 
 // Single-letter race-type code shown in the compact race-info bar (e.g.
