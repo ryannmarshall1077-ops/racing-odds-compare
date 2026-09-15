@@ -4508,3 +4508,22 @@ https://developer.betfair.com/.
         and is discarded/skipped, and a matched url applies normally,
         for both the auto-refresh check and the `applyBookieOdds`
         check.
+
+- [x] Fixed BetNation opening the wrong race every single time —
+      user-reported, and neither of the two bug classes already found
+      this session (a race-id/matching mistake, or a page navigating
+      itself away after the fact). Confirmed live: a **cold** direct
+      navigation to `betnation.com.au/racing/...` (exactly what
+      `chrome.tabs.create`/`chrome.tabs.update` do — different from
+      clicking a same-site link, which is a client-side route change)
+      redirects to BetNation's own bare homepage, silently dropping
+      the entire race path. `www.betnation.com.au` has no such issue —
+      requesting that host directly skips the broken hop entirely.
+      Checked every other Amused tenant the same way (a genuinely cold
+      navigation, not a link click) — none of the other 8 have this
+      bug, so it's BetNation-specific, not a shared-platform issue.
+      Fixed by setting `AMUSED_TENANTS.betnation`'s own `pageDomain` to
+      `www.betnation.com.au` (already covered by both `manifest.json`'s
+      content_scripts match patterns and host_permissions — no
+      manifest changes needed). Verified live: the exact URL this now
+      generates loads the correct race's real page directly.

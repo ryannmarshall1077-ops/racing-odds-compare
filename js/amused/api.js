@@ -25,7 +25,20 @@
 // working shipped code" reasoning js/betmaker/api.js's own comment
 // already documents for OKEbet.
 const AMUSED_TENANTS = {
-  betnation: { label: "BetNation", pageDomain: "betnation.com.au" },
+  // BetNation specifically needs the "www." prefix baked in here —
+  // confirmed live: a cold direct navigation (exactly what
+  // chrome.tabs.create/chrome.tabs.update do, unlike an in-page link
+  // click) to a bare "betnation.com.au/racing/..." URL redirects to
+  // its own bare homepage, silently dropping the whole race path —
+  // "www.betnation.com.au" itself has no such issue, so requesting
+  // that host directly just skips the broken hop entirely. User-
+  // reported ("betnation doesn't open into the correct race" — every
+  // race, not one specific one, which is what pointed at BetNation's
+  // own routing rather than the shared meetId/raceId matching every
+  // other Amused tenant already gets right). Checked live against
+  // every other Amused tenant too — none of the other 8 have this
+  // same bare-domain redirect bug, so this fix is BetNation-only.
+  betnation: { label: "BetNation", pageDomain: "www.betnation.com.au" },
   bigbet: { label: "BigBet", pageDomain: "bigbet.com.au" },
   surge: { label: "Surge", pageDomain: "surge.com.au" },
   noisy: { label: "Noisy", pageDomain: "noisy.com.au" },
