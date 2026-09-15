@@ -1379,12 +1379,11 @@ async function listUpcomingRacesInner() {
       return [];
     }),
     // Same again — a BetDeluxe-side hiccup just means betdeluxeUrl stays
-    // null for this fetch. Same wide UTC window as Unibet's own fetch,
-    // for the same reason.
-    fetchBetDeluxeNextEvents(
-      new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
-      new Date(Date.now() + 20 * 60 * 60 * 1000).toISOString()
-    ).catch((err) => {
+    // null for this fetch. No window params passed here any more — see
+    // fetchBetDeluxeNextEvents' own comment (js/betdeluxe/api.js) for
+    // why it now computes its own fixed ~24h window internally instead
+    // of accepting an arbitrary caller-supplied one.
+    fetchBetDeluxeNextEvents().catch((err) => {
       console.warn("BetDeluxe schedule skipped:", err.message);
       return [];
     }),

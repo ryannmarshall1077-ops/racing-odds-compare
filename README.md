@@ -4095,3 +4095,33 @@ https://developer.betfair.com/.
         footer all still exactly in sync); both new logos load without
         a broken-image icon. Every new/touched file syntax-checked and
         null-byte checked before committing.
+
+- [x] Fixed BetDeluxe's own tab not opening automatically —
+      user-reported. Traced live to `fetchBetDeluxeNextEvents`
+      (`js/betdeluxe/api.js`) itself: its `startDateTime`/`endDateTime`
+      window was the same deliberately-wide, caller-supplied ±20h-
+      around-now shape `fetchUnibetNextEvents` still correctly uses (no
+      such limit there) — but BetDeluxe's own `/api/racing/v1/schedule`
+      endpoint genuinely rejects any window wider than ~25-26 hours
+      (confirmed live by testing several window widths against the real
+      endpoint). The rejection itself doesn't come back as a non-2xx
+      HTTP status at all — it's a 200 with `{"code":
+      "ValidationError","data":[]}` — which this function never checked
+      for, so every single call silently returned zero events instead
+      of ever throwing, meaning `betdeluxeUrl` stayed null for every
+      race with nothing anywhere to show it was a real, permanent
+      failure rather than just "hasn't matched yet".
+      - Fixed by computing the exact same ~24h window BetDeluxe's own
+        frontend itself requests (confirmed live, byte-for-byte, while
+        investigating this) — AEST calendar-day midnight to the next
+        midnight minus 1ms, converted to UTC — instead of accepting an
+        arbitrary caller-supplied window at all, since ~24h is the one
+        width actually confirmed to work. Also now checks the
+        response's own `code` field explicitly and throws if it's ever
+        not `"Success"`, so a future rejection for a different reason
+        surfaces as a real, logged, caught error instead of quietly
+        going empty again the same way.
+      - Verified live against the real, current schedule endpoint: the
+        exact same fix, run against today's real data, now returns 208
+        real events with no error (was 0, silent `ValidationError`,
+        before the fix).
