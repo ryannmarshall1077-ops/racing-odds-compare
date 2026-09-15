@@ -1717,6 +1717,18 @@ footer {
   border-top: 1px solid var(--border);
 }
 
+/* The collapse toggle (toggleBookieTier's own click handler, options.js)
+   sets/clears the plain `hidden` attribute rather than a class — but an
+   author stylesheet's unconditional `display` on the same element always
+   outranks the UA stylesheet's own `[hidden] { display: none }` default,
+   even at equal specificity, so the rule above needs its own explicit
+   override here or collapsing silently does nothing visible (confirmed
+   live: data-expanded/[hidden] were both toggling correctly, the row
+   grid just never actually disappeared — this is the fix, not the JS). */
+.bookie-tier-body[hidden] {
+  display: none;
+}
+
 /* !important needed for the same reason #settings-modal .checkbox-label
    already needs it just above — #settings-modal label (this file, plain
    element selector but scoped by id) outranks a same-page plain class

@@ -4394,3 +4394,20 @@ https://developer.betfair.com/.
         own 11 logos and the odds table's own 41-column header; zero
         broken images. Every new/touched file syntax-checked and
         null-byte checked before committing.
+
+- [x] Fixed Settings > Bookie's own tier collapse/expand arrows doing
+      nothing — user-reported. The click handler itself was correct
+      the whole time (confirmed live: `data-expanded`/`hidden` were
+      both toggling exactly as intended on every click) — the actual
+      bug was pure CSS: `.bookie-tier-body`'s own unconditional
+      `display: grid` outranks the browser's native
+      `[hidden] { display: none }` default, since an author
+      stylesheet always wins over the UA stylesheet even at equal
+      selector specificity, so setting `hidden` never actually hid
+      anything. Fixed with an explicit `.bookie-tier-body[hidden] {
+      display: none; }` override. Traced by attaching a
+      `MutationObserver` directly to the section's own `data-expanded`
+      attribute mid-investigation — the state was changing correctly
+      on every real click the whole time, only the CSS never reflected
+      it, which is what actually pointed at the real bug instead of
+      the click handler.
