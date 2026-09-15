@@ -145,6 +145,30 @@
       ],
       "js": ["js/contentScripts/betmakerWatcher.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://betnation.com.au/racing/*",
+        "https://www.betnation.com.au/racing/*",
+        "https://bigbet.com.au/racing/*",
+        "https://www.bigbet.com.au/racing/*",
+        "https://surge.com.au/racing/*",
+        "https://www.surge.com.au/racing/*",
+        "https://noisy.com.au/racing/*",
+        "https://www.noisy.com.au/racing/*",
+        "https://pulsebet.com.au/racing/*",
+        "https://www.pulsebet.com.au/racing/*",
+        "https://betjet.com.au/racing/*",
+        "https://www.betjet.com.au/racing/*",
+        "https://mightybet.com.au/racing/*",
+        "https://www.mightybet.com.au/racing/*",
+        "https://betexpress.com.au/racing/*",
+        "https://www.betexpress.com.au/racing/*",
+        "https://yesbet.com.au/racing/*",
+        "https://www.yesbet.com.au/racing/*"
+      ],
+      "js": ["js/contentScripts/amusedWatcher.js"],
+      "run_at": "document_idle"
     }
   ],
   "permissions": ["storage", "scripting", "tabs", "alarms"],
@@ -200,6 +224,24 @@
     "https://racing.knucklebet.bmapollo.com/*",
     "https://marantellibet.com/*",
     "https://www.marantellibet.com/*",
-    "https://racing.marantellibet.bmapollo.com/*"
+    "https://racing.marantellibet.bmapollo.com/*",
+    "https://betnation.com.au/*",
+    "https://www.betnation.com.au/*",
+    "https://bigbet.com.au/*",
+    "https://www.bigbet.com.au/*",
+    "https://surge.com.au/*",
+    "https://www.surge.com.au/*",
+    "https://noisy.com.au/*",
+    "https://www.noisy.com.au/*",
+    "https://pulsebet.com.au/*",
+    "https://www.pulsebet.com.au/*",
+    "https://betjet.com.au/*",
+    "https://www.betjet.com.au/*",
+    "https://mightybet.com.au/*",
+    "https://www.mightybet.com.au/*",
+    "https://betexpress.com.au/*",
+    "https://www.betexpress.com.au/*",
+    "https://yesbet.com.au/*",
+    "https://www.yesbet.com.au/*"
   ]
 }

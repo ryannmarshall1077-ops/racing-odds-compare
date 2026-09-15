@@ -4262,3 +4262,70 @@ https://developer.betfair.com/.
         sync); every new logo loads without a broken-image icon. Every
         new/touched file syntax-checked and null-byte checked before
         committing.
+
+- [x] Redesigned Settings > Bookie as a tiered, collapsible layout —
+      user-requested, replacing the flat 21-checkbox list with 3
+      collapsible sections grouped by underlying platform: Corporates
+      (each its own separate integration), Bet Makers (the shared
+      "BetMaker" platform), and Gen Web (GoldBet's "GenerationBet"
+      platform). Each tier shows a live checked/total count and its own
+      All/None buttons; 3 page-wide quick actions (Tier 1 only, Enable
+      all, Disable all) sit above them. Each bookie row now shows its
+      logo next to its name. New `BOOKIE_TIERS` (bookies.js) is the
+      single source of truth, consumed identically by both popup.html's
+      in-page Settings modal (2-column rows, narrower) and the
+      standalone options.html page (3-column rows). Verified via the
+      local static-preview harness on both pages: tier counts, collapse/
+      expand, per-tier All/None, and all 3 quick actions all update
+      `enabledBookies` correctly.
+
+- [x] Added **BetNation, BigBet, Surge, Noisy, PulseBet, BetJet,
+      MightyBet, BetExpress, and YesBet** — 9 more bookmakers, user-
+      requested, plus a new "Amused" Settings > Bookie tier for them —
+      and moved the already-shipped **BetDeluxe** into that same tier,
+      per the user's own explicit grouping. All 10 are confirmed live
+      to run on the exact same "Black Stream" backend (the tech platform
+      behind Amused Group's whole portfolio of wagering brands) BetDeluxe
+      already shipped against — and not just a shared race-id database
+      the way the BetMaker family (js/betmaker/api.js) turned out to be:
+      the SAME real race's runner prices, fetched from
+      `api.blackstream.com.au`, came back byte-for-byte IDENTICAL
+      whether requested from a yesbet.com.au tab or a betdeluxe.com.au
+      tab — a genuinely single backend wearing several brand skins, with
+      no per-tenant key or header of any kind.
+      - Because pricing itself (not just the race listing) is identical
+        across every tenant, there's no separate fetch needed per
+        tenant at all — unlike js/betmaker/api.js's own
+        `fetchBetMakerNextEvents` loop, `js/amused/api.js` only builds
+        each tenant's own race URL (`buildAmusedRaceUrl`) from BetDeluxe's
+        already-fetched event list (`fetchBetDeluxeNextEvents()`,
+        called once, reused for all 9), rather than re-fetching the same
+        data 9 more times.
+      - `js/contentScripts/amusedWatcher.js` (shared across all 9 new
+        tenants' own domains) is content-identical to the already-
+        shipped `betdeluxeWatcher.js` — same live-polling approach (no
+        DOM scraping at all, the feed itself is clean structured JSON),
+        confirmed live from a different tenant's own domain before
+        shipping — except for resolving which bookieId to tag its own
+        messages with, from `location.hostname`. No one-shot scraperFile
+        for any of the 9, same "watcher polls the feed directly, nothing
+        to scrape on demand" shape BetDeluxe's own entry already has.
+        BetDeluxe's own already-shipped files are left untouched.
+      - Worth being upfront about: since every Amused-family bookie
+        (BetDeluxe included) shares one real backend, all 10 will always
+        show the identical price to each other for the same runner —
+        this isn't a limitation of the integration, it's just what the
+        platform actually is.
+      - Icons: 6 of 9 came back as real `.ico` files (converted to PNG
+        via .NET's `System.Drawing.Icon` — no ImageMagick available in
+        this environment); BetJet/BetExpress were already plain PNGs;
+        BetNation's own `<link rel="icon">` needed its literal `www.`-
+        prefixed, cache-busted href (the bare `favicon.ico` guess 200'd
+        with an SPA-fallback `text/html` body instead, same failure
+        class as KnuckleBet's own broken icon link).
+      - Verified via the local static-preview harness: all 30 bookies
+        (11 Corporates + 8 Bet Makers + 1 Gen Web + 10 Amused) render
+        correctly, including the new Amused tier's own 10 logos and the
+        odds table's own 30-column header; zero broken images. Every
+        new/touched file syntax-checked and null-byte checked before
+        committing.
