@@ -8,6 +8,8 @@ importScripts(
   "js/betr/api.js",
   "js/unibet/api.js",
   "js/palmerbet/api.js",
+  "js/betdeluxe/api.js",
+  "js/betright/api.js",
   "settings.js",
   "bookies.js"
 );
@@ -127,6 +129,14 @@ const BOOKIE_EXTRAS = {
   // hash fragility at all (plain readable paths). Same "no DOM scraper,
   // the watcher polls the live feed directly" shape as Unibet above.
   palmerbet: { scraperFile: null, tabIdKey: "palmerbetTabId" },
+  // BetDeluxe (Blackstream infrastructure) — own public REST feed
+  // (js/betdeluxe/api.js), discovered the same fetch-hooking way as
+  // PointsBet/Betr/Palmerbet. Same "no DOM scraper, the watcher polls
+  // the live feed directly" shape as Unibet/Palmerbet above.
+  betdeluxe: { scraperFile: null, tabIdKey: "betdeluxeTabId" },
+  // BetRight — own public REST feed (js/betright/api.js), same
+  // discovery method, same no-DOM-scraper shape.
+  betright: { scraperFile: null, tabIdKey: "betrightTabId" },
 };
 const BOOKIES = Object.fromEntries(
   BOOKIE_LIST.map((b) => [b.id, { ...b, ...BOOKIE_EXTRAS[b.id] }])
@@ -1306,6 +1316,8 @@ async function listUpcomingRacesInner() {
     betrEvents,
     unibetEvents,
     palmerbetEvents,
+    betdeluxeEvents,
+    betrightEvents,
     { tabVenueCodes = {} },
     { tabtouchVenueCodes = {} },
     { picklebetVenueCodes = {} },
@@ -1364,6 +1376,22 @@ async function listUpcomingRacesInner() {
     // null for this fetch.
     fetchPalmerbetNextEvents(new Date().toISOString().slice(0, 10)).catch((err) => {
       console.warn("Palmerbet fixtures skipped:", err.message);
+      return [];
+    }),
+    // Same again — a BetDeluxe-side hiccup just means betdeluxeUrl stays
+    // null for this fetch. Same wide UTC window as Unibet's own fetch,
+    // for the same reason.
+    fetchBetDeluxeNextEvents(
+      new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
+      new Date(Date.now() + 20 * 60 * 60 * 1000).toISOString()
+    ).catch((err) => {
+      console.warn("BetDeluxe schedule skipped:", err.message);
+      return [];
+    }),
+    // Same again — a BetRight-side hiccup just means betrightUrl stays
+    // null for this fetch.
+    fetchBetRightNextEvents(new Date().toISOString().slice(0, 10)).catch((err) => {
+      console.warn("BetRight GroupedRaceCard skipped:", err.message);
       return [];
     }),
     chrome.storage.local.get(["tabVenueCodes"]),
@@ -1573,6 +1601,29 @@ async function listUpcomingRacesInner() {
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
       );
 
+      // Same matching again — BetDeluxe's own feed also never prefixes
+      // a venue name (confirmed live across real AU meetings — Wodonga,
+      // Menangle, Angle Park all came back exactly as plain as
+      // Betfair's own venue names).
+      const betdeluxeMatch = betdeluxeEvents.find(
+        (e) =>
+          e.type === raceType &&
+          namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
+          e.raceNumber === raceNumber &&
+          Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
+      );
+
+      // Same matching again — BetRight's own feed also never prefixes a
+      // venue name (confirmed live: Wodonga, Angle Park, Wellington all
+      // came back exactly as plain as Betfair's own venue names).
+      const betrightMatch = betrightEvents.find(
+        (e) =>
+          e.type === raceType &&
+          namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
+          e.raceNumber === raceNumber &&
+          Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
+      );
+
       return {
         track,
         raceNumber,
@@ -1643,6 +1694,12 @@ async function listUpcomingRacesInner() {
         // Palmerbet also has a real feed from day one (js/palmerbet/
         // api.js, palmerbetMatch above), same treatment.
         palmerbetUrl: palmerbetMatch ? buildPalmerbetRaceUrl(palmerbetMatch) : null,
+        // BetDeluxe also has a real feed from day one (js/betdeluxe/
+        // api.js, betdeluxeMatch above), same treatment.
+        betdeluxeUrl: betdeluxeMatch ? buildBetDeluxeRaceUrl(betdeluxeMatch) : null,
+        // BetRight also has a real feed from day one (js/betright/
+        // api.js, betrightMatch above), same treatment.
+        betrightUrl: betrightMatch ? buildBetRightRaceUrl(betrightMatch) : null,
       };
     })
     .filter((r) => r.raceNumber !== null);
@@ -2115,6 +2172,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "PALMERBET_ODDS_UPDATED") {
     applyBookieOdds("palmerbet", message.odds).catch((err) =>
       console.warn("Failed to apply live Palmerbet update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  if (message.type === "BETDELUXE_ODDS_UPDATED") {
+    applyBookieOdds("betdeluxe", message.odds).catch((err) =>
+      console.warn("Failed to apply live BetDeluxe update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  if (message.type === "BETRIGHT_ODDS_UPDATED") {
+    applyBookieOdds("betright", message.odds).catch((err) =>
+      console.warn("Failed to apply live BetRight update:", err.message)
     );
     return; // fire-and-forget — the content script isn't awaiting a reply
   }

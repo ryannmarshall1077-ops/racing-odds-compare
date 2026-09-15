@@ -65,6 +65,8 @@ const DEFAULT_SETTINGS = {
     "unibet",
     "picklebet",
     "palmerbet",
+    "betdeluxe",
+    "betright",
   ],
   // User-requested: drag a bookie's own column header left/right in the
   // odds table to reorder it — this is what's actually dragged (see
@@ -86,6 +88,8 @@ const DEFAULT_SETTINGS = {
     "unibet",
     "picklebet",
     "palmerbet",
+    "betdeluxe",
+    "betright",
   ],
   showLiquidityColumn: true,
   showLiabilityColumn: false,
