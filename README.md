@@ -4013,3 +4013,32 @@ https://developer.betfair.com/.
         `background.js`/content-script file syntax-checked (`new
         Function(code)` against each file, no execution) and null-byte
         checked before committing.
+
+- [x] Fixed Betr's own tab no longer auto-opening — user-reported.
+      Genuinely unrelated to the 3 new bookmakers just above (confirmed
+      live): `fetchBetrNextEvents` (`js/betr/api.js`) started throwing
+      "meeting is not iterable" the instant it reached
+      `MultipleShortcutSummary`, one of two admittedly-unrelated top-
+      level keys `GroupedRaceCard`'s own response always carried
+      alongside the 3 real racing-type ones (Thoroughbred/Greyhounds/
+      Trots) — a real, live BlueBet-side API change: that key used to
+      be something the existing `Array.isArray(group)` check already
+      skipped outright, and it now IS an array too (of plain shortcut
+      objects like `{MarketType, EventMultipleId, ...}`, not a
+      meeting's own nested array of races) — so the loop's inner
+      `for (const race of meeting)` reached a plain object instead of
+      an array and threw, discarding every real race already collected
+      from the 3 genuine groups earlier in the same pass, since the
+      exception propagated out of the whole function with nothing
+      returned at all (caught by `listUpcomingRacesInner`'s own
+      best-effort `.catch`, so `betrUrl` just silently stayed null for
+      every race instead of erroring loudly).
+      - Fixed by checking one level deeper — is THIS specific "meeting"
+        itself an array of races, not just the top-level group — which
+        is what actually tells a real meeting apart from a flat list of
+        shortcut objects that merely happens to sit at the same top
+        level now.
+      - Verified live against the real, current `GroupedRaceCard`
+        response: the exact same fix, run against today's real data,
+        now returns 580 real events with no error (was 0, uncaught
+        exception, before the fix).
