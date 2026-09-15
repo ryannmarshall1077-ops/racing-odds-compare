@@ -51,6 +51,25 @@ const BOOKIE_LIST = [
   { id: "mightybet", label: "MightyBet", logo: "icons/bookies/mightybet.png" },
   { id: "betexpress", label: "BetExpress", logo: "icons/bookies/betexpress.png" },
   { id: "yesbet", label: "YesBet", logo: "icons/bookies/yesbet.png" },
+  // The "BetCloud" platform family — confirmed live to share a race-id
+  // database (the exact same venueId/raceId resolves to the same real
+  // race on every tenant) and identical DOM structure, but NOT shared
+  // pricing (each tenant's own Win price genuinely differs slightly —
+  // see js/contentScripts/betcloudWatcher.js for the full story). DOM-
+  // scraped only — BetCloud's own real API sends a proprietary
+  // attestation header this project deliberately doesn't attempt to
+  // replicate (same line drawn during the bet365 investigation).
+  { id: "bet777", label: "Bet777", logo: "icons/bookies/bet777.png" },
+  { id: "betgalaxy", label: "BetGalaxy", logo: "icons/bookies/betgalaxy.png" },
+  { id: "betprofessor", label: "BetProfessor", logo: "icons/bookies/betprofessor.png" },
+  { id: "chromabet", label: "ChromaBet", logo: "icons/bookies/chromabet.png" },
+  { id: "goldenbet888", label: "GoldenBet888", logo: "icons/bookies/goldenbet888.png" },
+  { id: "juicybet", label: "JuicyBet", logo: "icons/bookies/juicybet.png" },
+  { id: "junglebet", label: "JungleBet", logo: "icons/bookies/junglebet.png" },
+  { id: "questbet", label: "QuestBet", logo: "icons/bookies/questbet.png" },
+  { id: "titanbet", label: "TitanBet", logo: "icons/bookies/titanbet.png" },
+  { id: "wellbet", label: "WellBet", logo: "icons/bookies/wellbet.png" },
+  { id: "epicodds", label: "EpicOdds", logo: "icons/bookies/epicodds.png" },
 ];
 
 // Settings > Bookie's own tiered layout (user-requested, replacing a
@@ -63,11 +82,15 @@ const BOOKIE_LIST = [
 // own "GenerationBet" platform — currently a single tenant, but its own
 // footer credit ("Betting System by GenerationWeb 201") names the
 // platform the same way BetMaker's tenants do, so it gets its own tier
-// rather than being lumped into Corporates), and "Amused" (js/amused/
+// rather than being lumped into Corporates), "Amused" (js/amused/
 // api.js's own shared "Black Stream" platform — user-specified this
 // group explicitly by name and membership, moving BetDeluxe out of
 // Corporates into it since it turned out to be the same backend as the
-// other 9). bookieTierSectionHtml (options.js) is the only reader of
+// other 9), and "BetCloud" (js/contentScripts/betcloudWatcher.js's own
+// shared platform — user-specified again; unlike every other tier
+// here, DOM-scraped only, since its real API is defended by a
+// proprietary attestation header this project doesn't attempt to
+// replicate). bookieTierSectionHtml (options.js) is the only reader of
 // this — BOOKIE_LIST/BOOKIE_EXTRAS above are unaffected, so a bookie
 // missing from every tier here would simply never render a checkbox at
 // all rather than breaking anything else; every id in BOOKIE_LIST must
@@ -127,6 +150,24 @@ const BOOKIE_TIERS = [
       "mightybet",
       "betexpress",
       "yesbet",
+    ],
+  },
+  {
+    id: "betcloud",
+    label: "BetCloud",
+    description: 'Shared "BetCloud" platform white-label brands',
+    bookieIds: [
+      "bet777",
+      "betgalaxy",
+      "betprofessor",
+      "chromabet",
+      "goldenbet888",
+      "juicybet",
+      "junglebet",
+      "questbet",
+      "titanbet",
+      "wellbet",
+      "epicodds",
     ],
   },
 ];

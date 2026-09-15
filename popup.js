@@ -2386,6 +2386,31 @@ async function openRaceTabs(race) {
       });
     }
 
+    // BetCloud (Bet777, BetGalaxy, ...) — same situation again: no
+    // public feed, race codes only known once betcloudMeetings.js has
+    // actually seen this race on the shared "Next To Jump" hub page
+    // (learned once for the whole family — every BetCloud tenant
+    // shares the same venueId/raceId, see js/betcloud/api.js's own
+    // comment). One shared message type/handler for all 11 tenants,
+    // distinguished by bookieId, rather than 11 near-identical blocks
+    // — checked via BOOKIE_TIERS (bookies.js) rather than a separate
+    // hardcoded id list, so it can't drift out of sync with the
+    // Settings > Bookie tier that same list already drives.
+    if (!url && BOOKIE_TIERS.find((t) => t.id === "betcloud")?.bookieIds.includes(bookie.id)) {
+      url = await new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          {
+            type: "ENSURE_BETCLOUD_URL",
+            bookieId: bookie.id,
+            track: race.track,
+            raceType: race.raceType,
+            raceNumber: race.raceNumber,
+          },
+          (response) => resolve(response?.betcloudUrl || null)
+        );
+      });
+    }
+
     updates[tabIdKey] = url
       ? await openOrNavigateTab(stored[tabIdKey], url, {
           pinned: currentSettings.pinRaceTabs,
