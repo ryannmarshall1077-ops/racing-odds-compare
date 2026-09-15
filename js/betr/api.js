@@ -39,6 +39,21 @@ async function fetchBetrNextEvents() {
   for (const group of Object.values(groups)) {
     if (!Array.isArray(group)) continue;
     for (const meeting of group) {
+      // Confirmed live: "MultipleShortcutSummary" (one of the unrelated
+      // summary keys mentioned above) used to be skipped by the
+      // Array.isArray(group) check alone, back when it wasn't an array
+      // itself — it now is (an array of plain shortcut objects like
+      // {MarketType, EventMultipleId, ...}, not a meeting's own nested
+      // array of races), which meant `for (const race of meeting)`
+      // below threw "meeting is not iterable" the moment it got there —
+      // discarding every real race already collected from Thoroughbred/
+      // Greyhounds/Trots earlier in the same loop, since the exception
+      // propagated out of the whole function with nothing returned.
+      // Checking one level deeper (is THIS specific "meeting" itself an
+      // array of races, not just the top-level group) is what actually
+      // distinguishes a real meeting from a flat list of shortcut
+      // objects that merely happens to sit at the same top level.
+      if (!Array.isArray(meeting)) continue;
       for (const race of meeting) {
         const type = BETR_RACING_TYPE[race.EventTypeId];
         if (!type) continue;
