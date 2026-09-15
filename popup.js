@@ -1846,13 +1846,21 @@ function renderRace(race) {
   // place): a bookmaker's column appears if and only if it's been
   // planned against this exact race or picked in the sidebar's own
   // Bookie Spotlight — no automatic "every enabled bookie" column any
-  // more, and no separate highlight treatment either (this directly
-  // toggles `hidden` below and in bookieCells/the footer/scratched
-  // rows, rather than adding a CSS class on top of an already-shown
-  // column).
+  // more. This alone used to be the ONLY signal too (no separate
+  // highlight layered on top, since showing the column already meant
+  // "planned or spotlighted") — brought back below, user-reported: with
+  // a Planner pick and a Spotlight pick both just showing as identical,
+  // plain columns now, there's no way to tell at a glance which one is
+  // actually the promo you're running vs. just there for comparison.
   const displayedBookieIds = raceDisplayedBookieIds(race);
+  // Deliberately narrower than displayedBookieIds — planned only (not
+  // "planned OR spotlighted"), so a bookmaker merely spotlighted for
+  // comparison never gets tagged as if a promo were actually running
+  // on it. plannerEntries (above) is already scoped to this exact race.
+  const plannedBookieIds = new Set(plannerEntries.map((e) => e.bookieId));
   for (const th of document.querySelectorAll("#odds-table thead th[data-bookie]")) {
     th.hidden = !displayedBookieIds.has(th.dataset.bookie);
+    th.classList.toggle("planned-bookie-col", plannedBookieIds.has(th.dataset.bookie));
   }
 
   // Race Result / Display > Betfair commission discount — percentage
@@ -2964,8 +2972,9 @@ function applyDisplaySettings(settings) {
   // Same treatment for the Daily Planner's own highlight colour
   // (Settings > Colours > Promo Colour) — --promo-color (popup.css),
   // read by .race-card.planned (the sidebar's own left-border accent on
-  // a planned race — the bookie column itself is no longer highlighted
-  // at all, user-requested, see renderRace's own displayedBookieIds).
+  // a planned race) and th.planned-bookie-col (the odds table's own
+  // header highlight on a bookie actually planned for the loaded race
+  // — see renderRace's own plannedBookieIds).
   const promoColor =
     settings.promoColor === DEFAULT_SETTINGS.promoColor
       ? THEME_DEFAULT_PROMO_COLOR[settings.theme] || THEME_DEFAULT_PROMO_COLOR.dark

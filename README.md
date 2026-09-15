@@ -3897,3 +3897,32 @@ https://developer.betfair.com/.
         the new order round-trips through `chrome.storage.sync` and
         survives a full page reload (backed the harness's storage shim
         with real `localStorage` specifically to test this).
+
+- [x] Restored the pink highlight around a bookmaker's own column
+      header when it's actually planned (with a promo) for the loaded
+      race — user-reported it "doesn't show up anymore" once a promo's
+      selected on that bookie in the Daily Planner.
+      - This highlight (`th.planned-bookie-col`, `--promo-color`)
+        genuinely used to exist, then got removed entirely in an
+        earlier rework of bookie-column visibility (a bookie's column
+        either shows — planned or spotlighted — or it doesn't, no
+        highlight layered on top; at the time showing the column at
+        all already meant "planned or spotlighted", so the highlight
+        felt redundant). What that removal didn't anticipate: once
+        Planner and Spotlight picks both just render as identical,
+        plain columns, there's no longer any way to tell at a glance
+        which one is the actual promo you're running versus one that's
+        only there for price comparison — restoring the highlight,
+        scoped correctly this time, fixes exactly that.
+      - Scoped to *planned* only, not `displayedBookieIds` (planned OR
+        spotlighted) — a bookmaker spotlighted purely for comparison
+        never gets tagged as if a promo were running on it.
+        `renderRace` (`popup.js`) now toggles `.planned-bookie-col` on
+        each bookie `<th>` from `plannerEntriesForMarketId`'s own
+        result for the loaded race, right alongside the existing
+        `hidden` toggle, so the two can never drift apart.
+      - Verified via the local static-preview harness: a bookmaker
+        planned (with a promo) for the loaded race shows the pink
+        outline around its whole header box; a second bookmaker merely
+        spotlighted alongside it for comparison shows with no highlight
+        at all, confirmed side by side in the same screenshot.

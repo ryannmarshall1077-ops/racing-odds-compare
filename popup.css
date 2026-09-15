@@ -871,6 +871,23 @@ th.col-best-price {
   align-items: center;
 }
 
+/* Daily Planner's own "pop up" highlight (renderRace, popup.js) — a
+   bookmaker actually planned (with a promo) for the loaded race, not
+   just spotlighted for comparison. Previously removed entirely when a
+   bookie's column visibility itself became the only signal (showing a
+   column used to always mean "planned or spotlighted", so a separate
+   highlight felt redundant) — user-reported that once Planner and
+   Spotlight picks started looking identical, there was no way left to
+   tell which column was the actual promo at a glance. On the <th>
+   itself (not just the inner .bookie-th icon wrapper), same as the
+   original version of this rule, so the whole header box reads as
+   highlighted, not just its logo. Placed before .dragging/.drag-over
+   below so an active drag's own highlight still wins over this one if
+   they ever overlap (rules further down the cascade win on a tie). */
+th[data-bookie].planned-bookie-col {
+  box-shadow: inset 0 0 0 1.5px var(--promo-color);
+}
+
 /* User-requested: drag a bookie's own column header to reorder it (see
    the dragstart/dragover/drop/dragend wiring on #odds-table thead,
    popup.js). "grab" on every bookie <th> makes the affordance
@@ -917,14 +934,6 @@ th[data-bookie].drag-over {
 .col-bookie.col-best {
   box-shadow: inset 0 0 0 1.5px var(--amber);
 }
-
-/* A planned/spotlighted bookmaker's column used to also get a
-   highlighted header box on top of just being shown — user-requested
-   that go away entirely: the column either shows (it's planned or
-   spotlighted) or it doesn't, no extra highlight layered on top of a
-   displayed one. See renderRace's own displayedBookieIds for what
-   decides visibility now (the `hidden` attribute directly, not a CSS
-   class). */
 
 th, td {
   padding: 8px 10px;
