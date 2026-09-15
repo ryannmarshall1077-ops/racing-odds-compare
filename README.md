@@ -4184,3 +4184,81 @@ https://developer.betfair.com/.
         footer all still exactly in sync); both new logos load without
         a broken-image icon. Every new/touched file syntax-checked and
         null-byte checked before committing.
+
+- [x] Added **ReadyBet, RealBookie, BaggyBet, BetYouCan, Playwest,
+      KnuckleBet, and MarantelliBet** — 7 more bookmakers, user-
+      requested (an 8th, Terrybet, was also requested but excluded —
+      see below). User tip mid-investigation ("They all under betmaker
+      software so same user interface as okebet") turned out to be
+      exactly right, independently confirmed live: every one of these
+      (OKEbet included) is the exact same underlying "BetMaker"
+      white-label platform —
+      - Same GraphQL query shape (`meetingsBetween`) and endpoint
+        family (`racing.<tenant>.bmapollo.com/query`).
+      - Same per-tenant public header — turns out to actually be each
+        tenant's own AWS Cognito `userPoolClientId` (found directly in
+        a production JS bundle's own multi-tenant config table, which
+        also confirmed every tenant's real `racing.*` endpoint —
+        RealBookie/BetYouCan/Terrybet's own frontends never call
+        bmapollo from the browser at all, DOM-scraping/fetch-hooking
+        alone would never have found their real endpoint), sent as a
+        plain `x-api-key` header with no real login/token exchange
+        needed — same discovery OKEbet's own integration already made,
+        now confirmed as the platform-wide pattern, not a one-off.
+      - A genuinely shared underlying race database — the exact same
+        real race id resolves to the same real race on every tenant
+        checked, just with each one's own pricing.
+      - Same DOM structure (`gs-runner-name-label` + 2-button-ancestor
+        row lookup) — re-verified live on each new tenant individually,
+        including KnuckleBet specifically despite its visibly different
+        (Vite-based, vs. the Next.js-style bundles every other tenant
+        uses) frontend build: 15 real runner labels found on a real
+        race page, same as everywhere else.
+      - Same 32h max query-window limit OKEbet's own endpoint already
+        enforces (confirmed live on RealBookie/BetYouCan too) —
+        `betMakerTodayWindowUtc` reuses `okeBetTodayWindowUtc`'s own
+        fixed ~24h AEST-day window rather than re-deriving/re-testing it
+        per tenant.
+      - Implemented as one shared module (`js/betmaker/api.js`'s
+        `fetchBetMakerNextEvents`/`buildBetMakerRaceUrl` + a
+        `BETMAKER_TENANTS` config table) and one shared content script
+        pair (`betmaker.js`/`betmakerWatcher.js`, content-identical to
+        OKEbet's own) rather than 7 near-duplicate integrations —
+        `betmakerWatcher.js` resolves which tenant (and thus which
+        bookieId to tag its own messages with) purely from
+        `location.hostname`, since the exact same file is injected on
+        every tenant's own domain. OKEbet's own already-shipped files
+        were deliberately left untouched rather than folded into this
+        shared module, to avoid touching known-working shipped code.
+        `background.js`'s own per-bookie fetch/match/URL-building logic
+        is likewise one generic loop over `BETMAKER_TENANTS`, not 7
+        copies of the same block.
+      - **Terrybet excluded from this batch.** It's a confirmed real
+        tenant of this same platform (present in the same config table,
+        same URL/key shape) but its backend genuinely returned "System
+        is in maintenance" on every attempt — both through its own live
+        site (4 separate tries, different Reference IDs each time,
+        ruling out a caching artifact) and via a direct API request with
+        its own real key. A live, currently-ongoing outage on Terrybet's
+        own side, not anything about this approach — add it to
+        `BETMAKER_TENANTS`/`bookies.js`/`settings.js`/`manifest.json`
+        the same way as any tenant above once it's back up.
+      - Every tenant's own real key independently re-verified live via a
+        direct server-side request before being trusted (not just
+        trusted from the bundle alone) — caught one false alarm along
+        the way: a plain `curl` with no browser-like headers gets WAF-
+        blocked on every tenant INCLUDING OKEbet's own already-shipped,
+        already-working key, so that failure mode was a header-shape
+        artifact of the test itself, not a bad key.
+      - Icons fetched live from each site's own favicon — KnuckleBet's
+        own `<link rel="icon">` pointed at a broken path (200 OK but
+        `text/html`, an SPA-fallback, same failure class as BetRight's/
+        Betr's/Palmerbet's own broken icon links from earlier) — fixed
+        by probing adjacent plausible paths on the same CDN until one
+        genuinely returned `image/png`.
+      - Verified via the local static-preview harness: all 21 bookies
+        now render correctly (header, each row's own cells, the Settings
+        > Bookie checkbox list, and the footer all still exactly in
+        sync); every new logo loads without a broken-image icon. Every
+        new/touched file syntax-checked and null-byte checked before
+        committing.

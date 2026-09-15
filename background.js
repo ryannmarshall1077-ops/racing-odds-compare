@@ -12,6 +12,7 @@ importScripts(
   "js/betright/api.js",
   "js/goldbet/api.js",
   "js/okebet/api.js",
+  "js/betmaker/api.js",
   "settings.js",
   "bookies.js"
 );
@@ -149,6 +150,23 @@ const BOOKIE_EXTRAS = {
   // race's own URL — see okebetWatcher.js's own comment — so it's
   // DOM-scraped too, same shape as GoldBet above.
   okebet: { scraperFile: "js/contentScripts/okebet.js", tabIdKey: "okebetTabId" },
+  // ReadyBet, RealBookie, BaggyBet, BetYouCan, Playwest, KnuckleBet,
+  // MarantelliBet — confirmed live to be the exact same underlying
+  // "BetMaker" platform OKEbet already is (same GraphQL shape/endpoint
+  // family, same shared race-id database, same DOM structure — see
+  // js/betmaker/api.js's own comment for the full story), so all 7
+  // share one scraperFile (js/contentScripts/betmaker.js, content-
+  // identical to okebet.js) rather than each getting its own near-
+  // duplicate. Generated from BETMAKER_TENANTS itself below rather than
+  // spelled out here, so a tenant added there automatically gets a
+  // scraperFile/tabIdKey too, with no separate place to remember to
+  // update.
+  ...Object.fromEntries(
+    Object.keys(BETMAKER_TENANTS).map((id) => [
+      id,
+      { scraperFile: "js/contentScripts/betmaker.js", tabIdKey: `${id}TabId` },
+    ])
+  ),
 };
 const BOOKIES = Object.fromEntries(
   BOOKIE_LIST.map((b) => [b.id, { ...b, ...BOOKIE_EXTRAS[b.id] }])
@@ -1332,6 +1350,7 @@ async function listUpcomingRacesInner() {
     betrightEvents,
     goldbetEvents,
     okebetEvents,
+    betmakerEventsByBookie,
     { tabVenueCodes = {} },
     { tabtouchVenueCodes = {} },
     { picklebetVenueCodes = {} },
@@ -1424,6 +1443,25 @@ async function listUpcomingRacesInner() {
       console.warn("OKEbet meetingsBetween skipped:", err.message);
       return [];
     }),
+    // Same again for every other BetMaker-platform tenant (see
+    // js/betmaker/api.js) — one promise per tenant, each with the same
+    // best-effort catch-and-empty treatment as every bookie above, so a
+    // single tenant's own hiccup (or Terrybet-style outage) can't take
+    // any of the others down with it. Resolves to a plain {bookieId:
+    // events[]} map rather than 7 separate named slots here, since
+    // there's nothing meaningfully different between them to spell out
+    // individually — see the matching loop below, which reads this the
+    // same generic way.
+    Promise.all(
+      Object.entries(BETMAKER_TENANTS).map(async ([id, tenantConfig]) => {
+        try {
+          return [id, await fetchBetMakerNextEvents(tenantConfig)];
+        } catch (err) {
+          console.warn(`${tenantConfig.label} meetingsBetween skipped:`, err.message);
+          return [id, []];
+        }
+      })
+    ).then(Object.fromEntries),
     chrome.storage.local.get(["tabVenueCodes"]),
     chrome.storage.local.get(["tabtouchVenueCodes"]),
     chrome.storage.local.get(["picklebetVenueCodes"]),
@@ -1677,6 +1715,24 @@ async function listUpcomingRacesInner() {
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
       );
 
+      // Same matching again, once per other BetMaker-platform tenant
+      // (see betmakerEventsByBookie above) — every one of them shares
+      // OKEbet's own feed shape (never prefixes a venue name either,
+      // confirmed live), so the exact same matching rule applies
+      // generically rather than needing its own copy per tenant.
+      const betmakerUrlById = Object.fromEntries(
+        Object.entries(BETMAKER_TENANTS).map(([id, tenantConfig]) => {
+          const match = (betmakerEventsByBookie[id] || []).find(
+            (e) =>
+              e.type === raceType &&
+              namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
+              e.raceNumber === raceNumber &&
+              Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
+          );
+          return [`${id}Url`, match ? buildBetMakerRaceUrl(tenantConfig, match) : null];
+        })
+      );
+
       return {
         track,
         raceNumber,
@@ -1759,6 +1815,11 @@ async function listUpcomingRacesInner() {
         // OKEbet also has a real feed from day one (js/okebet/api.js,
         // okebetMatch above), same treatment.
         okebetUrl: okebetMatch ? buildOkeBetRaceUrl(okebetMatch) : null,
+        // Every other BetMaker-platform tenant (ReadyBet, RealBookie,
+        // BaggyBet, BetYouCan, Playwest, KnuckleBet, MarantelliBet) —
+        // spread in generically (readybetUrl, realbookieUrl, etc.) from
+        // betmakerUrlById above, same treatment as every bookie above.
+        ...betmakerUrlById,
       };
     })
     .filter((r) => r.raceNumber !== null);
@@ -2259,6 +2320,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "OKEBET_ODDS_UPDATED") {
     applyBookieOdds("okebet", message.odds).catch((err) =>
       console.warn("Failed to apply live OKEbet update:", err.message)
+    );
+    return; // fire-and-forget — the content script isn't awaiting a reply
+  }
+
+  // Shared handler for every other BetMaker-platform tenant
+  // (betmakerWatcher.js tags its own message with whichever bookieId it
+  // resolved from location.hostname) — one generic handler rather than
+  // 7 near-identical ones, since there's nothing tenant-specific left
+  // to do once bookieId is known.
+  if (message.type === "BETMAKER_ODDS_UPDATED") {
+    applyBookieOdds(message.bookieId, message.odds).catch((err) =>
+      console.warn(`Failed to apply live ${message.bookieId} update:`, err.message)
     );
     return; // fire-and-forget — the content script isn't awaiting a reply
   }

@@ -20,6 +20,21 @@ const BOOKIE_LIST = [
   { id: "betright", label: "BetRight", logo: "icons/bookies/betright.png" },
   { id: "goldbet", label: "GoldBet", logo: "icons/bookies/goldbet.png" },
   { id: "okebet", label: "OKEbet", logo: "icons/bookies/okebet.png" },
+  // The rest of the "BetMaker" platform family OKEbet is also part of
+  // (confirmed live via a shared race-id database, identical GraphQL
+  // feed shape, and identical DOM structure — see js/betmaker/api.js
+  // for the full story). Terrybet is a confirmed real tenant of this
+  // same platform too, but excluded here for now — its backend returned
+  // a genuine "System is in maintenance" error on every attempt, both
+  // through its own live site and via a direct API request; add it the
+  // same way as any entry below once it's back up.
+  { id: "readybet", label: "ReadyBet", logo: "icons/bookies/readybet.png" },
+  { id: "realbookie", label: "RealBookie", logo: "icons/bookies/realbookie.png" },
+  { id: "baggybet", label: "BaggyBet", logo: "icons/bookies/baggybet.png" },
+  { id: "betyoucan", label: "BetYouCan", logo: "icons/bookies/betyoucan.png" },
+  { id: "playwest", label: "Playwest", logo: "icons/bookies/playwest.png" },
+  { id: "knucklebet", label: "KnuckleBet", logo: "icons/bookies/knucklebet.png" },
+  { id: "marantellibet", label: "MarantelliBet", logo: "icons/bookies/marantellibet.png" },
 ];
 
 // Single-letter race-type code shown in the compact race-info bar (e.g.
