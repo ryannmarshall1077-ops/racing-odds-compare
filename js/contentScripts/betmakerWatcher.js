@@ -3,9 +3,10 @@
 // for a BetMaker-tenant page's own front-end updating Win odds, and
 // pushes fresh values to background.js the moment they change. Serves
 // every tenant in js/betmaker/api.js's own BETMAKER_TENANTS (ReadyBet,
-// RealBookie, BaggyBet, BetYouCan, Playwest, KnuckleBet, MarantelliBet)
-// through one shared file rather than 7 near-duplicate watchers, since
-// all 7 share the exact same DOM structure — confirmed live on each one
+// RealBookie, BaggyBet, BetYouCan, Playwest, KnuckleBet, MarantelliBet,
+// CrownBet, Swiftbet, PonyBet, BetAus, BetLocal, BetEstate) through one
+// shared file rather than 13 near-duplicate watchers, since all of them
+// share the exact same DOM structure — confirmed live on each one
 // individually, including KnuckleBet specifically despite its visibly
 // different (Vite-based, vs the Next.js-style bundles every other
 // tenant uses) frontend build: 15 ".gs-runner-name-label" elements
@@ -14,14 +15,25 @@
 // OKEbet is the same underlying platform too, but already shipped with
 // its own dedicated okebetWatcher.js before this shared module existed
 // — left untouched rather than folded in here, so this file is only
-// ever loaded on the 7 other tenants' own domains.
+// ever loaded on the OTHER tenants' own domains.
 //
 // This same file is injected on several different hostnames (see
 // manifest.json's own separate match-pattern entries for each tenant
 // domain, all naming this one file) — it has no site-specific strings
 // of its own, so it resolves which tenant it's actually running on,
 // and thus which bookieId to tag its own messages with, purely from
-// location.hostname at the moment it runs.
+// location.hostname at the moment it runs. IMPORTANT: this map must be
+// kept in sync with BETMAKER_TENANTS (js/betmaker/api.js) by hand — a
+// tenant added there without also being added here silently no-ops on
+// that domain (falls through the `if (!bookieId) return` guard below)
+// instead of throwing, which is exactly the bug the second BetMaker
+// batch shipped with: their own race tab opened onto the correct race
+// perfectly (background.js's own generic BETMAKER_TENANTS loop already
+// covered URL-building), but no odds ever reached the popup's own
+// table, because this map still only listed the first 7 tenants — a
+// user report ("loading tabs and correct race but not displaying
+// odds") is exactly what a missing entry here looks like from the
+// outside.
 (() => {
   const HOSTNAME_TO_BOOKIE_ID = {
     "readybet.com.au": "readybet",
@@ -31,6 +43,12 @@
     "playwestbet.com": "playwest",
     "knucklebet.com.au": "knucklebet",
     "marantellibet.com": "marantellibet",
+    "crownbet.com.au": "crownbet",
+    "swiftbet.com.au": "swiftbet",
+    "ponybet.com.au": "ponybet",
+    "betaus.com.au": "betaus",
+    "betlocal.com.au": "betlocal",
+    "betestate.com.au": "betestate",
   };
 
   const hostname = location.hostname.replace(/^www\./, "");

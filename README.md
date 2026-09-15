@@ -4445,3 +4445,22 @@ https://developer.betfair.com/.
         render correctly, including the Bet Makers tier's own updated
         14/14 count and the odds table's own 47-column header; zero
         broken images.
+
+- [x] Fixed CrownBet/Swiftbet/PonyBet/BetAus/BetLocal/BetEstate's own
+      tabs opening onto the correct race but never showing odds —
+      user-reported. `betmakerWatcher.js`'s own `HOSTNAME_TO_BOOKIE_ID`
+      map was never updated when the second BetMaker batch shipped —
+      it still only listed the first 7 tenants, so on these 6 domains
+      `bookieId` resolved to `undefined` and the watcher silently
+      no-op'd (`if (!bookieId) return`) on every mutation, never
+      sending an odds update at all. `background.js`'s own generic
+      `BETMAKER_TENANTS` loop had already built the correct race URL
+      for each of them (which is why the tab opened onto the right
+      race in the first place) — only this one hand-maintained map
+      was missed. Fixed by adding the 6 missing entries; confirmed
+      live on CrownBet that `bookieId` now resolves correctly instead
+      of `undefined`. Left a comment in the file itself calling out
+      that this map has to be kept in sync with `BETMAKER_TENANTS` by
+      hand, and what a missed entry looks like from the outside (which
+      is exactly this bug), so a future tenant addition doesn't repeat
+      it silently.
