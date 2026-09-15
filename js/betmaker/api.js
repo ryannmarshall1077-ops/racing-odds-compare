@@ -1,6 +1,7 @@
 // Shared client for every "BetMaker" white-label tenant — a whole family
 // of bookmakers (OKEbet, ReadyBet, RealBookie, BaggyBet, BetYouCan,
-// Playwest, KnuckleBet, MarantelliBet, and others) all built on the same
+// Playwest, KnuckleBet, MarantelliBet, CrownBet, Swiftbet, PonyBet,
+// BetAus, BetLocal, BetEstate, and others) all built on the same
 // underlying racing platform ("BetMaker" software, per the user's own
 // tip that kicked off this investigation), confirmed live to share:
 //   - the same GraphQL query shape (meetingsBetween) and endpoint naming
@@ -88,6 +89,51 @@ const BETMAKER_TENANTS = {
     pageDomain: "marantellibet.com",
     bmapolloSlug: "marantellibet",
     apiKey: "7kubhv2ig8v0moemo10rpmme6r",
+  },
+  // Second batch, user-requested — same platform, same discovery
+  // method (the multi-tenant config table, found this time in
+  // betestate.com.au's own build of the exact same shared client-*.js
+  // bundle), each key independently re-verified live before being
+  // trusted, same as the first batch above. CrownBet is a genuine
+  // revival of the old (pre-BetEasy-merger) brand name on this
+  // completely different, current platform — not the same company/
+  // backend as the historical CrownBet at all, confirmed by its own
+  // config entry living in this same BetMaker table.
+  crownbet: {
+    label: "CrownBet",
+    pageDomain: "crownbet.com.au",
+    bmapolloSlug: "crownbet",
+    apiKey: "1b8vvipjgq694cqt6koarsuqrj",
+  },
+  swiftbet: {
+    label: "Swiftbet",
+    pageDomain: "swiftbet.com.au",
+    bmapolloSlug: "swiftbet",
+    apiKey: "2k7qfmkk7jaisoack274e4em7i",
+  },
+  ponybet: {
+    label: "PonyBet",
+    pageDomain: "ponybet.com.au",
+    bmapolloSlug: "ponybet",
+    apiKey: "1va9olufe5nbf1r704durfkfa5",
+  },
+  betaus: {
+    label: "BetAus",
+    pageDomain: "betaus.com.au",
+    bmapolloSlug: "betaus",
+    apiKey: "1unlh0pr8481dq638rstvtar92",
+  },
+  betlocal: {
+    label: "BetLocal",
+    pageDomain: "betlocal.com.au",
+    bmapolloSlug: "betlocal",
+    apiKey: "7qqln2722af772riki0m6okfqf",
+  },
+  betestate: {
+    label: "BetEstate",
+    pageDomain: "betestate.com.au",
+    bmapolloSlug: "betestate",
+    apiKey: "7e9lk0sk43o8u3ejdivdv87j4g",
   },
 };
 
