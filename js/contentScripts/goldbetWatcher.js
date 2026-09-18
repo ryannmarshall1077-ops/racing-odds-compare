@@ -23,7 +23,14 @@
     if (!table) return [];
 
     const headerCells = [...table.querySelectorAll("thead th, thead td")].map((el) => el.textContent.trim());
-    const winIndex = headerCells.findIndex((h) => /^win$/i.test(h));
+    // User-reported: signed in, this header reads "Fixed Win" instead
+    // of the plain "WIN" every anonymous browsing session this was
+    // built/verified against ever showed — see goldbet.js's own copy
+    // of this same comment for the full story, including why "VIC
+    // Win" (a separate column that also appears once signed in — a
+    // state TOTE/parimutuel price, not fixed odds) is deliberately not
+    // matched here.
+    const winIndex = headerCells.findIndex((h) => /^(fixed\s+)?win$/i.test(h));
     if (winIndex === -1) return [];
 
     const runners = [];
