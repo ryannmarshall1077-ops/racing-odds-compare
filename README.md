@@ -4527,3 +4527,24 @@ https://developer.betfair.com/.
       content_scripts match patterns and host_permissions — no
       manifest changes needed). Verified live: the exact URL this now
       generates loads the correct race's real page directly.
+
+- [x] Added the "Upcoming Races" manual refresh button back —
+      user-requested. It used to exist (a small "↻" next to that
+      section's own heading) but was removed once the ~60s periodic
+      poll was added, on the reasoning that the poll already covered
+      the same job — brought back for whenever a user wants the list
+      current right now instead of waiting out the rest of that
+      minute (or wants to confirm a click actually did something,
+      which a periodic background poll gives no feedback for at all).
+      Spins for the duration of its own request (`loadUpcomingRaces`
+      now takes an optional completion callback purely for this,
+      ignored by every other caller — the initial load and the
+      periodic poll) as the one visible sign a click did anything,
+      since a fast, no-diff refresh would otherwise show no change in
+      the list at all; a second click while already spinning is
+      ignored rather than starting an overlapping request. Verified
+      via the local static-preview harness with a mocked, artificially
+      delayed `LIST_UPCOMING_RACES` response: the button spins and
+      disables for the exact duration of the request, a spam-click
+      while spinning doesn't trigger a second one, and it clears back
+      to normal the instant the response lands.

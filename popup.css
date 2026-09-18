@@ -251,6 +251,57 @@ h1 {
   font-weight: 500;
 }
 
+/* User-requested back — same manual "Upcoming Races" refresh this
+   sidebar used to have (removed once the ~60s periodic poll,
+   popup.js's own setInterval further down, was added to cover the
+   same job automatically) — brought back for whenever a user wants
+   the list current right now rather than waiting out the rest of that
+   minute. Same 26px icon-button visual language as #settings-btn/
+   #theme-toggle-btn above, just smaller to sit next to this section's
+   own small uppercase label instead of the sidebar's own header row. */
+#races-refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  font-size: 13px;
+}
+
+#races-refresh-btn:hover {
+  background: var(--panel-raised);
+  color: var(--text);
+}
+
+#races-refresh-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Spins for as long as the manual refresh's own request is in flight
+   (toggled in popup.js) — the one visible sign a click actually did
+   something, since a fast/empty-diff refresh would otherwise show no
+   change in the list at all. */
+#races-refresh-btn.spinning {
+  animation: races-refresh-spin 0.8s linear infinite;
+}
+
+@keyframes races-refresh-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 #race-type-filter {
   display: flex;
   align-items: center;
