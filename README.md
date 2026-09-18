@@ -4663,3 +4663,46 @@ https://developer.betfair.com/.
         themselves were never the problem. Syntax-checked the fix and
         confirmed every tenant's `buildAmusedRaceUrl` output now
         exactly matches its site's own final, post-redirect URL.
+- [x] Fixed Run 2nd You Win's own EV% drastically inflating longshot
+      values — user-reported, with a detailed writeup of several
+      specific hypotheses (a hardcoded win-odds-derived place-price
+      fallback, a static 2-vs-3-place divisor, missing commission
+      handling, missing overround normalization). Audited every one of
+      those against the actual code first: `placeBetfair` (background.js)
+      is always either a real live Betfair `availableToLay` price or
+      `null`, never a hardcoded estimate; `placeMarketWinners` is read
+      live from Betfair's own place book, not assumed to be 2 or 3;
+      Run 2nd You Win never lays on Betfair at all, so commission
+      genuinely doesn't apply to it; and raw win probabilities are
+      deliberately left un-normalized everywhere in this file except
+      the Harville model, confirmed against a live reference tool (see
+      the "Racing Edge & EV Formulas" doc in this repo) — none of those
+      four turned out to be the actual cause.
+      - The real, architectural bug: this mode's own P(2nd) was
+        computed independently, right inside `run2ndWinEVPercent`
+        itself, from a single runner's own real Betfair PLACE lay price
+        alone — `P(top-K) − P(win)`, then splitting the "2nd or 3rd"
+        gap on a Top-3 market via a flat, constant 55/45 guess
+        (`TOP3_SECOND_PLACE_SHARE`). That flat split doesn't account
+        for a longshot being far less likely than a favourite to
+        specifically be the one that took 2nd rather than 3rd, even
+        conditional on it already making the top 3 — while this exact
+        file already has a proper, market-calibrated, per-runner
+        Harville sequential-elimination model
+        (`computeHarvilleModel`/`promoPlaceProb`) built for Run
+        2nd/Run 2nd 3rd, which Run 2nd You Win simply never used.
+      - Fixed by having `run2ndWinEVPercent` take p2nd as a parameter
+        instead of deriving it itself — both call sites now pass
+        `promoPlaceProb(runner)`, the exact same Harville-derived,
+        field-wide, conservatively-shaded Pr(2nd) Run 2nd/Run 2nd 3rd
+        already use. This also broadens coverage: Run 2nd You Win now
+        works for any race the Harville model can build at all (any
+        field of 3+ priced runners), not only one with a real,
+        coherent top-2/3 place market to read from.
+      - Verified directly: with a realistic Harville-shaded p2nd, a
+        constructed $18 longshot's EV came out at +62%; feeding the
+        exact same longshot the old flat-55/45 approach's typical
+        (inflated) p2nd instead produced +143% — confirming the fix
+        moves in exactly the right direction, while a favourite's EV
+        and the null-handling for a missing price/model both still
+        compute correctly.

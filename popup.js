@@ -103,13 +103,6 @@ function promoEVPercent(betfair, bookmaker, commission, hedge, stake, retention,
   return (ev / stake) * 100;
 }
 
-// User-specified rule of thumb, used only when the real place market
-// pays 3 (not 2) — see run2ndWinEVPercent below: in a balanced field,
-// finishing 2nd is always slightly more likely than 3rd, so the
-// combined "2nd or 3rd" probability gap a Top 3 market implies is split
-// 55/45 in 2nd's favour rather than treated as an even 50/50 split.
-const TOP3_SECOND_PLACE_SHARE = 0.55;
-
 // Run 2nd You Win mode — user-specified formula (a standard "3 outcome"
 // promo-value calculator, not this file's own hedge-blended QL
 // approach): the raw, UNHEDGED expected value of taking the bookmaker
@@ -118,50 +111,59 @@ const TOP3_SECOND_PLACE_SHARE = 0.55;
 // all — commission/hedge don't enter into this, unlike every other
 // mode here.
 //
-// True probabilities are estimated the standard "no-vig" way (1 over
-// the fair price), sourced from Betfair's own markets rather than the
-// bookmaker's own (vigged) price — same convention this file already
-// uses elsewhere (e.g. Harville's own raw 1/layOdds):
+// P(2nd) used to be derived independently, right here, from a single
+// runner's own real Betfair PLACE lay price alone: P(top-K) - P(win)
+// (K = whatever the race's real place market actually pays, 2 or 3),
+// splitting the "2nd or 3rd" gap on a Top-3 market via a flat, constant
+// 55/45 guess. User-reported: this drastically inflated longshots' own
+// EV — a flat 55/45 split doesn't account for a longshot being far
+// less likely than a favourite to specifically be the one that took
+// 2nd rather than 3rd, even conditional on it already making the top
+// 3, and it went fully uncomputable (null) for any race with no real,
+// coherent top-2/3 place market to read from at all.
 //
-//   P(win)  = 1 / betfair       — Betfair's own WIN lay price.
-//   P(topK) = 1 / placeBetfair  — Betfair's own PLACE lay price, where
-//             K is whatever the real place market actually pays
-//             (currentRace.placeMarketWinners — 2 or 3; anything else,
-//             including no place market at all, leaves this whole mode
-//             uncomputable).
+// Audited against the user's own hardcoded-fallback/static-divisor/
+// commission/overround hypotheses first — none of those panned out:
+// placeBetfair (js/betfair scraping, background.js) is always either a
+// real live availableToLay price or null, never a hardcoded win-odds-
+// derived estimate; placeMarketWinners is read live from Betfair's own
+// place book (2 vs 3), not assumed; this mode never lays on Betfair at
+// all so commission genuinely doesn't apply to it; and raw win
+// probabilities are deliberately left un-normalized everywhere in this
+// file EXCEPT the Harville model below, confirmed against a live
+// reference tool (see the "Racing Edge & EV Formulas" doc in this
+// repo). The real bug was architectural: this mode never used this
+// same file's own already-built, market-calibrated Harville place
+// model (computeHarvilleModel/promoPlaceProb, used correctly by Run
+// 2nd/Run 2nd 3rd below) at all — it had its own separate, much cruder
+// one-runner-at-a-time approximation instead.
 //
-// K = 2 (a real "Top 2 Finish" market): P(topK) already isolates
-// win-or-2nd directly, so P(2nd) = P(top2) - P(win), no adjustment
-// needed.
+// Fixed by taking p2nd as a parameter instead — callers now pass
+// promoPlaceProb(runner), the exact same Harville-derived, field-wide,
+// market-calibrated (and deliberately conservative-shaded) Pr(2nd) Run
+// 2nd/Run 2nd 3rd already use. This also means Run 2nd You Win now
+// works for any race the Harville model can build at all (any field of
+// 3+ priced runners), not only one with a real, coherent top-2/3 place
+// market — broader coverage, not just better accuracy.
 //
-// K = 3 (a real "Top 3 Finish" market, the common case for a bigger
-// field): P(topK) - P(win) is the COMBINED "2nd or 3rd" probability,
-// not P(2nd) alone — split it via TOP3_SECOND_PLACE_SHARE (55/45)
-// rather than leaving the whole mode uncomputable, since a real Top 2
-// market genuinely doesn't exist for most bigger AU/NZ fields.
-//
-// Either way, P(lose) is then whatever's left over once win and 2nd
-// are both accounted for (1 - P(win) - P(2nd)) — 3rd-or-worse when
-// K=3, since the promo doesn't pay on 3rd even though the market itself
-// prices top 3 together.
+// True probabilities:
+//   P(win)  = 1 / betfair — Betfair's own WIN lay price, raw/non-
+//             normalized, same convention as every other mode here.
+//   P(2nd)  = p2nd, passed in — see above.
+//   P(lose) = whatever's left over (1 - P(win) - P(2nd)).
 //
 // Payout per outcome: the promo pays 2nd exactly like a win (full
-// price), so profitWin = profit2nd = stake × (bookmaker - 1); a loss is
-// just -stake.
+// price), so profitWin = profit2nd = stake × (bookmaker - 1).
 //
 //   EV = P(win)×profitWin + P(2nd)×profit2nd - P(lose)×stake
 //
-// null whenever there's no real 2- or 3-place market to source P(topK)
-// from, or this runner's own placeBetfair/betfair is missing — same "no
-// reliable number to show" convention used everywhere else here.
-function run2ndWinEVPercent(betfair, bookmaker, stake, placeBetfair) {
-  const winners = currentRace?.placeMarketWinners;
-  if ((winners !== 2 && winners !== 3) || placeBetfair == null || betfair == null) return null;
+// null whenever there's no Harville model for this runner at all (see
+// promoPlaceProb) or betfair itself is missing — same "no reliable
+// number to show" convention used everywhere else here.
+function run2ndWinEVPercent(betfair, bookmaker, stake, p2nd) {
+  if (p2nd == null || betfair == null) return null;
 
   const pWin = 1 / betfair;
-  const pTopK = 1 / placeBetfair;
-  const p2ndOr3rdGap = pTopK - pWin;
-  const p2nd = winners === 2 ? p2ndOr3rdGap : p2ndOr3rdGap * TOP3_SECOND_PLACE_SHARE;
   const pLose = 1 - pWin - p2nd;
 
   const profitWinOr2nd = stake * (bookmaker - 1);
@@ -1427,7 +1429,10 @@ function computeHarvilleModel(race) {
 // recomputed here. null for a runner the model above excluded (a
 // missing win price, or a field too small to model at all) — same "no
 // reliable number to show" convention a missing bookmaker price
-// already uses elsewhere.
+// already uses elsewhere. Shared by all three promo modes now (Run
+// 2nd, Run 2nd 3rd, and Run 2nd You Win's own run2ndWinEVPercent) —
+// only run2nd3rd ever wants p2+p3 combined; every other mode
+// (including run2ndwin, which pays only on exactly 2nd) wants p2 alone.
 function promoPlaceProb(runner) {
   const entry = currentHarvilleModel?.get(runner.selectionId);
   if (!entry) return null;
@@ -1451,7 +1456,7 @@ function metricPercent(runner, commission, hedge, displayedBookieIds) {
     );
   }
   if (currentMode === "run2ndwin") {
-    return run2ndWinEVPercent(runner.betfair, price, stakeAmount, runner.placeBetfair);
+    return run2ndWinEVPercent(runner.betfair, price, stakeAmount, promoPlaceProb(runner));
   }
   return currentMode === "bonus"
     ? bonusRetentionPercent(runner.betfair, price, commission, hedge)
@@ -1479,7 +1484,7 @@ function bookieMetricPercent(runner, price, commission, hedge) {
     );
   }
   if (currentMode === "run2ndwin") {
-    return run2ndWinEVPercent(runner.betfair, price, stakeAmount, runner.placeBetfair);
+    return run2ndWinEVPercent(runner.betfair, price, stakeAmount, promoPlaceProb(runner));
   }
   return currentMode === "bonus"
     ? bonusRetentionPercent(runner.betfair, price, commission, hedge)
