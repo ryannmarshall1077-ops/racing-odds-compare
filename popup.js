@@ -2245,6 +2245,7 @@ chrome.storage.local.get(["liveRace"], (stored) => {
 });
 
 const racesListEl = document.getElementById("races-list");
+const racesRefreshBtn = document.getElementById("races-refresh-btn");
 
 // Navigates the given tab to a new URL in place if it still exists, or
 // opens a fresh tab if it doesn't. Either way returns the tab id to
@@ -2762,7 +2763,12 @@ setInterval(tickCountdowns, 1000);
 // "Loading..."/error placeholder on the very first call (latestRaces
 // still empty), rather than blanking out an already-populated list (and
 // flashing it back in a moment later) on every routine background poll.
-function loadUpcomingRaces() {
+// onDone (optional) — fires once the request settles, success or
+// failure, purely so the manual refresh button (races-refresh-btn
+// below) knows when to stop spinning; every other caller here (the
+// initial load, the periodic poll) ignores it, same "loading"
+// placeholder skipped once latestRaces is already populated either way.
+function loadUpcomingRaces(onDone) {
   if (latestRaces.length === 0) {
     racesListEl.innerHTML = '<li class="races-status">Loading...</li>';
   }
@@ -2774,12 +2780,14 @@ function loadUpcomingRaces() {
           response ? response.error : "No response from background worker."
         }</li>`;
       }
+      onDone?.();
       return;
     }
 
     latestRaces = response.races;
     renderFilteredRacesList();
     if (currentRace) renderTrackRacesRow(currentRace); // other races at this track may have just appeared/dropped off
+    onDone?.();
   });
 }
 
@@ -2916,6 +2924,22 @@ const trackSearchInput = document.getElementById("track-search");
 trackSearchInput.addEventListener("input", () => {
   trackSearchQuery = trackSearchInput.value;
   renderFilteredRacesList();
+});
+
+// User-requested back — spins for the duration of the request as the
+// one visible sign the click actually did something (a fast, no-diff
+// refresh would otherwise show no change in the list at all). Guarded
+// against a spam-click starting a second overlapping request rather
+// than just disabling the button, since disabling already implies
+// that; both together would be redundant.
+racesRefreshBtn.addEventListener("click", () => {
+  if (racesRefreshBtn.classList.contains("spinning")) return;
+  racesRefreshBtn.classList.add("spinning");
+  racesRefreshBtn.disabled = true;
+  loadUpcomingRaces(() => {
+    racesRefreshBtn.classList.remove("spinning");
+    racesRefreshBtn.disabled = false;
+  });
 });
 
 loadUpcomingRaces();
