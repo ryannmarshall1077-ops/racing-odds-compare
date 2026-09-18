@@ -4579,3 +4579,51 @@ https://developer.betfair.com/.
         verify the fix end-to-end against the real signed-in page
         myself, since this project never logs into any account —
         this needs a live confirmation from the user after reloading.
+
+- [x] Fixed GoldBet's own harness races never loading, while its
+      thoroughbred and greyhound races both loaded fine — user-
+      reported. Root cause (found by reading `background.js`, not by
+      reproducing it live, since it depends on which real races
+      Sportsbet happens to have listed on a given day): Betfair itself
+      has no separate "harness" event type at all — both gallops and
+      harness/trots share its one "Horse Racing" type (see
+      `RACING_SPORTS`) — so `raceType` only ever gets corrected from
+      the generic "horse" to the more specific "harness" when
+      Sportsbet's own feed *also* independently matched that exact
+      same race as harness first (`sbMatch?.type === "harness"`).
+      GoldBet's own feed genuinely does distinguish harness itself
+      (`GOLDBET_RACE_TYPE`), but its match was still gated behind a
+      strict `e.type === raceType` check — so whenever Sportsbet
+      missed that particular race for any reason of its own, `raceType`
+      silently stayed "horse" forever, and GoldBet's own correctly-
+      labeled "harness" event could never satisfy the check, even
+      though GoldBet had the race right the whole time. The exact same
+      strict check, with the exact same Sportsbet-first dependency,
+      turned out to be shared by every other bookie that splits
+      harness out itself — Ladbrokes, Neds, PointsBet, Betr, Unibet,
+      Palmerbet, BetDeluxe, BetRight, OKEbet, and every BetMaker
+      tenant — not just GoldBet.
+      - Fixed by adding `raceTypeCandidates` right next to `raceType`
+        itself: `["horse", "harness"]` whenever Betfair's own sport is
+        the ambiguous "horse" (mirroring the `sportsbetTypes`
+        membership check already used for Sportsbet's own match
+        above it), or just `[raceType]` otherwise. Every one of the 11
+        bookie match blocks listed above now checks
+        `raceTypeCandidates.includes(e.type)` instead of the strict
+        equality, so each bookie's own harness classification is
+        trusted directly rather than depending on Sportsbet's own
+        match having already succeeded for that same race. Safe to
+        widen like this because venue + race number + the existing
+        5-minute start-time tolerance already rule out a real harness
+        meeting cross-matching a real thoroughbred one that happens to
+        share a venue/race number/time, which doesn't happen in
+        practice.
+      - Verified the syntax and the exact logic change (a mocked
+        `sbMatch`-missed scenario correctly flips the match from
+        failing to succeeding, while a normal Sportsbet-matched
+        scenario and greyhound races are both unaffected) directly,
+        since no tooling available this session can attach to the
+        real running extension or control which real races Sportsbet
+        lists on a given day — this needs a live confirmation from the
+        user after reloading, ideally against a harness race that was
+        actually failing before.
