@@ -24,29 +24,40 @@
 // js/contentScripts/amusedWatcher.js instead, same "don't touch known-
 // working shipped code" reasoning js/betmaker/api.js's own comment
 // already documents for OKEbet.
+// Every one of these needs the "www." prefix baked in here — confirmed
+// live, every one of these bare domains (e.g. "bigbet.com.au") 301-
+// redirects to its own "www." version. That alone is harmless for a
+// plain manual visit (the browser just follows the redirect once and
+// stops), which is exactly why this was first mistaken for a
+// BetNation-only bug (see the git history for that PR): a one-off
+// manual test of the other 8 tenants at the time didn't turn up
+// anything wrong.
+//
+// The real, extension-specific problem only shows up once
+// background.js's own drift detection (ensureBookieTabMatchesExpectedUrl
+// / the check inside applyBookieOdds — added to catch a tab silently
+// wandering to the wrong race) is in the loop: `${bookieId}ExpectedUrl`
+// gets stored as whatever buildAmusedRaceUrl below generated, which
+// used to be the bare domain for 8 of these 9 tenants. The tab actually
+// lands on the "www." version after the site's own redirect, so every
+// single drift check saw that as a mismatch and re-navigated back to
+// the bare URL — which redirects to "www." again — forever. User-
+// reported as "it spins and nothing loads, but only when it opens
+// automatically" (never when opened manually), which is exactly this
+// self-inflicted reload loop: a human never triggers the periodic
+// re-check that causes it. Baking "www." in here directly makes
+// expectedUrl match the tab's real, final URL from the start, so the
+// drift check never sees a mismatch and never re-navigates at all.
 const AMUSED_TENANTS = {
-  // BetNation specifically needs the "www." prefix baked in here —
-  // confirmed live: a cold direct navigation (exactly what
-  // chrome.tabs.create/chrome.tabs.update do, unlike an in-page link
-  // click) to a bare "betnation.com.au/racing/..." URL redirects to
-  // its own bare homepage, silently dropping the whole race path —
-  // "www.betnation.com.au" itself has no such issue, so requesting
-  // that host directly just skips the broken hop entirely. User-
-  // reported ("betnation doesn't open into the correct race" — every
-  // race, not one specific one, which is what pointed at BetNation's
-  // own routing rather than the shared meetId/raceId matching every
-  // other Amused tenant already gets right). Checked live against
-  // every other Amused tenant too — none of the other 8 have this
-  // same bare-domain redirect bug, so this fix is BetNation-only.
   betnation: { label: "BetNation", pageDomain: "www.betnation.com.au" },
-  bigbet: { label: "BigBet", pageDomain: "bigbet.com.au" },
-  surge: { label: "Surge", pageDomain: "surge.com.au" },
-  noisy: { label: "Noisy", pageDomain: "noisy.com.au" },
-  pulsebet: { label: "PulseBet", pageDomain: "pulsebet.com.au" },
-  betjet: { label: "BetJet", pageDomain: "betjet.com.au" },
-  mightybet: { label: "MightyBet", pageDomain: "mightybet.com.au" },
-  betexpress: { label: "BetExpress", pageDomain: "betexpress.com.au" },
-  yesbet: { label: "YesBet", pageDomain: "yesbet.com.au" },
+  bigbet: { label: "BigBet", pageDomain: "www.bigbet.com.au" },
+  surge: { label: "Surge", pageDomain: "www.surge.com.au" },
+  noisy: { label: "Noisy", pageDomain: "www.noisy.com.au" },
+  pulsebet: { label: "PulseBet", pageDomain: "www.pulsebet.com.au" },
+  betjet: { label: "BetJet", pageDomain: "www.betjet.com.au" },
+  mightybet: { label: "MightyBet", pageDomain: "www.mightybet.com.au" },
+  betexpress: { label: "BetExpress", pageDomain: "www.betexpress.com.au" },
+  yesbet: { label: "YesBet", pageDomain: "www.yesbet.com.au" },
 };
 
 // Same case-sensitive path segment BETDELUXE_URL_SEGMENT (js/betdeluxe/

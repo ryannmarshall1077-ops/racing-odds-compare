@@ -4627,3 +4627,39 @@ https://developer.betfair.com/.
         lists on a given day — this needs a live confirmation from the
         user after reloading, ideally against a harness race that was
         actually failing before.
+
+- [x] Fixed 8 Amused/Black Stream tenants (BigBet, Surge, Noisy,
+      PulseBet, BetJet, MightyBet, BetExpress, YesBet) spinning
+      forever and never loading their own race tab — but only when the
+      extension opened the tab itself; opening the exact same URL
+      manually always worked fine, which is what pointed away from a
+      simple broken-URL bug. Root cause: every one of these bare
+      domains (confirmed live, e.g. `bigbet.com.au`) 301-redirects to
+      its own "www." version — harmless for a manual visit, which just
+      follows the redirect once and stops. But `AMUSED_TENANTS` built
+      each tenant's race URL from the bare domain, and that's exactly
+      what got stored as `${bookieId}ExpectedUrl` by the tab-drift
+      detection added earlier this session (`ensureBookieTabMatchesExpectedUrl`
+      / the check inside `applyBookieOdds`). Once the tab actually
+      landed on the "www." version (the site's own redirect), every
+      drift check saw a mismatch against the bare `expectedUrl` and
+      re-navigated back to the bare URL — which redirects to "www."
+      again — forever. A human opening the link manually never
+      triggers that periodic re-check at all, which is exactly why it
+      only broke when the extension opened it automatically.
+      - Fixed by baking "www." directly into all 8 tenants'
+        `pageDomain` in `AMUSED_TENANTS` (BetNation already had this,
+        for what turned out to almost certainly be the same underlying
+        redirect-loop mechanism, previously mis-attributed to a
+        BetNation-specific routing bug). `manifest.json` already
+        covers both the bare and "www." variants for all 8 domains, so
+        no manifest changes were needed.
+      - Verified live: confirmed the bare-domain 301-redirect for
+        BigBet and Surge directly, then reproduced the reported
+        symptom exactly — opened all 8 tenants' own real, currently-
+        live races as a simultaneous burst of new tabs (matching how
+        the extension opens them), and every one loaded correctly
+        under that same burst load, meaning the destination pages
+        themselves were never the problem. Syntax-checked the fix and
+        confirmed every tenant's `buildAmusedRaceUrl` output now
+        exactly matches its site's own final, post-redirect URL.
