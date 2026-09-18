@@ -4663,3 +4663,37 @@ https://developer.betfair.com/.
         themselves were never the problem. Syntax-checked the fix and
         confirmed every tenant's `buildAmusedRaceUrl` output now
         exactly matches its site's own final, post-redirect URL.
+
+- [x] Fixed every bookie's race table needing a manual tab reload
+      before its odds would ever show up — user-reported ("why do I
+      have to reload every tab to get the race table to display the
+      odds"). A second self-inflicted side effect of the same
+      tab-drift detection behind the fix just above (and the earlier
+      GoldBet tab-drift fix it came from): `openRaceTabs` (popup.js)
+      used to only write each bookie's own `${bookieId}ExpectedUrl` as
+      part of one single batched `chrome.storage.local.set(updates)`
+      call at the very end of its own loop over every bookie being
+      opened. A bookie's tab starts loading (and its own persistent
+      watcher can push its first real scrape) the instant
+      `openOrNavigateTab` runs for it — often faster than this
+      function can finish looping over every other bookie still left
+      to open. That first real scrape reached `applyBookieOdds`
+      (background.js) before its own `expectedUrl` had actually been
+      written yet, saw a mismatch against a stale value (left over
+      from whatever race was open before) or nothing at all, and got
+      silently discarded rather than ever reaching `bookmakerOdds` —
+      exactly what a manual reload fixed, since by the time a
+      reloaded tab's own first scrape arrives, `openRaceTabs` has long
+      since finished and `expectedUrl` is already correct.
+      - Fixed by writing every bookie's `expectedUrl` to storage
+        *before* any tab is opened or navigated at all: one upfront
+        batch for every bookie whose URL is already known from the
+        race object itself, plus one immediate write for each of
+        TAB/TABtouch/Picklebet/BetCloud specifically (their own URLs
+        only resolve via an async round trip inside the loop) right
+        after that URL resolves, still strictly before that bookie's
+        own tab is navigated.
+      - Verified the fix's syntax directly; the ordering itself is
+        straightforward to read from the diff (every `expectedUrl`
+        write now happens before its own `openOrNavigateTab` call,
+        never after) rather than needing a separate executable test.

@@ -2312,6 +2312,29 @@ async function openRaceTabs(race) {
   const tabIdKeys = bookiesToOpen.map((b) => `${b.id}TabId`);
   const stored = await chrome.storage.local.get(["betfairTabId", ...tabIdKeys]);
 
+  // Written before ANY tab below is actually opened/navigated — a
+  // tab's own live watcher can push its first real scrape the instant
+  // its page loads, often faster than this whole function finishes
+  // looping over every other bookie further down. If a bookie's own
+  // expectedUrl were only written at the very end (the single
+  // chrome.storage.local.set(updates) below, after every bookie's tab
+  // has been opened), that first real scrape could arrive at
+  // applyBookieOdds (background.js) before its own expectedUrl had
+  // been recorded — comparing against a stale value left over from
+  // whatever race was selected before this one, or against nothing at
+  // all on a fresh session — see a mismatch, and get silently
+  // discarded rather than ever reaching bookmakerOdds. User-reported
+  // as "have to reload every tab to get the race table to display the
+  // odds," which is exactly what reloading fixes: by the time a
+  // manual reload's own first scrape arrives, this write has long
+  // since finished, so the very same check passes.
+  const expectedUrlUpdates = {};
+  for (const bookie of bookiesToOpen) {
+    const url = race[`${bookie.id}Url`];
+    if (url) expectedUrlUpdates[`${bookie.id}ExpectedUrl`] = url;
+  }
+  await chrome.storage.local.set(expectedUrlUpdates);
+
   const betfairTabId = await openOrNavigateTab(stored.betfairTabId, race.betfairUrl, {
     pinned: currentSettings.pinRaceTabs,
     active: currentSettings.focusRaceTabsOnOpen,
@@ -2412,28 +2435,21 @@ async function openRaceTabs(race) {
       });
     }
 
+    // TAB/TABtouch/Picklebet/BetCloud specifically: url wasn't known
+    // upfront (it's resolved via the ENSURE_* round trip just above),
+    // so it couldn't have been included in expectedUrlUpdates' own
+    // batch above — written here instead, same reasoning as that
+    // batch, still strictly before openOrNavigateTab below actually
+    // navigates this bookie's own tab.
+    if (url && !expectedUrlUpdates[`${bookie.id}ExpectedUrl`]) {
+      await chrome.storage.local.set({ [`${bookie.id}ExpectedUrl`]: url });
+    }
+
     updates[tabIdKey] = url
       ? await openOrNavigateTab(stored[tabIdKey], url, {
           pinned: currentSettings.pinRaceTabs,
         })
       : stored[tabIdKey];
-
-    // Recorded only when we actually navigated the tab somewhere (a
-    // real, matched url) — background.js's own auto-refresh tick reads
-    // this back (ensureBookieTabMatchesExpectedUrl) to notice if the
-    // bookie's own page has since navigated ITSELF away (confirmed
-    // live on GoldBet: its "next to race" carousel auto-advances once
-    // the loaded race jumps/results, taking the tab to a completely
-    // different, unrelated race with no warning — user-reported as
-    // "not displaying odds," traced to exactly this: the watcher kept
-    // scraping real prices, just for the wrong race, so every runner
-    // name match against the actually-selected race silently failed).
-    // liveRace itself (unlike this race object, straight from the
-    // sidebar's own listUpcomingRacesInner) carries no per-bookie url
-    // fields at all — see openRaceTabs' other call sites, all fed by
-    // liveRace via currentRace — so this is the only point that ever
-    // knows the right answer to re-assert.
-    if (url) updates[`${bookie.id}ExpectedUrl`] = url;
   }
 
   await chrome.storage.local.set(updates);
