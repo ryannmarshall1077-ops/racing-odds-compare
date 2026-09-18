@@ -4548,3 +4548,34 @@ https://developer.betfair.com/.
       disables for the exact duration of the request, a spam-click
       while spinning doesn't trigger a second one, and it clears back
       to normal the instant the response lands.
+
+- [x] Fixed GoldBet showing every runner's own real name but a blank
+      price for all of them — user-reported, and a genuinely new root
+      cause after an extensive live-diagnosis session (the tab was
+      confirmed, via the user's own service worker console, to be
+      correctly tracked and sitting on exactly the right race the
+      whole time — ruling out both of GoldBet's earlier bugs this
+      session, the auto-navigating-away tab and the missing hostname
+      map). The actual cause: **signed in**, GoldBet's own runners
+      table header reads "Fixed Win" (plus a separate "VIC Win" state
+      TOTE/parimutuel column) instead of the plain "WIN" every
+      anonymous session this scraper was ever built/verified against
+      showed — this codebase never logs into any account itself, so
+      that state was never actually seen live until the user's own
+      screenshot caught it. `goldbet.js`/`goldbetWatcher.js`'s own
+      exact-match header search (`/^win$/i`) found nothing at all
+      once signed in, so `winIndex` stayed `-1` and every runner's own
+      price came back blank — the runner NAMES still resolved fine
+      (a separate, unaffected part of the same row), which is exactly
+      the "right names, blank prices" symptom reported.
+      - Fixed by widening the header match to `/^(fixed\s+)?win$/i` —
+        matches plain "WIN" (anonymous) or "Fixed Win" (signed in)
+        while deliberately NOT matching "VIC Win", a genuinely
+        different product (a state tote price) from the fixed odds
+        every other bookie in this extension is compared by.
+      - Verified the regex itself against both known header sets
+        (confirmed live via the user's own screenshot for the signed-
+        in one) — resolves to the right index for each. Could not
+        verify the fix end-to-end against the real signed-in page
+        myself, since this project never logs into any account —
+        this needs a live confirmation from the user after reloading.

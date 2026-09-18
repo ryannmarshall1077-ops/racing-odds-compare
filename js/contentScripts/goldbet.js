@@ -15,7 +15,16 @@
 
   if (table) {
     const headerCells = [...table.querySelectorAll("thead th, thead td")].map((el) => el.textContent.trim());
-    const winIndex = headerCells.findIndex((h) => /^win$/i.test(h));
+    // User-reported: signed in, this header reads "Fixed Win" instead
+    // of the plain "WIN" every anonymous browsing session this was
+    // built/verified against ever showed — this codebase never logs
+    // into an account itself, so that state was never actually seen
+    // live until now. A separate "VIC Win" column also appears once
+    // signed in (a state-specific TOTE/parimutuel price, a genuinely
+    // different product) — deliberately NOT matched here, so this
+    // still finds the fixed-odds price every other bookie in this
+    // extension is compared by, not that one.
+    const winIndex = headerCells.findIndex((h) => /^(fixed\s+)?win$/i.test(h));
 
     if (winIndex !== -1) {
       for (const row of table.querySelectorAll("tbody tr")) {
