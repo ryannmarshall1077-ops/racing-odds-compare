@@ -1735,17 +1735,40 @@ async function listUpcomingRacesInner() {
       // anything the UI wasn't already flagging as uncertain.
       const raceType = sport.id === "horse" && sbMatch?.type === "harness" ? "harness" : sport.id;
 
+      // Every bookie below that splits horse/harness itself (Ladbrokes,
+      // Neds, PointsBet, Betr, Unibet, Palmerbet, BetDeluxe, BetRight,
+      // GoldBet, OKEbet, BetMaker) used to check e.type === raceType
+      // directly — but raceType only ever becomes "harness" when
+      // sbMatch above happened to independently match that exact same
+      // race first (see the comment above raceType). If Sportsbet's own
+      // feed missed that race for any reason, raceType silently stayed
+      // "horse" forever, and a bookie's own correctly-labeled "harness"
+      // event could then never match — reported live as "GoldBet
+      // harness races don't load" even though GoldBet's own listing had
+      // the race right the whole time. raceTypeCandidates fixes this by
+      // accepting either "horse" or "harness" whenever Betfair's own
+      // ambiguous "horse" sport is in play (Betfair itself never splits
+      // them — see the comment above), so each bookie's own match no
+      // longer depends on Sportsbet's own success. Safe to widen like
+      // this because venue + race number + 5-minute start-time tolerance
+      // already disambiguate a real harness meeting from a real
+      // thoroughbred one sharing the same venue/race number/time, which
+      // in practice doesn't happen.
+      const raceTypeCandidates = sport.id === "horse" ? ["horse", "harness"] : [raceType];
+
       // Ladbrokes' own feed (js/ladbrokes/api.js) already splits into
       // horse/greyhound/harness buckets itself (unlike Sportsbet's flat
-      // list), so e.type === raceType is a direct check here, no separate
-      // membership list needed the way sportsbetTypes is above. Same
-      // whole-word-prefix venue matching (namesMatch, not ===) and 5-minute
-      // start-time tolerance as sbMatch, for the same reason — Ladbrokes'
-      // own meeting name isn't always Betfair's plain venue name either
-      // (e.g. "Ladbrokes Geelong" vs Betfair's plain "Geelong").
+      // list), so raceTypeCandidates.includes(e.type) is a direct
+      // membership check here (see raceTypeCandidates' own comment above
+      // for why a membership check replaced a strict equality check).
+      // Same whole-word-prefix venue matching (namesMatch, not ===) and
+      // 5-minute start-time tolerance as sbMatch, for the same reason —
+      // Ladbrokes' own meeting name isn't always Betfair's plain venue
+      // name either (e.g. "Ladbrokes Geelong" vs Betfair's plain
+      // "Geelong").
       const lbMatch = ladbrokesEvents.find(
         (e) =>
-          e.type === raceType &&
+          raceTypeCandidates.includes(e.type) &&
           namesMatch(
             stripLadbrokesBrandPrefix(normalizeVenue(e.meetingName)),
             normalizeVenue(track)
@@ -1761,7 +1784,7 @@ async function listUpcomingRacesInner() {
       // already bare (e.g. "Corowa", "Sandown Park").
       const nedsMatch = nedsEvents.find(
         (e) =>
-          e.type === raceType &&
+          raceTypeCandidates.includes(e.type) &&
           namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
           e.raceNumber === raceNumber &&
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
@@ -1771,7 +1794,7 @@ async function listUpcomingRacesInner() {
       // as nedsMatch above — every PointsBet venue seen was already bare).
       const pbMatch = pointsbetEvents.find(
         (e) =>
-          e.type === raceType &&
+          raceTypeCandidates.includes(e.type) &&
           namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
           e.raceNumber === raceNumber &&
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
@@ -1781,7 +1804,7 @@ async function listUpcomingRacesInner() {
       // venue name (confirmed live across a full day's AU meetings).
       const betrMatch = betrEvents.find(
         (e) =>
-          e.type === raceType &&
+          raceTypeCandidates.includes(e.type) &&
           namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
           e.raceNumber === raceNumber &&
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
@@ -1793,7 +1816,7 @@ async function listUpcomingRacesInner() {
       // Betfair's own venue names).
       const unibetMatch = unibetEvents.find(
         (e) =>
-          e.type === raceType &&
+          raceTypeCandidates.includes(e.type) &&
           namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
           e.raceNumber === raceNumber &&
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
@@ -1805,7 +1828,7 @@ async function listUpcomingRacesInner() {
       // names — only non-AU venues get a " - <country>" suffix at all).
       const palmerbetMatch = palmerbetEvents.find(
         (e) =>
-          e.type === raceType &&
+          raceTypeCandidates.includes(e.type) &&
           namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
           e.raceNumber === raceNumber &&
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
@@ -1817,7 +1840,7 @@ async function listUpcomingRacesInner() {
       // Betfair's own venue names).
       const betdeluxeMatch = betdeluxeEvents.find(
         (e) =>
-          e.type === raceType &&
+          raceTypeCandidates.includes(e.type) &&
           namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
           e.raceNumber === raceNumber &&
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
@@ -1859,7 +1882,7 @@ async function listUpcomingRacesInner() {
       // came back exactly as plain as Betfair's own venue names).
       const betrightMatch = betrightEvents.find(
         (e) =>
-          e.type === raceType &&
+          raceTypeCandidates.includes(e.type) &&
           namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
           e.raceNumber === raceNumber &&
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
@@ -1871,7 +1894,7 @@ async function listUpcomingRacesInner() {
       // as Betfair's own venue names).
       const goldbetMatch = goldbetEvents.find(
         (e) =>
-          e.type === raceType &&
+          raceTypeCandidates.includes(e.type) &&
           namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
           e.raceNumber === raceNumber &&
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
@@ -1882,7 +1905,7 @@ async function listUpcomingRacesInner() {
       // exactly as plain as Betfair's own venue names).
       const okebetMatch = okebetEvents.find(
         (e) =>
-          e.type === raceType &&
+          raceTypeCandidates.includes(e.type) &&
           namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
           e.raceNumber === raceNumber &&
           Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
@@ -1897,7 +1920,7 @@ async function listUpcomingRacesInner() {
         Object.entries(BETMAKER_TENANTS).map(([id, tenantConfig]) => {
           const match = (betmakerEventsByBookie[id] || []).find(
             (e) =>
-              e.type === raceType &&
+              raceTypeCandidates.includes(e.type) &&
               namesMatch(normalizeVenue(e.meetingName), normalizeVenue(track)) &&
               e.raceNumber === raceNumber &&
               Math.abs(e.startTimeMs - startTimeMs) < 5 * 60 * 1000
