@@ -103,76 +103,6 @@ function promoEVPercent(betfair, bookmaker, commission, hedge, stake, retention,
   return (ev / stake) * 100;
 }
 
-// Run 2nd You Win mode — user-specified formula (a standard "3 outcome"
-// promo-value calculator, not this file's own hedge-blended QL
-// approach): the raw, UNHEDGED expected value of taking the bookmaker
-// bet at face value, weighting its three real outcomes (win, 2nd,
-// anything else) by their own true probabilities. No Betfair lay at
-// all — commission/hedge don't enter into this, unlike every other
-// mode here.
-//
-// P(2nd) used to be derived independently, right here, from a single
-// runner's own real Betfair PLACE lay price alone: P(top-K) - P(win)
-// (K = whatever the race's real place market actually pays, 2 or 3),
-// splitting the "2nd or 3rd" gap on a Top-3 market via a flat, constant
-// 55/45 guess. User-reported: this drastically inflated longshots' own
-// EV — a flat 55/45 split doesn't account for a longshot being far
-// less likely than a favourite to specifically be the one that took
-// 2nd rather than 3rd, even conditional on it already making the top
-// 3, and it went fully uncomputable (null) for any race with no real,
-// coherent top-2/3 place market to read from at all.
-//
-// Audited against the user's own hardcoded-fallback/static-divisor/
-// commission/overround hypotheses first — none of those panned out:
-// placeBetfair (js/betfair scraping, background.js) is always either a
-// real live availableToLay price or null, never a hardcoded win-odds-
-// derived estimate; placeMarketWinners is read live from Betfair's own
-// place book (2 vs 3), not assumed; this mode never lays on Betfair at
-// all so commission genuinely doesn't apply to it; and raw win
-// probabilities are deliberately left un-normalized everywhere in this
-// file EXCEPT the Harville model below, confirmed against a live
-// reference tool (see the "Racing Edge & EV Formulas" doc in this
-// repo). The real bug was architectural: this mode never used this
-// same file's own already-built, market-calibrated Harville place
-// model (computeHarvilleModel/promoPlaceProb, used correctly by Run
-// 2nd/Run 2nd 3rd below) at all — it had its own separate, much cruder
-// one-runner-at-a-time approximation instead.
-//
-// Fixed by taking p2nd as a parameter instead — callers now pass
-// promoPlaceProb(runner), the exact same Harville-derived, field-wide,
-// market-calibrated (and deliberately conservative-shaded) Pr(2nd) Run
-// 2nd/Run 2nd 3rd already use. This also means Run 2nd You Win now
-// works for any race the Harville model can build at all (any field of
-// 3+ priced runners), not only one with a real, coherent top-2/3 place
-// market — broader coverage, not just better accuracy.
-//
-// True probabilities:
-//   P(win)  = 1 / betfair — Betfair's own WIN lay price, raw/non-
-//             normalized, same convention as every other mode here.
-//   P(2nd)  = p2nd, passed in — see above.
-//   P(lose) = whatever's left over (1 - P(win) - P(2nd)).
-//
-// Payout per outcome: the promo pays 2nd exactly like a win (full
-// price), so profitWin = profit2nd = stake × (bookmaker - 1).
-//
-//   EV = P(win)×profitWin + P(2nd)×profit2nd - P(lose)×stake
-//
-// null whenever there's no Harville model for this runner at all (see
-// promoPlaceProb) or betfair itself is missing — same "no reliable
-// number to show" convention used everywhere else here.
-function run2ndWinEVPercent(betfair, bookmaker, stake, p2nd) {
-  if (p2nd == null || betfair == null) return null;
-
-  const pWin = 1 / betfair;
-  const pLose = 1 - pWin - p2nd;
-
-  const profitWinOr2nd = stake * (bookmaker - 1);
-
-  const ev = pWin * profitWinOr2nd + p2nd * profitWinOr2nd - pLose * stake;
-
-  return (ev / stake) * 100;
-}
-
 // Populated once loadSettings() resolves (see the bottom of this file) —
 // starts at DEFAULT_SETTINGS so anything reading it before then (tab
 // opening, countdown rendering) still gets sane values rather than
@@ -411,13 +341,11 @@ let hedgePercent = 100;
 let stakeAmount = 50;
 
 // "mug" (standard Win back+lay), "bonus" (SNR free/bonus bet
-// retention), "run2nd" (qualifying bet + a bonus bet only if 2nd),
-// "run2nd3rd" (same, but 2nd or 3rd) — see promoEVPercent for these two
-// — or "run2ndwin" (same 2nd-place trigger as run2nd, but the bookmaker
-// pays out the FULL win price as real cash instead of a bonus-bet
-// refund — see run2ndWinEVPercent). Determines both which formula the
-// Lay $ and metric columns use, and what the metric column is even
-// called (Edge/Ret%/EV%). Persists the same way as the other controls.
+// retention), "run2nd" (qualifying bet + a bonus bet only if 2nd), or
+// "run2nd3rd" (same, but 2nd or 3rd) — see promoEVPercent for these
+// two. Determines both which formula the Lay $ and metric columns use,
+// and what the metric column is even called (Edge/Ret%/EV%). Persists
+// the same way as the other controls.
 let currentMode = "mug";
 
 // Which race types show up in the Upcoming Races list — "horse", "harness",
@@ -1429,10 +1357,8 @@ function computeHarvilleModel(race) {
 // recomputed here. null for a runner the model above excluded (a
 // missing win price, or a field too small to model at all) — same "no
 // reliable number to show" convention a missing bookmaker price
-// already uses elsewhere. Shared by all three promo modes now (Run
-// 2nd, Run 2nd 3rd, and Run 2nd You Win's own run2ndWinEVPercent) —
-// only run2nd3rd ever wants p2+p3 combined; every other mode
-// (including run2ndwin, which pays only on exactly 2nd) wants p2 alone.
+// already uses elsewhere. Shared by both promo modes — only run2nd3rd
+// ever wants p2+p3 combined; run2nd wants p2 alone.
 function promoPlaceProb(runner) {
   const entry = currentHarvilleModel?.get(runner.selectionId);
   if (!entry) return null;
@@ -1454,9 +1380,6 @@ function metricPercent(runner, commission, hedge, displayedBookieIds) {
       currentSettings.defaultRetention,
       promoPlaceProb(runner)
     );
-  }
-  if (currentMode === "run2ndwin") {
-    return run2ndWinEVPercent(runner.betfair, price, stakeAmount, promoPlaceProb(runner));
   }
   return currentMode === "bonus"
     ? bonusRetentionPercent(runner.betfair, price, commission, hedge)
@@ -1483,23 +1406,13 @@ function bookieMetricPercent(runner, price, commission, hedge) {
       promoPlaceProb(runner)
     );
   }
-  if (currentMode === "run2ndwin") {
-    return run2ndWinEVPercent(runner.betfair, price, stakeAmount, promoPlaceProb(runner));
-  }
   return currentMode === "bonus"
     ? bonusRetentionPercent(runner.betfair, price, commission, hedge)
     : edgePercent(runner.betfair, price, commission, hedge);
 }
 
-// Run 2nd You Win has no lay/hedge at all in its own model (see
-// run2ndWinEVPercent) — null here, not a plain layStake figure that
-// would misleadingly imply a Betfair lay is actually part of this
-// mode's strategy. Rendered as "—" the same way every other missing
-// number already is (renderRace's own row-building, and liabilityFor
-// right below).
 function rowLayDollars(runner, commission, hedge, displayedBookieIds) {
   const price = bestBookmakerPrices(runner, displayedBookieIds).price ?? 0;
-  if (currentMode === "run2ndwin") return null;
   return currentMode === "bonus"
     ? layStakeBonus(stakeAmount, runner.betfair, price, commission, hedge)
     : layStake(stakeAmount, runner.betfair, price, commission, hedge);
@@ -1581,12 +1494,12 @@ function backLayCellHtml(backPrice, backLiquidity, layPrice, layLiquidity) {
 }
 
 // Which of the Settings > EV Colours and Thresholds per-band keys applies
-// to the current Mode — Run 2nd 3rd/Run 2nd/Run 2nd You Win share "promo"
-// (one threshold set, not three) since none of them has a verified EV
-// formula yet to actually tell them apart by.
+// to the current Mode — Run 2nd 3rd/Run 2nd share "promo" (one
+// threshold set, not two) since neither has a verified EV formula yet
+// to actually tell them apart by.
 function edgeThresholdKey(mode) {
   if (mode === "bonus") return "bonus";
-  if (mode === "run2nd3rd" || mode === "run2nd" || mode === "run2ndwin") return "promo";
+  if (mode === "run2nd3rd" || mode === "run2nd") return "promo";
   return "mug";
 }
 
@@ -1701,12 +1614,9 @@ function bestPriceCellHtml(price, badgesHtml, metric) {
 }
 
 // What you'd owe if the lay bet loses (the backed selection wins) — the
-// standard exchange lay-liability formula, stake × (odds - 1). Normally
-// always computable from data already on the row (no "genuinely absent"
-// case), since it's derived from our own Lay $, not scraped — except
-// Run 2nd You Win, whose own model has no lay at all (rowLayDollars
-// returns null for it), so there's genuinely nothing to owe a figure
-// for here either.
+// standard exchange lay-liability formula, stake × (odds - 1). Always
+// computable from data already on the row (no "genuinely absent" case),
+// since it's derived from our own Lay $, not scraped.
 function liabilityFor(layDollars, betfairOdds) {
   if (layDollars == null) return null;
   return layDollars * (betfairOdds - 1);
@@ -1913,10 +1823,9 @@ function renderRace(race) {
 
   // Max liability filters displayed rows entirely (not just a visual
   // flag), per the Settings page's own description of the setting. A
-  // null liability (Run 2nd You Win's own model has no lay at all — see
-  // liabilityFor) is left in rather than filtered out either way: there's
-  // genuinely no number to compare against the threshold, not a real
-  // zero.
+  // null liability is left in rather than filtered out either way:
+  // there's genuinely no number to compare against the threshold, not
+  // a real zero.
   if (currentSettings.maxLiability !== null) {
     rows = rows.filter((r) => r.liability == null || r.liability <= currentSettings.maxLiability);
   }
@@ -3167,7 +3076,7 @@ const TUTORIAL_STEPS = [
   },
   {
     title: "Mode Toggle Switches",
-    body: "These pick which promotion Edge%/Lay $ are worked out for — switch to whichever one matches the deal you're actually using. Mug: an ordinary back-and-lay bet, no promo — the everyday default. Bonus: a stake-not-returned free bet a bookmaker's credited you. Run 2nd 3rd / Run 2nd: a normal bet that also earns a bonus bet if your selection runs 2nd (or 2nd/3rd) — switch to whichever matches that promo's own placings. Run 2nd You Win: for the rarer promo where 2nd place gets paid the FULL win amount in real cash, not just a bonus bet.",
+    body: "These pick which promotion Edge%/Lay $ are worked out for — switch to whichever one matches the deal you're actually using. Mug: an ordinary back-and-lay bet, no promo — the everyday default. Bonus: a stake-not-returned free bet a bookmaker's credited you. Run 2nd 3rd / Run 2nd: a normal bet that also earns a bonus bet if your selection runs 2nd (or 2nd/3rd) — switch to whichever matches that promo's own placings.",
     target: () => document.getElementById("mode-tabs"),
   },
   {
