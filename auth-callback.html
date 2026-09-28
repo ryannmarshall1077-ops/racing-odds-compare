@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<!--
+  Discord login gate (see popup.js's own "Discord login gate" comment
+  for the full story) — user-requested this happen in the same window
+  rather than chrome.identity.launchWebAuthFlow's own separate auth
+  window, which is what caused several confusing "stuck"/"only one web
+  auth flow allowed" reports while testing that version live. Supabase
+  redirects the CURRENT tab straight to this page once Discord login
+  finishes (redirect_to, set by loginWithDiscord in popup.js) — its
+  only job is auth-callback.js's own: read the session out of this
+  page's own URL fragment, store it, then hand off to the real UI.
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Signing in…</title>
+  </head>
+  <body>
+    <script src="auth-callback.js"></script>
+  </body>
+</html>

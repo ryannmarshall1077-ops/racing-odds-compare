@@ -4758,6 +4758,50 @@ https://developer.betfair.com/.
         shows an error message without leaving the button stuck
         disabled.
 
+- [x] Switched the Discord login gate to a same-window flow —
+      user-requested after live testing of the previous
+      `chrome.identity.launchWebAuthFlow` version surfaced several
+      rounds of confusing "it's stuck"/"only one web auth flow is
+      allowed at a time" errors, all tracing back to the same root
+      cause: that API always opens its own separate browser window for
+      the auth flow, with no option to render it inline — a window the
+      user didn't notice opening (and which then blocked every
+      subsequent attempt, since Chrome only allows one in flight per
+      extension at a time).
+      - Replaced it with a plain same-tab navigation: `loginWithDiscord`
+        (popup.js) now just sets `window.location.href` to Supabase's
+        own `/auth/v1/authorize` endpoint, with `redirect_to` pointing
+        at a new `auth-callback.html`/`auth-callback.js` — the same tab
+        navigates through Discord and back the whole way, no separate
+        window at all. That callback page reads the session straight
+        out of its own URL fragment (same Supabase GoTrue shape as
+        before), stores it, and hands off to `popup.html`.
+      - `auth-callback.html`/`.js` had to be added to manifest.json's
+        `web_accessible_resources` (scoped to Supabase's own domain
+        only, not any arbitrary site) — without that, Chrome refuses
+        to let Supabase's own redirect land on an extension page at
+        all. The `"identity"` permission was removed entirely, since
+        nothing here uses `chrome.identity` any more.
+      - The Supabase project's Redirect URLs allow-list needs updating
+        to match: `chrome-extension://lafmmjlbaofknjikemghdhikojdnlkhp/auth-callback.html`
+        (replacing the old `chromiumapp.org` address the previous
+        version needed) — that extension id is stable across every
+        real install (computed directly from manifest.json's own
+        pinned `"key"`, confirmed by recomputing it independently),
+        not something that varies per machine.
+      - Verified directly: extracted `loginWithDiscord`'s own URL-
+        building logic with a mocked `window.location`/`chrome.runtime`
+        and confirmed the exact constructed URL and encoding; extracted
+        `auth-callback.js`'s own body and confirmed both a successful
+        callback (stores the session, redirects to popup.html) and a
+        failed one (Discord/Supabase sending an error back instead of
+        a token — stores nothing, still redirects safely to the login
+        screen rather than pretending to be signed in) behave
+        correctly. Couldn't test the real live Discord/Supabase round
+        trip itself this session (no test account), so this still
+        needs a live check once the Supabase redirect URL above is
+        added.
+
 - [x] Moved the once-a-day TAB/TABtouch/Picklebet/BetCloud venue-code
       scans into a shared, minimized background window instead of the
       user's own current one — user-reported: "when I open Chrome up,

@@ -9,16 +9,31 @@
 // endpoint on the Betting Blueprint site that doesn't exist yet; see
 // isLoggedIn's own comment below for exactly what's deferred.
 //
-// Runs the OAuth handshake directly against Supabase from inside the
-// extension itself (chrome.identity.launchWebAuthFlow), rather than
-// routing through a page on the Betting Blueprint site — needs zero
-// code changes on that site. The only setup this needs elsewhere:
-// chrome.identity.getRedirectURL() (a fixed https://<extension-id>.
-// chromiumapp.org/ address — stable across installs only because
-// manifest.json already pins a "key", so every real install shares
-// the same extension id) must be added to the Supabase project's own
-// Authentication > URL Configuration > Redirect URLs allow-list, or
-// Supabase will refuse to redirect back to it after Discord login.
+// This used to run the whole OAuth handshake via
+// chrome.identity.launchWebAuthFlow, which works but always opens its
+// own separate browser window for it — user-reported confusion
+// (several rounds of "it's stuck"/"only one web auth flow is allowed
+// at a time") tracing back to that window opening somewhere the user
+// didn't notice, with no way to make Chrome show it inline instead
+// (launchWebAuthFlow has no such option — it's a fixed part of how
+// that API works). Switched to a same-window flow instead: this tab
+// navigates itself straight to Supabase's own /authorize endpoint
+// (redirect_to = auth-callback.html, this extension's own page, added
+// to web_accessible_resources in manifest.json so Supabase's redirect
+// is actually allowed to land there), which redirects to Discord then
+// back to Supabase then finally to auth-callback.html, still all in
+// this same tab the whole way through — that page stores the session
+// (see its own comment) and hands off to popup.html, landing back
+// here already logged in.
+//
+// The Supabase project's own Authentication > URL Configuration >
+// Redirect URLs allow-list needs this extension's
+// chrome-extension://lafmmjlbaofknjikemghdhikojdnlkhp/auth-callback.html
+// added (that id is stable across every real install — computed
+// directly from manifest.json's own pinned "key" — not something that
+// changes per machine), or Supabase will refuse to redirect back to
+// it after Discord login, the same way it would have refused the
+// chromiumapp.org address the previous version needed there instead.
 const SUPABASE_URL = "https://jyqzdhsdipmaltrnijda.supabase.co";
 
 const authGateEl = document.getElementById("auth-gate");
@@ -45,61 +60,13 @@ async function showAppOrAuthGate() {
   appLayoutEl.hidden = !loggedIn;
 }
 
-// chrome.identity.launchWebAuthFlow opens Supabase's own /authorize
-// endpoint (which redirects to Discord, then back to Supabase's own
-// callback, then finally to redirectUri below) and hands back
-// whichever URL Chrome saw the auth flow land on last — Supabase's
-// GoTrue puts the session directly in that URL's own fragment
-// (#access_token=...&refresh_token=...&expires_in=...), the same
-// shape its client-side JS SDK parses on a normal web page, so no
-// extra request is needed here just to get these values.
-async function loginWithDiscord() {
-  discordLoginBtn.disabled = true;
-  discordLoginStatusEl.textContent = "Opening Discord login…";
-
-  try {
-    const redirectUri = chrome.identity.getRedirectURL();
-    const authUrl = `${SUPABASE_URL}/auth/v1/authorize?provider=discord&redirect_to=${encodeURIComponent(
-      redirectUri
-    )}`;
-
-    const responseUrl = await chrome.identity.launchWebAuthFlow({
-      url: authUrl,
-      interactive: true,
-    });
-
-    const params = new URLSearchParams(new URL(responseUrl).hash.slice(1));
-    const accessToken = params.get("access_token");
-    const refreshToken = params.get("refresh_token");
-    const expiresIn = Number(params.get("expires_in"));
-
-    if (!accessToken) {
-      throw new Error(params.get("error_description") || "Discord didn't return a session.");
-    }
-
-    await chrome.storage.local.set({
-      discordSession: {
-        accessToken,
-        refreshToken,
-        expiresAt: Date.now() + (Number.isFinite(expiresIn) ? expiresIn : 3600) * 1000,
-      },
-    });
-
-    discordLoginStatusEl.textContent = "";
-    await showAppOrAuthGate();
-  } catch (err) {
-    // The user closing the auth window without finishing is a normal,
-    // expected outcome, not a real error to alarm over — Chrome's own
-    // wording for that case isn't nailed down here (not something
-    // this session could verify live against a real Discord/Supabase
-    // login), so this just checks for "cancel"/"closed" loosely
-    // rather than asserting one exact string; anything else shows the
-    // real error message as-is.
-    const cancelled = /cancel|closed/i.test(err.message);
-    discordLoginStatusEl.textContent = cancelled ? "Login cancelled." : `Login failed: ${err.message}`;
-  } finally {
-    discordLoginBtn.disabled = false;
-  }
+function loginWithDiscord() {
+  discordLoginStatusEl.textContent = "Redirecting to Discord…";
+  const redirectUri = chrome.runtime.getURL("auth-callback.html");
+  const authUrl = `${SUPABASE_URL}/auth/v1/authorize?provider=discord&redirect_to=${encodeURIComponent(
+    redirectUri
+  )}`;
+  window.location.href = authUrl; // navigates this same tab away — no separate window
 }
 
 discordLoginBtn.addEventListener("click", loginWithDiscord);
