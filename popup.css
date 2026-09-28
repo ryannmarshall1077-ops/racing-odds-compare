@@ -1944,12 +1944,10 @@ footer {
 /* Track/Races/Bookmaker(s)/Promotion/remove-button — explicit
    percentages summing to exactly 100%, so table-layout: fixed has an
    unambiguous width for every column instead of guessing from content.
-   Bookmaker(s) still gets the most room (several chips plus its own
-   search box); Promotion widened from its original share so "Run 2nd
-   You Win" (the longest of the 3 real options, added after these
-   widths were first set) doesn't truncate; the remove-button column
-   shrunk to what a single "×" actually needs, freeing up the room
-   Promotion needed without growing the table itself. */
+   Bookmaker(s) gets the most room (several chips plus its own search
+   box); Promotion sized to fit "Run 2nd 3rd" (the longest option now
+   that "Run 2nd You Win" is gone) without truncating; the
+   remove-button column shrunk to what a single "×" actually needs. */
 #planner-table th:nth-child(1),
 #planner-table td:nth-child(1) {
   width: 17%;
@@ -1962,12 +1960,12 @@ footer {
 
 #planner-table th:nth-child(3),
 #planner-table td:nth-child(3) {
-  width: 34%;
+  width: 41%;
 }
 
 #planner-table th:nth-child(4),
 #planner-table td:nth-child(4) {
-  width: 31%;
+  width: 24%;
 }
 
 #planner-table th:nth-child(5),

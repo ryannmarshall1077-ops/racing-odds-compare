@@ -4706,3 +4706,17 @@ https://developer.betfair.com/.
         moves in exactly the right direction, while a favourite's EV
         and the null-handling for a missing price/model both still
         compute correctly.
+
+- [x] Removed the Run 2nd You Win mode entirely — user-requested.
+      Pulled its mode-tab button and Settings > Default Mode option
+      (popup.html, options.html), its `PROMO_MODES` entry (bookies.js —
+      which also drops it from the Daily Planner's own Promotion
+      dropdown for free, since that list is filtered from this same
+      one), and every trace from popup.js: `run2ndWinEVPercent` itself,
+      both `metricPercent`/`bookieMetricPercent` dispatch branches
+      calling it, the `rowLayDollars`/`edgeThresholdKey` special cases
+      that existed only for it, its own mention in the onboarding
+      tour's "Mode Toggle Switches" step, and every comment elsewhere
+      that referenced it for context. `promoPlaceProb` (the Harville
+      place-probability lookup Run 2nd You Win was wired to just one
+      PR ago) is untouched — Run 2nd/Run 2nd 3rd still use it directly.
