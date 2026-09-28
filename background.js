@@ -241,21 +241,64 @@ async function learnTabVenueCodes(entries) {
 // learned until the user happened to visit one by hand — user asked for
 // this to just work without manually clicking through every sport's
 // meetings page. This automates that same visit: opens each sport's
-// meetings page in a background tab (active: false, doesn't steal
-// focus — you may notice it briefly appear and disappear in your tab
-// strip), gives tabMeetings.js a few seconds to report what it finds,
-// then closes it again. Date-gated (once per day, not once per tick) so
-// this doesn't repeatedly reopen tabs for no reason — checked every
-// alarm tick regardless, so it still runs today even if the very first
-// attempt (extension startup, or whenever this next ships) happened to
-// fail (e.g. no network yet).
+// meetings page in a background tab, gives tabMeetings.js a few seconds
+// to report what it finds, then closes it again. Date-gated (once per
+// day, not once per tick) so this doesn't repeatedly reopen tabs for no
+// reason — checked every alarm tick regardless, so it still runs today
+// even if the very first attempt (extension startup, or whenever this
+// next ships) happened to fail (e.g. no network yet).
 const TAB_MEETINGS_LEARN_DELAY_MS = 6000;
 
-async function visitTabMeetingsPage(raceTypeCode) {
-  const tab = await chrome.tabs.create({
-    url: `https://www.tab.com.au/racing/meetings/today/${raceTypeCode}`,
-    active: false,
+// User-requested: every one of this file's own once-a-day background
+// scans (TAB — up to 4 visits, one per race type — TABtouch, Picklebet,
+// BetCloud) used to open its tab directly in the user's own current
+// window. active: false kept it from stealing tab focus, but the tab
+// itself still visibly popped into and back out of their real tab
+// strip a few seconds later, right as Chrome opened — user-reported as
+// "all the bookmaker tabs auto open... then close." Opened in one
+// shared, minimized window instead now — genuinely out of the way, and
+// reused across every one of these scans rather than creating (and
+// having to destroy) a whole new window per visit. A window the user
+// closed since the last visit (or one from a previous browser session
+// that no longer exists) just gets silently replaced with a fresh one.
+// Returns the existing scan window's id, or null if there isn't a
+// usable one yet — never creates one itself, so createScanTab below
+// can seed a freshly-created window directly with its own real URL
+// instead of an empty about:blank tab that would otherwise sit there
+// unused for the rest of the session.
+async function getScanWindowId() {
+  const { scanWindowId } = await chrome.storage.local.get(["scanWindowId"]);
+  if (!scanWindowId) return null;
+  try {
+    await chrome.windows.get(scanWindowId);
+    return scanWindowId;
+  } catch {
+    return null; // Closed since we last used it.
+  }
+}
+
+async function createScanTab(url) {
+  const windowId = await getScanWindowId();
+  if (windowId) {
+    return chrome.tabs.create({ windowId, url, active: false });
+  }
+
+  // populate: true so the response's own tabs array can be trusted for
+  // the tab this just created, rather than a separate chrome.tabs.query
+  // right after.
+  const win = await chrome.windows.create({
+    url,
+    focused: false,
+    state: "minimized",
+    type: "normal",
+    populate: true,
   });
+  await chrome.storage.local.set({ scanWindowId: win.id });
+  return win.tabs[0];
+}
+
+async function visitTabMeetingsPage(raceTypeCode) {
+  const tab = await createScanTab(`https://www.tab.com.au/racing/meetings/today/${raceTypeCode}`);
   try {
     await new Promise((resolve) => setTimeout(resolve, TAB_MEETINGS_LEARN_DELAY_MS));
   } finally {
@@ -353,10 +396,7 @@ async function learnTabtouchVenueCodes(entries) {
 const TABTOUCH_MEETINGS_LEARN_DELAY_MS = 6000;
 
 async function visitTabtouchMeetingsPage() {
-  const tab = await chrome.tabs.create({
-    url: "https://www.tabtouch.com.au/racing/all",
-    active: false,
-  });
+  const tab = await createScanTab("https://www.tabtouch.com.au/racing/all");
   try {
     await new Promise((resolve) => setTimeout(resolve, TABTOUCH_MEETINGS_LEARN_DELAY_MS));
   } finally {
@@ -450,10 +490,7 @@ async function learnPicklebetRaceIds(meetingId, races) {
 const PICKLEBET_MEETINGS_LEARN_DELAY_MS = 6000;
 
 async function visitPicklebetTodayPage() {
-  const tab = await chrome.tabs.create({
-    url: "https://picklebet.com/en-au/racing/betting/today/",
-    active: false,
-  });
+  const tab = await createScanTab("https://picklebet.com/en-au/racing/betting/today/");
   try {
     await new Promise((resolve) => setTimeout(resolve, PICKLEBET_MEETINGS_LEARN_DELAY_MS));
   } finally {
@@ -462,10 +499,7 @@ async function visitPicklebetTodayPage() {
 }
 
 async function visitPicklebetMeetingPage(meetingId) {
-  const tab = await chrome.tabs.create({
-    url: `https://picklebet.com/en-au/racing/betting/meeting/${meetingId}/`,
-    active: false,
-  });
+  const tab = await createScanTab(`https://picklebet.com/en-au/racing/betting/meeting/${meetingId}/`);
   try {
     await new Promise((resolve) => setTimeout(resolve, PICKLEBET_MEETINGS_LEARN_DELAY_MS));
   } finally {
@@ -576,7 +610,7 @@ const BETCLOUD_MEETINGS_LEARN_DELAY_MS = 6000;
 // sport/country in one visit, no per-sport visit needed the way
 // tab.com.au's own equivalent requires.
 async function visitBetcloudMeetingsPage() {
-  const tab = await chrome.tabs.create({ url: "https://bet777.com.au/racing", active: false });
+  const tab = await createScanTab("https://bet777.com.au/racing");
   try {
     await new Promise((resolve) => setTimeout(resolve, BETCLOUD_MEETINGS_LEARN_DELAY_MS));
   } finally {

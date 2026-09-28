@@ -4707,6 +4707,38 @@ https://developer.betfair.com/.
         and the null-handling for a missing price/model both still
         compute correctly.
 
+- [x] Moved the once-a-day TAB/TABtouch/Picklebet/BetCloud venue-code
+      scans into a shared, minimized background window instead of the
+      user's own current one — user-reported: "when I open Chrome up,
+      all the bookmaker tabs auto open to read today's race tables
+      [then] close after all the data has been read." These scans
+      (background.js) already used `active: false` so they never
+      stole tab focus, but the tab itself still visibly popped into
+      and back out of the user's real tab strip a few seconds later,
+      right as Chrome opened (TAB alone visits up to 4 times, one per
+      race type) — an existing comment already acknowledged this
+      ("you may notice it briefly appear and disappear").
+      - Added `createScanTab(url)`, backed by `getScanWindowId()`: the
+        first scan of the day creates one new window with
+        `state: "minimized", focused: false`, seeded directly with
+        that scan's own URL (no separate empty `about:blank` tab left
+        sitting in it); every later scan that same day reuses the
+        exact same window (via a stored `scanWindowId`, checked live
+        with `chrome.windows.get` in case the user closed it since) by
+        adding a tab to it instead of creating a whole new window per
+        visit. All 5 background-scan call sites (TAB, TABtouch,
+        Picklebet's "today" page, Picklebet's per-meeting page,
+        BetCloud) now go through this instead of calling
+        `chrome.tabs.create` directly — the toolbar icon's own
+        popup.html opener is untouched, since that's a real, user-
+        facing tab, not a silent background scan.
+      - Verified directly with a mocked `chrome.windows`/`chrome.tabs`/
+        `chrome.storage.local`: the first scan creates exactly one
+        window seeded with its own real URL; a second scan the same
+        session reuses it (adds a tab, no second `windows.create`
+        call); a stale/closed stored window id correctly falls back to
+        creating a fresh one instead of erroring.
+
 - [x] Simplified the data-source note under the odds table —
       user-requested: it used to append a "Label: live." or "Label:
       placeholder markup (not yet scanned)." clause for every single
