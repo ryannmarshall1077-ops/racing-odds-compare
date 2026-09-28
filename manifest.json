@@ -216,7 +216,13 @@
       "run_at": "document_idle"
     }
   ],
-  "permissions": ["storage", "scripting", "tabs", "alarms", "identity"],
+  "permissions": ["storage", "scripting", "tabs", "alarms"],
+  "web_accessible_resources": [
+    {
+      "resources": ["auth-callback.html", "auth-callback.js"],
+      "matches": ["https://jyqzdhsdipmaltrnijda.supabase.co/*"]
+    }
+  ],
   "host_permissions": [
     "https://identitysso.betfair.com/*",
     "https://api.betfair.com/*",
