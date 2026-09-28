@@ -4707,6 +4707,21 @@ https://developer.betfair.com/.
         and the null-handling for a missing price/model both still
         compute correctly.
 
+- [x] Simplified the data-source note under the odds table —
+      user-requested: it used to append a "Label: live." or "Label:
+      placeholder markup (not yet scanned)." clause for every single
+      visible bookmaker, one after another on the same line — genuinely
+      unreadable once more than a handful of bookies are enabled (the
+      screenshot that prompted this showed the whole line wrapping
+      several rows deep). `noteFor` (popup.js) now returns just the
+      system note (if any) and the Betfair line — the one piece of
+      this note actually useful to see at a glance, e.g. "Betfair:
+      live (updated 16:21:30)."
+      - Verified directly: extracted and ran the fixed function against
+        a live-Betfair race (with and without a system note) and a
+        mock-data race — each returns exactly the trimmed text
+        expected, with no per-bookie listing at all.
+
 - [x] Fixed a race disappearing from the "Upcoming Races" sidebar the
       instant its timer hit 0 — user-requested: keep it in the list
       until it's actually resulted, not the moment it jumps. Root

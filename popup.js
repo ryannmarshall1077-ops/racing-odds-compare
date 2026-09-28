@@ -244,6 +244,11 @@ oddsTheadEl.addEventListener("dragend", () => {
   dragSourceBookieId = null;
 });
 
+// User-requested: drop the long per-bookie "Label: live./placeholder
+// markup (not yet scanned)." listing (one clause per visible bookie —
+// unreadable once more than a handful are enabled, see bookmakerPart
+// this used to build) and keep just the Betfair line, the one piece of
+// this note actually useful to see at a glance.
 function noteFor(race) {
   const systemNotePart = race.systemNote ? `${race.systemNote} ` : "";
 
@@ -254,18 +259,7 @@ function noteFor(race) {
         }.`
       : "Showing mock data — live odds not yet connected.";
 
-  if (race.source !== "live-betfair") return systemNotePart + betfairPart;
-
-  const bookmakerPart = visibleBookies()
-    .map(
-      (b) =>
-        ` ${b.label}: ${
-          race.bookmakerSources?.[b.id] === "live" ? "live." : "placeholder markup (not yet scanned)."
-        }`
-    )
-    .join("");
-
-  return systemNotePart + betfairPart + bookmakerPart;
+  return systemNotePart + betfairPart;
 }
 
 // The highest price across every bookmaker actually shown as a column
