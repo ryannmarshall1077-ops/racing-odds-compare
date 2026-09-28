@@ -1477,6 +1477,19 @@ async function listUpcomingRacesInner() {
   const endOfTodayUtc = new Date();
   endOfTodayUtc.setUTCHours(24, 0, 0, 0);
 
+  // User-requested: a race used to disappear from this list the instant
+  // its own timer hit 0, since listWinMarkets' default marketStartTime
+  // lower bound (now) simply stopped asking Betfair for it at all —
+  // widened to start-of-today here so a race that's jumped but hasn't
+  // actually resulted yet keeps coming back from Betfair's own
+  // listMarketCatalogue (which keeps returning an in-play/just-closed
+  // market until it's genuinely settled — see listWinMarkets' own
+  // comment) and keeps flowing through the exact same per-bookie
+  // matching every other race here already gets, rather than needing a
+  // separate, stripped-down "still pending" representation of its own.
+  const startOfTodayUtc = new Date();
+  startOfTodayUtc.setUTCHours(0, 0, 0, 0);
+
   const [
     markets,
     sportsbetEvents,
@@ -1504,7 +1517,8 @@ async function listUpcomingRacesInner() {
       sessionToken,
       [...eventTypeIds.values()],
       1000,
-      endOfTodayUtc.toISOString()
+      endOfTodayUtc.toISOString(),
+      startOfTodayUtc.toISOString()
     ),
     fetchSportsbetNextEvents(),
     // Best-effort — a Ladbrokes-side hiccup (e.g. their persisted-query

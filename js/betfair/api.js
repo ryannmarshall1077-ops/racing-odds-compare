@@ -57,7 +57,19 @@ async function findEventTypeIds(appKey, sessionToken, eventTypeNames) {
 // to see what's coming up. Left undefined by the "single soonest race"
 // caller (refreshRaceInner's own fallback), which only ever wants
 // maxResults 1 regardless of how far out Betfair would otherwise search.
-async function listWinMarkets(appKey, sessionToken, eventTypeIds, maxResults = 1, marketStartTimeTo) {
+//
+// marketStartTimeFrom (optional) — defaults to now, which is what the
+// "single soonest race" caller wants (an already-jumped race is never a
+// sane answer to "what's the next race"). listUpcomingRacesInner's own
+// sidebar-list call passes start-of-today instead — user-requested: a
+// race used to disappear from the sidebar the instant its timer hit 0,
+// since listMarketCatalogue simply stopped being asked for it at all.
+// Widening this lower bound lets Betfair's own catalogue keep returning
+// it exactly the way it naturally does (see the comment below) for as
+// long as it's genuinely still not settled, so the sidebar can keep
+// showing it — full runners/bookie-matching and all, not a stripped-down
+// placeholder — right up until it actually results.
+async function listWinMarkets(appKey, sessionToken, eventTypeIds, maxResults = 1, marketStartTimeTo, marketStartTimeFrom) {
   return betfairApiCall(appKey, sessionToken, "listMarketCatalogue", {
     filter: {
       eventTypeIds,
@@ -71,11 +83,14 @@ async function listWinMarkets(appKey, sessionToken, eventTypeIds, maxResults = 1
       // (e.g. "Cambridge (NZL)") alongside AU ones.
       marketCountries: ["AU", "NZ"],
       marketTypeCodes: ["WIN"],
-      // Excludes markets that have already jumped — listMarketCatalogue
-      // otherwise keeps returning an in-play/just-closed race until it's
-      // fully settled, well after it's no longer useful to show.
+      // A tight `from: now` excludes markets that have already jumped —
+      // listMarketCatalogue otherwise keeps returning an in-play/
+      // just-closed race until it's fully settled. That's exactly the
+      // behavior listUpcomingRacesInner's own sidebar-list call now
+      // wants (a widened marketStartTimeFrom, see above); the "soonest
+      // race" caller still wants the tight default.
       marketStartTime: {
-        from: new Date().toISOString(),
+        from: marketStartTimeFrom || new Date().toISOString(),
         ...(marketStartTimeTo && { to: marketStartTimeTo }),
       },
     },
