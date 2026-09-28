@@ -4707,6 +4707,44 @@ https://developer.betfair.com/.
         and the null-handling for a missing price/model both still
         compute correctly.
 
+- [x] Fixed a race disappearing from the "Upcoming Races" sidebar the
+      instant its timer hit 0 — user-requested: keep it in the list
+      until it's actually resulted, not the moment it jumps. Root
+      cause: `listWinMarkets`'s own Betfair `listMarketCatalogue` query
+      (js/betfair/api.js) filtered `marketStartTime.from` to `now` on
+      every fetch, so once a race's scheduled start time passed, the
+      very next periodic/manual refresh simply stopped asking Betfair
+      for it at all — dropped from the sidebar regardless of whether
+      it had genuinely resulted yet. An existing comment on that same
+      filter already noted the reason it was added: without it,
+      `listMarketCatalogue` "keeps returning an in-play/just-closed
+      race until it's fully settled" — exactly the natural behavior
+      the user now wants back for this one caller.
+      - Fixed by adding an optional `marketStartTimeFrom` parameter to
+        `listWinMarkets`, defaulting to `now` (unchanged for the
+        "single soonest race" caller, which should never treat an
+        already-jumped race as "the next race"). `listUpcomingRacesInner`
+        now passes start-of-today instead (same UTC-day-boundary
+        approximation already used for the upper bound), so Betfair's
+        own catalogue keeps returning a race for as long as it's
+        genuinely not yet settled — flowing through the exact same
+        per-bookie matching every other race already gets, not a
+        separate stripped-down "still pending" representation. The
+        sidebar's own card rendering already handled an in-play/
+        resulted race correctly (marketStatus from pendingResultChecks,
+        the same machinery an already-selected race going in-play used)
+        — it just never received one before, since this was the only
+        thing keeping such a race out of the list at all.
+      - Syntax-checked both files directly; couldn't verify Betfair's
+        own "keeps returning until settled" claim live myself this
+        session (no test credentials for a real third-party API,
+        unlike this project's own local dev server) — inherited from
+        an existing, already-in-the-codebase comment on this same
+        filter rather than independently re-confirmed, so this needs a
+        live check from the user: a race that's jumped should now stay
+        in the sidebar with an updating status until it actually
+        results.
+
 - [x] Removed the Run 2nd You Win mode entirely — user-requested.
       Pulled its mode-tab button and Settings > Default Mode option
       (popup.html, options.html), its `PROMO_MODES` entry (bookies.js —
