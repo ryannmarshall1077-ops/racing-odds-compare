@@ -4707,6 +4707,57 @@ https://developer.betfair.com/.
         and the null-handling for a missing price/model both still
         compute correctly.
 
+- [x] Added a Discord login gate — user-requested, as the first step
+      toward selling this as a subscriber-only product alongside the
+      Betting Blueprint site (Next.js + Supabase Auth, confirmed live
+      via that site's own "Continue with Discord" button — its OAuth
+      `redirect_uri` points at `https://jyqzdhsdipmaltrnijda.
+      supabase.co/auth/v1/callback`). The extension now shows a
+      login-only screen (`#auth-gate`, popup.html) instead of the real
+      odds table until the user signs in with the same Discord account
+      used on that site — deliberately just the login step for now,
+      NOT a subscription-active check, since that needs an "is this
+      account currently subscribed" endpoint on the Betting Blueprint
+      site that doesn't exist yet (the business partner who built that
+      site needs to add one, or grant access to build it directly).
+      - Runs the OAuth handshake straight from the extension itself
+        via `chrome.identity.launchWebAuthFlow` against Supabase's own
+        `/auth/v1/authorize` endpoint — needs zero code changes on the
+        Betting Blueprint site. The only external setup this needs:
+        `chrome.identity.getRedirectURL()`'s fixed `https://
+        <extension-id>.chromiumapp.org/` address (stable across every
+        install since manifest.json already pins a `"key"`) has to be
+        added to the Supabase project's own Authentication > URL
+        Configuration > Redirect URLs allow-list, or Supabase will
+        refuse to redirect back to it.
+      - Added the `"identity"` permission (manifest.json). Session
+        (access/refresh token + expiry, parsed straight from the
+        OAuth redirect's own URL fragment — no extra request needed)
+        stored in `chrome.storage.local` as `discordSession`; treated
+        as logged out once past its own `expiresAt`, same as no
+        session at all, rather than trusting a stale token forever.
+        Added a "Log out" button (Settings > Betfair tab) that clears
+        it.
+      - Fixed a real bug caught live while verifying this: both
+        `#auth-gate` and `#app-layout`'s own `display: flex` id rules
+        (popup.css) beat the browser's default `[hidden] { display:
+        none }` rule — toggling either one's `hidden` attribute alone
+        did nothing, so the login screen and the real UI rendered
+        stacked on top of each other instead of one replacing the
+        other. Fixed by adding both to the exact same explicit
+        `[hidden] { display: none }` override this file's own
+        `#settings-modal`/`#planner-modal` already needed for the
+        identical reason.
+      - Verified the whole flow directly via the local static-preview
+        harness with a mocked `chrome.identity`/`chrome.storage`:
+        initial load shows only the login screen; a mocked successful
+        Discord login reveals the real UI and hides the login screen
+        (confirmed only after the `[hidden]` fix above — this exact
+        test is what caught that bug); "Log out" clears the session
+        and shows the login screen again; a cancelled/failed login
+        shows an error message without leaving the button stuck
+        disabled.
+
 - [x] Moved the once-a-day TAB/TABtouch/Picklebet/BetCloud venue-code
       scans into a shared, minimized background window instead of the
       user's own current one — user-reported: "when I open Chrome up,

@@ -1,3 +1,116 @@
+// --- Discord login gate (Betting Blueprint) -----------------------
+//
+// User-requested: only someone logged in with the same Discord
+// account used on the Betting Blueprint site (bettingblueprinthub —
+// Next.js + Supabase Auth, confirmed live via its own "Continue with
+// Discord" button's OAuth redirect_uri) can use this extension at
+// all. Deliberately login-only for now, not a subscription-active
+// check — that needs an "is this account currently subscribed"
+// endpoint on the Betting Blueprint site that doesn't exist yet; see
+// isLoggedIn's own comment below for exactly what's deferred.
+//
+// Runs the OAuth handshake directly against Supabase from inside the
+// extension itself (chrome.identity.launchWebAuthFlow), rather than
+// routing through a page on the Betting Blueprint site — needs zero
+// code changes on that site. The only setup this needs elsewhere:
+// chrome.identity.getRedirectURL() (a fixed https://<extension-id>.
+// chromiumapp.org/ address — stable across installs only because
+// manifest.json already pins a "key", so every real install shares
+// the same extension id) must be added to the Supabase project's own
+// Authentication > URL Configuration > Redirect URLs allow-list, or
+// Supabase will refuse to redirect back to it after Discord login.
+const SUPABASE_URL = "https://jyqzdhsdipmaltrnijda.supabase.co";
+
+const authGateEl = document.getElementById("auth-gate");
+const appLayoutEl = document.getElementById("app-layout");
+const discordLoginBtn = document.getElementById("discord-login-btn");
+const discordLoginStatusEl = document.getElementById("discord-login-status");
+const discordLogoutBtn = document.getElementById("discord-logout-btn");
+
+// True once a Discord session has been stored at all — deliberately
+// NOT verified against Supabase (no network call), just presence plus
+// its own expiresAt. Good enough for "logged in", not "actively
+// subscribed" — the latter needs a real server round-trip once the
+// Betting Blueprint site has somewhere to ask. A session that's
+// simply expired (expiresAt in the past) is treated the same as no
+// session at all, rather than trusting a stale token indefinitely.
+async function isLoggedIn() {
+  const { discordSession } = await chrome.storage.local.get(["discordSession"]);
+  return Boolean(discordSession?.accessToken && discordSession.expiresAt > Date.now());
+}
+
+async function showAppOrAuthGate() {
+  const loggedIn = await isLoggedIn();
+  authGateEl.hidden = loggedIn;
+  appLayoutEl.hidden = !loggedIn;
+}
+
+// chrome.identity.launchWebAuthFlow opens Supabase's own /authorize
+// endpoint (which redirects to Discord, then back to Supabase's own
+// callback, then finally to redirectUri below) and hands back
+// whichever URL Chrome saw the auth flow land on last — Supabase's
+// GoTrue puts the session directly in that URL's own fragment
+// (#access_token=...&refresh_token=...&expires_in=...), the same
+// shape its client-side JS SDK parses on a normal web page, so no
+// extra request is needed here just to get these values.
+async function loginWithDiscord() {
+  discordLoginBtn.disabled = true;
+  discordLoginStatusEl.textContent = "Opening Discord login…";
+
+  try {
+    const redirectUri = chrome.identity.getRedirectURL();
+    const authUrl = `${SUPABASE_URL}/auth/v1/authorize?provider=discord&redirect_to=${encodeURIComponent(
+      redirectUri
+    )}`;
+
+    const responseUrl = await chrome.identity.launchWebAuthFlow({
+      url: authUrl,
+      interactive: true,
+    });
+
+    const params = new URLSearchParams(new URL(responseUrl).hash.slice(1));
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+    const expiresIn = Number(params.get("expires_in"));
+
+    if (!accessToken) {
+      throw new Error(params.get("error_description") || "Discord didn't return a session.");
+    }
+
+    await chrome.storage.local.set({
+      discordSession: {
+        accessToken,
+        refreshToken,
+        expiresAt: Date.now() + (Number.isFinite(expiresIn) ? expiresIn : 3600) * 1000,
+      },
+    });
+
+    discordLoginStatusEl.textContent = "";
+    await showAppOrAuthGate();
+  } catch (err) {
+    // The user closing the auth window without finishing is a normal,
+    // expected outcome, not a real error to alarm over — Chrome's own
+    // wording for that case isn't nailed down here (not something
+    // this session could verify live against a real Discord/Supabase
+    // login), so this just checks for "cancel"/"closed" loosely
+    // rather than asserting one exact string; anything else shows the
+    // real error message as-is.
+    const cancelled = /cancel|closed/i.test(err.message);
+    discordLoginStatusEl.textContent = cancelled ? "Login cancelled." : `Login failed: ${err.message}`;
+  } finally {
+    discordLoginBtn.disabled = false;
+  }
+}
+
+discordLoginBtn.addEventListener("click", loginWithDiscord);
+
+discordLogoutBtn?.addEventListener("click", async () => {
+  await chrome.storage.local.remove("discordSession");
+  await showAppOrAuthGate();
+});
+
+showAppOrAuthGate();
+
 // Small inline icon (currentColor, inherits .winner-tag's own green) for
 // the "Winner" tag on a settled runner's row — replaces a plain trophy
 // emoji, same flat single-colour treatment as the rest of the header

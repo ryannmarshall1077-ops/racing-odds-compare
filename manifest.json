@@ -216,7 +216,7 @@
       "run_at": "document_idle"
     }
   ],
-  "permissions": ["storage", "scripting", "tabs", "alarms"],
+  "permissions": ["storage", "scripting", "tabs", "alarms", "identity"],
   "host_permissions": [
     "https://identitysso.betfair.com/*",
     "https://api.betfair.com/*",
