@@ -4962,3 +4962,28 @@ https://developer.betfair.com/.
         it, and no way to test a real live Discord/Supabase round
         trip — that repo's own maintainer should run `npm run build`
         there and confirm a live check before trusting this fully.
+
+- [x] Fixed the membership check above always coming back false, even
+      for a confirmed member — user-reported live, right after both
+      sides of the check above actually went live. Root cause: the
+      extension's own `loginWithDiscord` never requested the
+      `guilds`/`guilds.members.read` OAuth scopes from Discord at
+      all, unlike the Betting Blueprint site's own "Continue with
+      Discord" button (confirmed live, back when this login flow was
+      first built, via that button's own OAuth redirect_uri showing
+      `scope=email+identify+guilds+guilds.members.read`). Without
+      those scopes, Discord grants a token that simply can't look up
+      guild membership — `/api/extension/verify`'s own Discord API
+      call fails regardless of the account's real role, landing on
+      `is_member: false` every time.
+      - Fixed by adding `scopes=identify email guilds
+        guilds.members.read` to the extension's own `/auth/v1/
+        authorize` URL (`scopes`, plural, confirmed as Supabase
+        GoTrue's own correct query param name for this) — the exact
+        same scopes the website's own login already requests.
+      - Verified directly: extracted `loginWithDiscord` and confirmed
+        the exact constructed URL now includes the scopes param,
+        correctly space-encoded. Couldn't verify the real Discord
+        consent screen actually grants these scopes end-to-end this
+        session (no test account) — needs a live re-login to confirm
+        the membership check now returns true for a real member.
