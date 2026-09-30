@@ -4900,3 +4900,65 @@ https://developer.betfair.com/.
       that referenced it for context. `promoPlaceProb` (the Harville
       place-probability lookup Run 2nd You Win was wired to just one
       PR ago) is untouched — Run 2nd/Run 2nd 3rd still use it directly.
+
+- [x] Added a real subscription-active check on top of the Discord
+      login gate — user-requested follow-up, closing the exact gap
+      the login-gate PRs deliberately left open ("login-only for now,
+      not a subscription-active check"). Found the piece needed for
+      this already exists on the Betting Blueprint site's own repo:
+      `src/lib/session.ts`'s `is_member` flag, checked against a
+      specific Discord server role at login and re-verified every 7
+      days (`RECHECK_DAYS`) — the exact same real check this
+      extension needed, not something it should ever compute or trust
+      on its own.
+      - Added a new `checkMembership`/`isMember` pair (popup.js) that
+        calls a new endpoint on the Betting Blueprint site,
+        `/api/extension/verify` (that repo, not this one — mirrors
+        its own `/auth/callback` route's is_member check/upsert
+        exactly, just reachable by the extension's own stored
+        session instead of a browser cookie), passing the session's
+        Supabase `access_token` (Bearer header, who's asking) and
+        Discord `provider_token` (body, lets that endpoint ask
+        Discord directly whether this account still holds the paid
+        member role). Result is cached on `discordSession` itself
+        (`isMember`/`memberCheckedAt`) and only re-checked once that
+        cache is older than 7 days — same `RECHECK_DAYS` convention
+        as the website itself, so this isn't a network round trip on
+        every single popup open. A network/server failure during a
+        re-check falls back to the last known cached value rather
+        than locking someone out over one failed request.
+      - `auth-callback.js` now also captures `provider_token` from
+        the OAuth redirect's own URL fragment (Supabase's GoTrue
+        already includes it there) and stores it alongside the
+        access/refresh tokens — it's only ever available right at
+        this moment, straight from the redirect, with no way to fetch
+        it again later.
+      - Added a new `#membership-gate` screen (popup.html/css) shown
+        instead of `#app-layout` for a real, logged-in Discord
+        account that isn't (or isn't currently) an active member —
+        distinct from `#auth-gate` (not logged in at all), with its
+        own "Go to Betting Blueprint" link and a "Log out" button.
+        Needed the exact same `[hidden]`-beats-id-rule fix
+        `#auth-gate`/`#app-layout` already needed for the identical
+        reason.
+      - Added `https://betting-blueprint-hub.netlify.app/*` to
+        `host_permissions` (manifest.json) so the extension's own
+        fetch to `/api/extension/verify` is privileged rather than
+        relying solely on that endpoint's own CORS headers.
+      - Verified directly: extracted `checkMembership`/`isMember`
+        with a mocked `chrome.storage`/`fetch` and confirmed a fresh
+        check, a cached hit (no second fetch), a stale-cache
+        re-check, a network-failure fallback to the last known value,
+        and the not-logged-in case all return the right result;
+        extracted `auth-callback.js`'s own body and confirmed
+        `provider_token` is captured correctly; visually verified all
+        three gate states (not logged in, logged in but not a
+        member, logged in and a member) via the local static-preview
+        harness, including that "Log out" correctly returns to
+        `#auth-gate` from `#membership-gate`.
+      - The new website-side route (`/api/extension/verify`, a
+        separate repo) mirrors already-working code closely, but
+        this session had no Node.js available to type-check or build
+        it, and no way to test a real live Discord/Supabase round
+        trip — that repo's own maintainer should run `npm run build`
+        there and confirm a live check before trusting this fully.

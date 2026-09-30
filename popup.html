@@ -12,10 +12,7 @@
          default (not [hidden]) so there's no flash of the real UI
          while popup.js's own async storage check (right at the top of
          that file) is still resolving; #app-layout starts [hidden]
-         below for the same reason. Deliberately just the login step
-         for now, not a subscription-active check yet — that needs a
-         "is this account currently subscribed" endpoint on the
-         Betting Blueprint site that doesn't exist yet. -->
+         below for the same reason. -->
     <div id="auth-gate">
       <img class="brand-mark" src="icons/icon128.png" alt="Betting Blueprint" />
       <h1>Racing Odds Compare</h1>
@@ -25,6 +22,21 @@
         Log in with Discord
       </button>
       <p id="discord-login-status" class="status"></p>
+    </div>
+
+    <!-- User-requested follow-up to the login gate above: logging in
+         with Discord isn't enough on its own — this now also checks
+         the SAME is_member flag the Betting Blueprint site itself
+         gates its members area (and this extension's own download)
+         behind, via popup.js's own checkMembership. Shown instead of
+         #app-layout for a real, logged-in Discord account that isn't
+         (or isn't currently) a paying member. -->
+    <div id="membership-gate" hidden>
+      <img class="brand-mark" src="icons/icon128.png" alt="Betting Blueprint" />
+      <h1>Racing Odds Compare</h1>
+      <p>You're signed in, but this Discord account doesn't have an active Betting Blueprint membership.</p>
+      <a id="membership-site-link" href="https://betting-blueprint-hub.netlify.app/join" target="_blank" rel="noopener">Go to Betting Blueprint</a>
+      <button id="membership-logout-btn" type="button">Log out</button>
     </div>
 
     <div id="app-layout" hidden>

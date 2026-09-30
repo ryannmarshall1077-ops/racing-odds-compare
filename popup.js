@@ -3,11 +3,9 @@
 // User-requested: only someone logged in with the same Discord
 // account used on the Betting Blueprint site (bettingblueprinthub —
 // Next.js + Supabase Auth, confirmed live via its own "Continue with
-// Discord" button's OAuth redirect_uri) can use this extension at
-// all. Deliberately login-only for now, not a subscription-active
-// check — that needs an "is this account currently subscribed"
-// endpoint on the Betting Blueprint site that doesn't exist yet; see
-// isLoggedIn's own comment below for exactly what's deferred.
+// Discord" button's OAuth redirect_uri) AND currently an active
+// member there (see checkMembership below) can use this extension at
+// all.
 //
 // This used to run the whole OAuth handshake via
 // chrome.identity.launchWebAuthFlow, which works but always opens its
@@ -36,28 +34,102 @@
 // chromiumapp.org address the previous version needed there instead.
 const SUPABASE_URL = "https://jyqzdhsdipmaltrnijda.supabase.co";
 
+// The Betting Blueprint site's own domain — /api/extension/verify
+// (its own repo, not this one) mirrors its /auth/callback route's
+// is_member check/upsert exactly, just reachable by the extension's
+// own stored session instead of a browser cookie.
+const BETTING_BLUEPRINT_URL = "https://betting-blueprint-hub.netlify.app";
+
+// Matches session.ts's own RECHECK_DAYS on the Betting Blueprint
+// site — someone who loses the Blueprint role there shouldn't stay
+// able to use this indefinitely just because their first check
+// happened to pass, but re-checking on every single popup open would
+// mean a network round trip (and a possible false "not a member" on
+// a network hiccup) far more often than the role realistically
+// changes.
+const MEMBERSHIP_RECHECK_MS = 7 * 24 * 60 * 60 * 1000;
+
 const authGateEl = document.getElementById("auth-gate");
+const membershipGateEl = document.getElementById("membership-gate");
 const appLayoutEl = document.getElementById("app-layout");
 const discordLoginBtn = document.getElementById("discord-login-btn");
 const discordLoginStatusEl = document.getElementById("discord-login-status");
 const discordLogoutBtn = document.getElementById("discord-logout-btn");
+const membershipLogoutBtn = document.getElementById("membership-logout-btn");
 
 // True once a Discord session has been stored at all — deliberately
 // NOT verified against Supabase (no network call), just presence plus
-// its own expiresAt. Good enough for "logged in", not "actively
-// subscribed" — the latter needs a real server round-trip once the
-// Betting Blueprint site has somewhere to ask. A session that's
-// simply expired (expiresAt in the past) is treated the same as no
-// session at all, rather than trusting a stale token indefinitely.
+// its own expiresAt. Good enough for "logged in", not "actively a
+// member" — see isMember/checkMembership below for that. A session
+// that's simply expired (expiresAt in the past) is treated the same
+// as no session at all, rather than trusting a stale token
+// indefinitely.
 async function isLoggedIn() {
   const { discordSession } = await chrome.storage.local.get(["discordSession"]);
   return Boolean(discordSession?.accessToken && discordSession.expiresAt > Date.now());
 }
 
+// Calls the Betting Blueprint site's own /api/extension/verify with
+// this session's own Supabase access_token (who's asking) and Discord
+// provider_token (lets that endpoint ask Discord directly whether
+// this account still holds the paid member role — the same real
+// check a normal website login already does, not something this
+// extension could just assert on its own). Returns null on a network/
+// server failure rather than throwing, so the caller can decide to
+// fall back to the last known value instead of locking someone out
+// just because one request failed.
+async function checkMembership(discordSession) {
+  try {
+    const res = await fetch(`${BETTING_BLUEPRINT_URL}/api/extension/verify`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${discordSession.accessToken}`,
+      },
+      body: JSON.stringify({ providerToken: discordSession.providerToken }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Boolean(data.is_member);
+  } catch {
+    return null;
+  }
+}
+
+// Cached on discordSession itself (isMember/memberCheckedAt) rather
+// than re-checked on every call — only actually hits the network once
+// that cache is missing or older than MEMBERSHIP_RECHECK_MS.
+async function isMember() {
+  const { discordSession } = await chrome.storage.local.get(["discordSession"]);
+  if (!discordSession?.accessToken) return false;
+
+  const lastChecked = discordSession.memberCheckedAt ?? 0;
+  if (Date.now() - lastChecked < MEMBERSHIP_RECHECK_MS) {
+    return discordSession.isMember === true;
+  }
+
+  const result = await checkMembership(discordSession);
+  if (result === null) return discordSession.isMember === true; // see checkMembership's own comment
+
+  await chrome.storage.local.set({
+    discordSession: { ...discordSession, isMember: result, memberCheckedAt: Date.now() },
+  });
+  return result;
+}
+
 async function showAppOrAuthGate() {
   const loggedIn = await isLoggedIn();
-  authGateEl.hidden = loggedIn;
-  appLayoutEl.hidden = !loggedIn;
+  if (!loggedIn) {
+    authGateEl.hidden = false;
+    membershipGateEl.hidden = true;
+    appLayoutEl.hidden = true;
+    return;
+  }
+
+  const member = await isMember();
+  authGateEl.hidden = true;
+  membershipGateEl.hidden = member;
+  appLayoutEl.hidden = !member;
 }
 
 function loginWithDiscord() {
@@ -71,10 +143,13 @@ function loginWithDiscord() {
 
 discordLoginBtn.addEventListener("click", loginWithDiscord);
 
-discordLogoutBtn?.addEventListener("click", async () => {
+async function logoutOfDiscord() {
   await chrome.storage.local.remove("discordSession");
   await showAppOrAuthGate();
-});
+}
+
+discordLogoutBtn?.addEventListener("click", logoutOfDiscord);
+membershipLogoutBtn?.addEventListener("click", logoutOfDiscord);
 
 showAppOrAuthGate();
 

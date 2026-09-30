@@ -198,10 +198,12 @@ select,
 }
 
 /* Login gate — shown instead of #app-layout (popup.js) until the user
-   signs in with Discord. Full-viewport, not a .modal-overlay: there's
-   no real content behind it to dim while logged out, just the plain
-   page background. */
-#auth-gate {
+   signs in with Discord — and #membership-gate, the same layout for
+   a real logged-in Discord account that just isn't an active member.
+   Full-viewport, not a .modal-overlay: there's no real content
+   behind it to dim while logged out, just the plain page background. */
+#auth-gate,
+#membership-gate {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -215,7 +217,8 @@ select,
 /* .brand-mark is the <img> itself here (same as the sidebar's own
    usage), not a wrapper around one — object-fit keeps icon128.png
    from distorting at this much larger size. */
-#auth-gate .brand-mark {
+#auth-gate .brand-mark,
+#membership-gate .brand-mark {
   width: 64px;
   height: 64px;
   border-radius: 16px;
@@ -223,11 +226,13 @@ select,
   object-fit: cover;
 }
 
-#auth-gate h1 {
+#auth-gate h1,
+#membership-gate h1 {
   font-size: 18px;
 }
 
-#auth-gate p {
+#auth-gate p,
+#membership-gate p {
   margin: 0;
   color: var(--muted);
   max-width: 320px;
@@ -259,6 +264,32 @@ select,
 
 #discord-login-status {
   min-height: 16px;
+}
+
+#membership-site-link {
+  margin-top: 6px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+#membership-logout-btn {
+  margin-top: 2px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#membership-logout-btn:hover {
+  color: var(--text);
 }
 
 h1 {
@@ -1430,14 +1461,15 @@ footer {
    to be spelled out explicitly or the modal would stay visible even
    while hidden. Covers both modals sharing this markup pattern
    (settings-modal, planner-modal) rather than a separate copy each —
-   #auth-gate and #app-layout have the exact same issue (their own
-   display: flex rules) for the same reason, caught live: toggling
-   either one's hidden attribute alone did nothing until this was
-   added — both auth-gate and the real UI rendered stacked on top of
-   each other instead of one replacing the other. */
+   #auth-gate, #membership-gate, and #app-layout have the exact same
+   issue (their own display: flex rules) for the same reason, caught
+   live: toggling either one's hidden attribute alone did nothing
+   until this was added — both auth-gate and the real UI rendered
+   stacked on top of each other instead of one replacing the other. */
 #settings-modal[hidden],
 #planner-modal[hidden],
 #auth-gate[hidden],
+#membership-gate[hidden],
 #app-layout[hidden] {
   display: none;
 }
