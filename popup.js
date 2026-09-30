@@ -132,12 +132,24 @@ async function showAppOrAuthGate() {
   appLayoutEl.hidden = !member;
 }
 
+// Same scopes the Betting Blueprint site's own "Continue with Discord"
+// button requests (confirmed live via its own OAuth redirect_uri,
+// back when this login flow was first built) — user-reported the
+// membership check always coming back false even for a confirmed
+// member, traced to this: without guilds/guilds.members.read, Discord
+// grants a token that can't look up guild membership at all, so
+// /api/extension/verify's own Discord API call fails regardless of
+// this account's real role. Space-separated per Discord's own scope
+// string format (matches the website's own "email+identify+guilds+
+// guilds.members.read", + being the URL-encoded form of a space).
+const DISCORD_OAUTH_SCOPES = "identify email guilds guilds.members.read";
+
 function loginWithDiscord() {
   discordLoginStatusEl.textContent = "Redirecting to Discord…";
   const redirectUri = chrome.runtime.getURL("auth-callback.html");
-  const authUrl = `${SUPABASE_URL}/auth/v1/authorize?provider=discord&redirect_to=${encodeURIComponent(
-    redirectUri
-  )}`;
+  const authUrl = `${SUPABASE_URL}/auth/v1/authorize?provider=discord&scopes=${encodeURIComponent(
+    DISCORD_OAUTH_SCOPES
+  )}&redirect_to=${encodeURIComponent(redirectUri)}`;
   window.location.href = authUrl; // navigates this same tab away — no separate window
 }
 
