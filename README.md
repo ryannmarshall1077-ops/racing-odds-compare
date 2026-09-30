@@ -4900,3 +4900,28 @@ https://developer.betfair.com/.
       that referenced it for context. `promoPlaceProb` (the Harville
       place-probability lookup Run 2nd You Win was wired to just one
       PR ago) is untouched — Run 2nd/Run 2nd 3rd still use it directly.
+
+- [x] Fixed `ERR_BLOCKED_BY_CLIENT` blocking the Discord login's own
+      final redirect to `auth-callback.html` — user-reported live,
+      after adding the Supabase project's Redirect URLs entry (see
+      the same-window login fix above) got the flow far enough to
+      reach the right URL at all. Widened `manifest.json`'s
+      `web_accessible_resources` `matches` for `auth-callback.html`/
+      `.js` from just Supabase's own domain to `<all_urls>`, on the
+      theory that the multi-hop redirect (Supabase -> Discord -> back
+      to Supabase -> extension) might be attributed to a different
+      initiator than Supabase's domain by Chrome's own permission
+      check.
+      - User confirmed live this fixed it, alongside disabling/
+        removing several browser extensions while isolating the
+        cause (Urban VPN Proxy, FoxyProxy, 'Improve YouTube!', and
+        Kaspersky Password Manager — the last one specifically
+        because antivirus-bundled browser extensions commonly include
+        web-protection/anti-phishing features under one listing,
+        beyond just password management). Exactly which of these two
+        changes (the code widening vs. Kaspersky specifically) was
+        the real fix is NOT yet isolated — worth confirming later
+        (re-enable Kaspersky, retest) since other paying subscribers
+        running the same antivirus software would hit this identical
+        block if Kaspersky turns out to be a real, recurring cause,
+        not just this one user's machine.
