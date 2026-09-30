@@ -224,6 +224,7 @@
     }
   ],
   "host_permissions": [
+    "https://betting-blueprint-hub.netlify.app/*",
     "https://identitysso.betfair.com/*",
     "https://api.betfair.com/*",
     "https://*.sportsbet.com.au/*",
