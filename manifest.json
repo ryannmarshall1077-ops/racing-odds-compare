@@ -220,7 +220,7 @@
   "web_accessible_resources": [
     {
       "resources": ["auth-callback.html", "auth-callback.js"],
-      "matches": ["https://jyqzdhsdipmaltrnijda.supabase.co/*"]
+      "matches": ["<all_urls>"]
     }
   ],
   "host_permissions": [
