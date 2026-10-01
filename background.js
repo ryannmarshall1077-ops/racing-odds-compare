@@ -282,18 +282,26 @@ async function createScanTab(url) {
     return chrome.tabs.create({ windowId, url, active: false });
   }
 
-  // populate: true so the response's own tabs array can be trusted for
-  // the tab this just created, rather than a separate chrome.tabs.query
-  // right after.
+  // windows.create's own createData has no `populate` property at all
+  // (that's only a valid field on windows.get/getAll) — user-reported
+  // as "TAB/TABtouch/BetCloud tabs never open," traced to this: Chrome
+  // rejects the whole call outright ("Unexpected property: 'populate'"),
+  // so the scan window this is meant to create never gets created at
+  // all, and every "learn venue codes from a real page" visit that
+  // depends on it (TAB/TABtouch/Picklebet/BetCloud) silently fails
+  // every single time — confirmed live via the background service
+  // worker's own console, which was logging exactly that rejection on
+  // every attempt. A plain chrome.tabs.query right after is the actual
+  // correct way to get the tab this just created.
   const win = await chrome.windows.create({
     url,
     focused: false,
     state: "minimized",
     type: "normal",
-    populate: true,
   });
   await chrome.storage.local.set({ scanWindowId: win.id });
-  return win.tabs[0];
+  const [tab] = await chrome.tabs.query({ windowId: win.id });
+  return tab;
 }
 
 async function visitTabMeetingsPage(raceTypeCode) {

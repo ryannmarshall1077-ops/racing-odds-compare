@@ -5137,3 +5137,36 @@ https://developer.betfair.com/.
         session (no Chrome extension runtime, no live Betfair session)
         — the next time TAB/TABtouch/BetCloud fail to open should be a
         genuine "not learned yet today" case rather than this.
+
+- [x] Found the ACTUAL root cause of TAB/TABtouch/BetCloud tabs never
+      opening at all (the namesMatch fix above was real and still
+      needed, but not sufficient on its own) — user tested live and
+      reported it was still completely broken, then pulled the
+      background service worker's own console log at my request:
+      `createScanTab` (the shared minimized-window helper every one of
+      these "learn from a real page" visits depends on) was calling
+      `chrome.windows.create({ ..., populate: true })` — but
+      `populate` isn't a valid property of `windows.create`'s own
+      `createData` at all (it's only ever been a field on
+      `windows.get`/`getAll`'s query options). Chrome rejects the
+      whole call outright: "Error at parameter 'createData': Unexpected
+      property: 'populate'." So the scan window never got created,
+      every single time, for every one of TAB/TABtouch/Picklebet/
+      BetCloud's own meetings-page visits — confirmed directly in the
+      console log, which was logging exactly that rejection on every
+      attempt, and confirmed again by querying chrome.storage.local
+      live: `tabVenueCodes`/`tabtouchVenueCodes` both sat at 0 entries
+      despite today's learning having "run" (the learned-date flag was
+      already set to today, since the date-gate only tracks whether an
+      attempt happened, not whether it succeeded).
+      - Fixed by dropping `populate: true` from the `windows.create`
+        call and querying `chrome.tabs.query({ windowId: win.id })`
+        right after instead — the actual correct way to get the tab
+        that call just created.
+      - This was very likely broken from day one, not a recent
+        regression — `populate` being invalid on `windows.create` isn't
+        new Chrome behaviour. It just took a live user report plus a
+        real console log to actually surface it, since it fails
+        completely silently otherwise (caught by this file's own
+        try/catch around every `ensure*VenueCodesLearnedToday` call,
+        logged to a console nobody's normally looking at).
