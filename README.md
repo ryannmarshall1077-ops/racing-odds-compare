@@ -5094,3 +5094,46 @@ https://developer.betfair.com/.
         inside the actual packaged extension this session (no Chrome
         extension runtime available) — needs a live click-through once
         this ships, same caveat as the first version.
+
+- [x] Fixed TAB/TABtouch/BetCloud tabs silently not opening — user-
+      reported: those bookies' own tabs sometimes just don't open
+      automatically, unlike every other bookie.
+      - Root cause: TAB/TABtouch/BetCloud have no public odds feed, so
+        their race URLs are built from venue codes learned by visiting
+        their own meetings/hub pages (tabMeetings.js/tabtouchMeetings.js/
+        betcloudMeetings.js). Confirmed live against all three sites'
+        actual current pages that this learning step itself works fine
+        — the codes genuinely do get learned. The bug was in looking
+        them back up: `tabRaceUrlFromCodes`/`tabtouchRaceUrlFromCodes`/
+        `betcloudRaceUrlFromCodes` compared the learned venue name
+        against this extension's own track name with plain equality
+        (`codes[key]`), unlike every OTHER bookie's own feed in this
+        file, which already uses `namesMatch` (a whole-word-prefix
+        match, not `===`) specifically because an exact match is
+        unreliable — a country-code suffix, a venue's full official
+        name vs. its short name, etc. is enough to miss. TABtouch's own
+        content script even has a comment claiming "namesMatch's own
+        whole-word-prefix rule already handles" an overseas venue's " -
+        <COUNTRY>" suffix — but the actual lookup function never called
+        it at all, a real drift between that comment's intent and the
+        code.
+      - Fixed by adding `findLearnedCodeEntry` (background.js) — scans
+        the learned-codes table with the same `namesMatch` fuzzy
+        comparison every other bookie already relies on, instead of a
+        strict object-key lookup — and switched all three lookup
+        functions to use it (BetCloud's own copy lives in
+        js/betcloud/api.js, loaded via `importScripts` into the same
+        service-worker scope as background.js's own `namesMatch`/
+        `normalizeVenue`, same as that file already does for
+        `normalizeVenue`).
+      - Verified directly: extracted the fixed functions and ran them
+        against both an exact-match case (still works) and a
+        venue-name-variant case the old `codes[key]` lookup would have
+        missed (now resolves correctly via `namesMatch`), plus a
+        genuinely-different-venue case to confirm no false positives,
+        and BetCloud's own extra race-number key segment to confirm it
+        still picks the right race out of several learned for the same
+        venue. Couldn't verify inside the real packaged extension this
+        session (no Chrome extension runtime, no live Betfair session)
+        — the next time TAB/TABtouch/BetCloud fail to open should be a
+        genuine "not learned yet today" case rather than this.

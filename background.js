@@ -211,8 +211,7 @@ const RACE_TYPE_TO_TAB_CODE = { horse: "R", harness: "H", greyhound: "G" };
 // parameter (rather than reading storage itself) so callers building a
 // whole race list can fetch it once instead of once per race.
 function tabRaceUrlFromCodes(tabVenueCodes, track, sport, raceNumber, startTimeIso) {
-  const key = `${normalizeVenue(track)}|${sport}`;
-  const learned = tabVenueCodes[key];
+  const learned = findLearnedCodeEntry(tabVenueCodes, track, sport);
   if (!learned) return null;
 
   const date = startTimeIso.slice(0, 10); // YYYY-MM-DD, matches TAB's own URL date segment
@@ -373,8 +372,7 @@ async function ensureTabVenueCodesLearnedToday() {
 // has no separate race-type letter to build at all (just
 // /racing/<date>/<code>/<raceNumber> — the code alone is enough).
 function tabtouchRaceUrlFromCodes(tabtouchVenueCodes, track, sport, raceNumber, startTimeIso) {
-  const key = `${normalizeVenue(track)}|${sport}`;
-  const learned = tabtouchVenueCodes[key];
+  const learned = findLearnedCodeEntry(tabtouchVenueCodes, track, sport);
   if (!learned) return null;
 
   const date = startTimeIso.slice(0, 10); // YYYY-MM-DD, matches TABtouch's own URL date segment
@@ -825,6 +823,32 @@ function namesMatch(a, b) {
   if (a === b) return true;
   const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
   return shorter.length > 0 && longer.startsWith(shorter + " ");
+}
+
+// TAB/TABtouch/BetCloud's own learned-codes tables (tabVenueCodes/
+// tabtouchVenueCodes/betcloudRaceCodes) are keyed by
+// "<normalizeVenue(venueName)>|<sport>" (BetCloud adds a third
+// "|<raceNumber>" segment) — tabRaceUrlFromCodes/tabtouchRaceUrlFromCodes/
+// betcloudRaceUrlFromCodes used to look these up with a plain
+// codes[key] equality check, unlike every OTHER bookie's own feed in
+// this file, which already matches venue names with namesMatch (not
+// ===) specifically because an exact match is unreliable — a country-
+// code suffix, a brand prefix, or just a slightly different venue name
+// between sites is enough to miss. User-reported as "TAB/TABtouch/
+// BetCloud tabs don't open automatically" — confirmed live that all
+// three sites' own scrapers were learning codes correctly, so the
+// codes WERE there, just never found by the exact-key lookup. This
+// re-does that lookup as a namesMatch scan instead, same as every
+// other bookie here.
+function findLearnedCodeEntry(codesTable, track, sport, raceNumber) {
+  const normalizedTrack = normalizeVenue(track);
+  for (const [key, value] of Object.entries(codesTable)) {
+    const [venue, keySport, keyRaceNumber] = key.split("|");
+    if (keySport !== sport) continue;
+    if (raceNumber != null && Number(keyRaceNumber) !== raceNumber) continue;
+    if (namesMatch(venue, normalizedTrack)) return value;
+  }
+  return null;
 }
 
 function findBookmakerPrice(runnerName, bookmakerRunners) {
