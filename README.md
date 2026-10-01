@@ -4987,3 +4987,58 @@ https://developer.betfair.com/.
         consent screen actually grants these scopes end-to-end this
         session (no test account) — needs a live re-login to confirm
         the membership check now returns true for a real member.
+
+- [x] Added "Track Bet" — user-requested: tick a runner's own new
+      Track checkbox (odds table, far right) to open a popup
+      pre-filled with the track/race/horse, bet type (from whichever
+      Mode is active — Mug/Bonus/Run 2nd(3rd) map onto that mode bet
+      type), the best-price bookmaker (any bookmaker with a price,
+      editable, not limited to whichever columns happen to be
+      displayed/spotlighted), its odds, Betfair's lay odds, back
+      stake, commission, and a live-recalculating lay $ — then inserts
+      it straight into the Betting Blueprint site's own existing Bet
+      Tracker (`public.bets`) on "Track Bet".
+      - Inserts directly via Supabase's own REST API
+        (`${SUPABASE_URL}/rest/v1/bets`) using the session's own
+        Supabase `access_token` as the request's `Authorization`
+        Bearer header and the project's public `apikey` — no new
+        website route needed at all, since that table's own
+        `bets_own` RLS policy (that repo's `supabase/schema.sql`)
+        already lets a signed-in member insert their own row
+        (`user_id` defaults to `auth.uid()`, read straight off the
+        request's own JWT).
+      - `bet_type` sent is one of `public.bets`' own CHECK-constrained
+        values (`'Mug bet'`, `'Bonus (SNR)'`, `'Promo'` — simplified
+        to exactly these 3 on the website's own side specifically for
+        this feature, replacing its earlier wider set) — Run 2nd/Run
+        2nd 3rd both map to `"Promo"` since the tracker doesn't need
+        to distinguish which placing(s) trigger it.
+      - No manifest.json changes needed for this one — Supabase's own
+        REST API (unlike a custom Next.js route) sends a permissive
+        `Access-Control-Allow-Origin` by default for every request,
+        by design (it's meant for direct public/client access via the
+        publishable key), so this fetch doesn't need `host_permissions`
+        the way the login flow's own `/api/extension/verify` call did.
+      - A real `[hidden]`-beats-id-rule bug (the same class this file
+        has now hit three times — `#settings-modal`/`#planner-modal`,
+        then `#auth-gate`/`#membership-gate`/`#app-layout`, now
+        `#track-bet-modal`) was caught and fixed the same way: every
+        new modal/gate sharing `.modal-overlay`'s own `display: flex`
+        rule needs its own explicit `#id[hidden] { display: none }`
+        override, or toggling `hidden` alone does nothing.
+      - Verified directly via the local static-preview harness with a
+        mocked `chrome.storage`/`fetch`: the modal pre-fills correctly
+        from a constructed mock race (event text, bet type, every
+        bookmaker with a price — not just displayed ones — best price
+        pre-selected, Betfair lay odds, stake, commission); switching
+        the bookmaker dropdown updates both Back Odds and the
+        recalculated Lay $; the exact POST body sent to Supabase
+        matches the schema field-for-field, with commission correctly
+        converted from this file's own 0-1 fraction convention to the
+        table's plain percentage number; a successful save shows
+        "Tracked!" and auto-closes the modal; a failed save (mocked
+        403 RLS rejection) shows the real error text and leaves the
+        modal open with the button re-enabled, rather than silently
+        closing or getting stuck. Couldn't test a real live insert
+        against the actual Supabase table this session (no test
+        account) — needs a live check once this ships.

@@ -2087,6 +2087,13 @@ function renderRace(race) {
     const bestPriceBgAttr = bestPriceBg !== "transparent" ? ` style="background:${bestPriceBg}"` : "";
     const { html: runnerNumberBadge, label: runnerLabel } = runnerNumberHtml(runner);
 
+    // Looked up fresh from currentRace by selectionId when actually
+    // clicked (see the delegated #odds-body click handler below),
+    // rather than baking this row's own layDollars/commission into the
+    // HTML itself — same "never close over a stale snapshot" reasoning
+    // every other re-derived-on-click value in this file already uses.
+    row.dataset.selectionId = runner.selectionId;
+
     row.innerHTML = `
       <td>${runnerNumberBadge}${runnerLabel}${winnerTag}</td>
       <td class="col-best-price"${bestPriceBgAttr}>${bestPriceCellHtml(bestPrice, bestPriceBadges, bestPriceMetric)}</td>
@@ -2099,6 +2106,7 @@ function renderRace(race) {
       ${bookieCells}
       <td class="lay-dollars" title="Click to copy">${layDollars == null ? "—" : layDollars.toFixed(2)}</td>
       <td class="col-liability">${liability == null ? "—" : liability.toFixed(2)}</td>
+      <td class="col-track-bet"><input type="checkbox" class="track-bet-checkbox" title="Track this bet" /></td>
     `;
 
     tbody.appendChild(row);
@@ -2124,6 +2132,7 @@ function renderRace(race) {
       ${orderedBookieList().map((b) => `<td${displayedBookieIds.has(b.id) ? "" : " hidden"}>—</td>`).join("")}
       <td>—</td>
       <td class="col-liability">—</td>
+      <td class="col-track-bet">—</td>
     `;
     tbody.appendChild(row);
   }
@@ -2146,6 +2155,7 @@ function renderRace(race) {
     ),
     "<td></td>",
     `<td class="col-liability"></td>`,
+    `<td class="col-track-bet"></td>`,
   ];
   document.getElementById("odds-foot").innerHTML = `<tr>${marketCells.join("")}</tr>`;
 
@@ -2229,6 +2239,215 @@ document.getElementById("odds-body").addEventListener("click", async (event) => 
     }, 700);
   } catch (err) {
     console.warn("Couldn't copy to clipboard:", err.message);
+  }
+});
+
+// User-requested: tick a runner's own "Track" checkbox to open a
+// pre-filled bet-tracking popup, rather than making the checkbox
+// itself a persistent "is this bet already tracked" indicator (this
+// file has no way to know that without re-querying the Betting
+// Blueprint site's own tracker for every row on every render) — it's
+// really just a momentary trigger, reset back to unchecked the
+// instant it opens the modal.
+document.getElementById("odds-body").addEventListener("change", (event) => {
+  const checkbox = event.target.closest(".track-bet-checkbox");
+  if (!checkbox) return;
+  checkbox.checked = false;
+
+  const row = checkbox.closest("tr");
+  openTrackBetModal(row.dataset.selectionId);
+});
+
+// --- Track Bet modal (Betting Blueprint bet tracker) -------------------
+//
+// User-requested: track a bet directly to the Betting Blueprint site's
+// own existing Bet Tracker (public.bets, that repo's own
+// supabase/schema.sql) straight from the odds table, instead of
+// re-typing it there by hand. Inserts directly via Supabase's own REST
+// API (PostgREST) rather than a custom website route — the bets_own
+// RLS policy there already lets a signed-in member insert their own
+// row (user_id defaults to auth.uid(), read straight off the
+// request's own JWT), so there's nothing bespoke needed on that side
+// at all. SUPABASE_PUBLISHABLE_KEY is the project's own public anon
+// key (from Netlify's env vars) — safe to embed here, same as it's
+// already embedded in the website's own browser-facing code; actual
+// access is enforced by that RLS policy, not by keeping this secret.
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_4CgyLh-QAu5HDDnfVq6PRw_pn5x1m2w";
+
+// public.bets' own bet_type column is CHECK-constrained to exactly
+// these 3 values ('Mug bet','Bonus (SNR)','Promo') — Run 2nd/Run 2nd
+// 3rd both map to "Promo" since they're the same underlying
+// qualifying-bet-plus-promo-trigger shape, just differing in which
+// placing(s) trigger it (not something the tracker itself needs to
+// distinguish). No run2ndwin entry — that mode was removed entirely
+// (see this file's own earlier changelog entry).
+const BET_TYPE_BY_MODE = {
+  mug: "Mug bet",
+  bonus: "Bonus (SNR)",
+  run2nd: "Promo",
+  run2nd3rd: "Promo",
+};
+
+const trackBetModalEl = document.getElementById("track-bet-modal");
+const trackBetEventEl = document.getElementById("track-bet-event");
+const trackBetTypeEl = document.getElementById("track-bet-type");
+const trackBetBookieEl = document.getElementById("track-bet-bookie");
+const trackBetBackOddsEl = document.getElementById("track-bet-back-odds");
+const trackBetLayOddsEl = document.getElementById("track-bet-lay-odds");
+const trackBetBackStakeEl = document.getElementById("track-bet-back-stake");
+const trackBetCommissionEl = document.getElementById("track-bet-commission");
+const trackBetLayStakeEl = document.getElementById("track-bet-lay-stake");
+const trackBetStatusEl = document.getElementById("track-bet-status");
+const trackBetSubmitBtn = document.getElementById("track-bet-submit-btn");
+const trackBetCloseBtn = document.getElementById("track-bet-close-btn");
+
+// The specific runner this modal is currently open for — set once, on
+// open, by openTrackBetModal, so the submit handler doesn't have to
+// re-derive it from whatever the bookmaker <select> happens to show.
+let trackBetRunner = null;
+
+function openTrackBetModal(selectionId) {
+  if (!currentRace) return;
+  const runner = currentRace.runners.find((r) => String(r.selectionId) === String(selectionId));
+  if (!runner) return;
+  trackBetRunner = runner;
+
+  const raceCode = RACE_TYPE_CODE[currentRace.sport] || "";
+  const raceLabel = currentRace.raceNumber != null ? ` R${currentRace.raceNumber}` : "";
+  trackBetEventEl.textContent = `${currentRace.track || currentRace.race}${raceLabel}${
+    raceCode ? ` (${raceCode})` : ""
+  } — ${runner.name}`;
+
+  trackBetTypeEl.value = BET_TYPE_BY_MODE[currentMode] || "Other";
+
+  // Deliberately every bookmaker with ANY price for this runner, not
+  // just raceDisplayedBookieIds (planned/spotlighted columns) — which
+  // bookmaker a bet actually gets tracked against has nothing to do
+  // with which columns happen to be on screen for comparison; caught
+  // live testing this (an un-spotlighted race showed an empty
+  // dropdown, with no way to track a bet at all).
+  const bookiesWithPrice = orderedBookieList().filter((b) => runner.bookmakers?.[b.id] != null);
+  const { price: bestPrice, bookieIds: bestBookieIds } = bestBookmakerPrices(
+    runner,
+    new Set(bookiesWithPrice.map((b) => b.id))
+  );
+  trackBetBookieEl.innerHTML = bookiesWithPrice
+    .map((b) => `<option value="${b.id}">${b.label} (${runner.bookmakers[b.id].toFixed(2)})</option>`)
+    .join("");
+  trackBetBookieEl.value = bestBookieIds[0] || bookiesWithPrice[0]?.id || "";
+
+  trackBetBackOddsEl.value = bestPrice != null ? bestPrice.toFixed(2) : "";
+  trackBetLayOddsEl.value = runner.betfair != null ? runner.betfair.toFixed(2) : "";
+  trackBetBackStakeEl.value = stakeAmount;
+
+  const baseCommission = commissionForTrack(currentRace.track, currentRace.sport);
+  const commission = Math.max(0, baseCommission - currentSettings.commissionDiscount / 100);
+  trackBetCommissionEl.value = (commission * 100).toFixed(1);
+
+  recalcTrackBetLayStake();
+
+  trackBetStatusEl.textContent = "";
+  trackBetSubmitBtn.disabled = false;
+  trackBetModalEl.hidden = false;
+}
+
+function closeTrackBetModal() {
+  trackBetModalEl.hidden = true;
+  trackBetRunner = null;
+}
+
+// Recomputes Lay $ from whatever the modal's own fields currently show
+// — called on open, and again on every change to Back Stake/Odds, Lay
+// Odds, or Commission, so editing any of those (the bookmaker select's
+// own change handler below also edits Back Odds) keeps Lay $ honest
+// rather than leaving it stuck at whatever it was pre-filled with.
+// Same layStake/layStakeBonus formulas rowLayDollars already uses
+// elsewhere, just driven by this modal's own fields instead of the
+// table row's displayed-bookie price.
+function recalcTrackBetLayStake() {
+  const stake = Number(trackBetBackStakeEl.value);
+  const backOdds = Number(trackBetBackOddsEl.value);
+  const layOdds = Number(trackBetLayOddsEl.value);
+  const commission = Number(trackBetCommissionEl.value) / 100;
+  const hedge = hedgePercent / 100;
+
+  if (!backOdds || !layOdds) {
+    trackBetLayStakeEl.value = "";
+    return;
+  }
+
+  const layDollars =
+    currentMode === "bonus"
+      ? layStakeBonus(stake, layOdds, backOdds, commission, hedge)
+      : layStake(stake, layOdds, backOdds, commission, hedge);
+  trackBetLayStakeEl.value = layDollars.toFixed(2);
+}
+
+for (const el of [trackBetBackStakeEl, trackBetBackOddsEl, trackBetLayOddsEl, trackBetCommissionEl]) {
+  el.addEventListener("input", recalcTrackBetLayStake);
+}
+
+trackBetCloseBtn.addEventListener("click", closeTrackBetModal);
+
+// Refreshes the Odds field to whichever bookmaker is actually picked —
+// user-requested convention elsewhere in this file: tracking a bet at
+// a non-"best price" bookmaker (already signed up, already maxed the
+// best one, etc.) is a normal real case, not a mistake to silently
+// correct back.
+trackBetBookieEl.addEventListener("change", () => {
+  if (!trackBetRunner) return;
+  const price = trackBetRunner.bookmakers?.[trackBetBookieEl.value];
+  if (price != null) trackBetBackOddsEl.value = price.toFixed(2);
+  recalcTrackBetLayStake();
+});
+
+trackBetSubmitBtn.addEventListener("click", async () => {
+  if (!trackBetRunner || !currentRace) return;
+
+  trackBetSubmitBtn.disabled = true;
+  trackBetStatusEl.textContent = "Saving…";
+
+  try {
+    const { discordSession } = await chrome.storage.local.get(["discordSession"]);
+    if (!discordSession?.accessToken) {
+      throw new Error("Not logged in.");
+    }
+
+    const bookie = BOOKIE_LIST.find((b) => b.id === trackBetBookieEl.value);
+
+    // placed_on/result/manual_pl/profit all left out — public.bets'
+    // own defaults (today, "Pending", null, 0) already do the right
+    // thing for a bet that's just been placed, not yet resulted.
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/bets`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${discordSession.accessToken}`,
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        bookie: bookie?.label || trackBetBookieEl.value,
+        bet_type: trackBetTypeEl.value,
+        event: trackBetEventEl.textContent,
+        back_stake: Number(trackBetBackStakeEl.value) || 0,
+        back_odds: Number(trackBetBackOddsEl.value) || 0,
+        lay_stake: Number(trackBetLayStakeEl.value) || 0,
+        lay_odds: Number(trackBetLayOddsEl.value) || 0,
+        commission: Number(trackBetCommissionEl.value) || 0,
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Save failed (${res.status})${body ? `: ${body}` : ""}`);
+    }
+
+    trackBetStatusEl.textContent = "Tracked!";
+    setTimeout(closeTrackBetModal, 700);
+  } catch (err) {
+    trackBetStatusEl.textContent = err.message;
+    trackBetSubmitBtn.disabled = false;
   }
 });
 
