@@ -1493,7 +1493,8 @@ footer {
 }
 
 #settings-modal .modal-panel,
-#planner-modal .modal-panel {
+#planner-modal .modal-panel,
+#track-bet-modal .modal-panel {
   width: 460px;
   max-height: 85vh;
   display: flex;
@@ -1505,22 +1506,29 @@ footer {
 }
 
 #settings-modal .modal-header,
-#planner-modal .modal-header {
+#planner-modal .modal-header,
+#track-bet-modal .modal-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 12px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border);
 }
 
 #settings-modal .modal-header h2,
-#planner-modal .modal-header h2 {
+#planner-modal .modal-header h2,
+#track-bet-modal .modal-header h2 {
   margin: 0;
   font-size: 15px;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 #settings-modal .modal-close,
-#planner-modal .modal-close {
+#planner-modal .modal-close,
+#track-bet-modal .modal-close {
+  flex: none;
   background: none;
   border: none;
   color: var(--muted);
@@ -1531,7 +1539,8 @@ footer {
 }
 
 #settings-modal .modal-close:hover,
-#planner-modal .modal-close:hover {
+#planner-modal .modal-close:hover,
+#track-bet-modal .modal-close:hover {
   color: var(--text);
 }
 
@@ -1563,7 +1572,8 @@ footer {
 }
 
 #settings-modal .modal-body,
-#planner-modal .modal-body {
+#planner-modal .modal-body,
+#track-bet-modal .modal-body {
   overflow-y: auto;
   padding: 16px;
 }
@@ -1583,7 +1593,8 @@ footer {
 }
 
 #settings-modal .modal-footer,
-#planner-modal .modal-footer {
+#planner-modal .modal-footer,
+#track-bet-modal .modal-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1592,7 +1603,8 @@ footer {
 }
 
 #settings-modal .modal-footer-actions,
-#planner-modal .modal-footer-actions {
+#planner-modal .modal-footer-actions,
+#track-bet-modal .modal-footer-actions {
   display: flex;
   align-items: center;
   gap: 14px;
@@ -1849,7 +1861,8 @@ footer {
 }
 
 #settings-modal .status,
-#planner-modal .status {
+#planner-modal .status,
+#track-bet-modal .status {
   font-size: 12px;
   color: var(--positive);
 }
@@ -2033,7 +2046,8 @@ footer {
 }
 
 #settings-modal .status.error,
-#planner-modal .status.error {
+#planner-modal .status.error,
+#track-bet-modal .status.error {
   color: var(--accent-neg);
 }
 
