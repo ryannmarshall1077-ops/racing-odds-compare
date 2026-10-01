@@ -1165,16 +1165,19 @@ body.show-liability .col-liability {
   display: table-cell;
 }
 
-.col-track-bet {
-  text-align: center;
-  width: 40px;
+/* User-requested redesign: click the price cell itself to track that
+   bet, instead of a separate checkbox column — applies to both a
+   bookmaker's own cell (col-bookie) and the headline Best Price cell,
+   same click handler either way (see #odds-body's own "click"
+   listener, popup.js). Hover-only affordance (no permanent visual
+   change) so it doesn't fight the existing EV-tier background tints
+   already painted on these same cells. */
+.track-bet-cell {
+  cursor: pointer;
 }
 
-.track-bet-checkbox {
-  width: 15px;
-  height: 15px;
-  cursor: pointer;
-  accent-color: var(--accent);
+.track-bet-cell:hover {
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 th:first-child, td:first-child {
@@ -1596,7 +1599,8 @@ footer {
 }
 
 #settings-modal .modal-done-btn,
-#planner-modal .modal-done-btn {
+#planner-modal .modal-done-btn,
+#track-bet-modal .modal-done-btn {
   padding: 7px 18px;
   background: var(--accent);
   border: none;
@@ -1608,7 +1612,8 @@ footer {
 }
 
 #settings-modal .modal-done-btn:hover,
-#planner-modal .modal-done-btn:hover {
+#planner-modal .modal-done-btn:hover,
+#track-bet-modal .modal-done-btn:hover {
   opacity: 0.9;
 }
 
@@ -1636,7 +1641,8 @@ footer {
 }
 
 #settings-modal .field-hint,
-#planner-modal .field-hint {
+#planner-modal .field-hint,
+#track-bet-modal .field-hint {
   font-size: 11px;
   color: var(--muted);
   opacity: 0.75;
@@ -1740,7 +1746,8 @@ footer {
 }
 
 #settings-modal .link-btn,
-#planner-modal .link-btn {
+#planner-modal .link-btn,
+#track-bet-modal .link-btn {
   background: none;
   border: none;
   color: var(--accent);
@@ -1750,8 +1757,95 @@ footer {
 }
 
 #settings-modal .link-btn:hover,
-#planner-modal .link-btn:hover {
+#planner-modal .link-btn:hover,
+#track-bet-modal .link-btn:hover {
   text-decoration: underline;
+}
+
+/* --- Track Bet modal — styled to match a reference bet-placement
+   tool's own popup (user-supplied screenshot): title bar, a highlighted
+   info card summarizing the bet, labelled fields, and a mutually-
+   exclusive bet-type toggle pair, rather than this file's usual plain
+   <label>/<select> settings-form look. Self-contained rather than
+   extending #settings-modal/#planner-modal's own `label`/`form`
+   rules above — those assume that modal's own plain form layout,
+   not this one's card-based one. */
+#track-bet-modal .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.track-bet-info-box {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.track-bet-info-box p {
+  margin: 0;
+}
+
+#track-bet-event {
+  font-weight: 600;
+  color: var(--text);
+}
+
+#track-bet-market {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.track-bet-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.track-bet-field-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+#track-bet-modal input[type="number"] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+/* Read-only — Bet Type is decided by whichever Mode is active
+   elsewhere in the extension, not chosen in this modal. */
+.track-bet-type-display {
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* A second info-box, nested: groups the Betfair-side fields (needed
+   for this tracker's own records, unlike the reference tool, which
+   never shows these at all since it executes the lay itself) visually
+   apart from the plain Stake/Bet Type controls above. */
+.track-bet-betfair-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.track-bet-betfair-box > .track-bet-field-label {
+  font-size: 11px;
 }
 
 #settings-modal .status,

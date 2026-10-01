@@ -5042,3 +5042,55 @@ https://developer.betfair.com/.
         closing or getting stuck. Couldn't test a real live insert
         against the actual Supabase table this session (no test
         account) — needs a live check once this ships.
+
+- [x] Reworked Track Bet's own trigger and layout — user feedback
+      after live-testing the first version ("it works and tracks but
+      it looks rough"), plus a reference screenshot of a different,
+      unrelated bet-placement tool's own popup:
+      - Removed the separate Track checkbox column entirely. Clicking
+        is now on the odds cell itself — either a specific bookmaker's
+        own price cell, or the Best Price cell — directly in the odds
+        table (`.track-bet-cell`, tagged with `data-bookie` on every
+        cell that has a price). Which bookmaker the bet is for is
+        decided purely by which cell was clicked; there's no bookmaker
+        picker in the modal any more.
+      - Redesigned the modal to match the reference screenshot's own
+        layout: a `Bet on {Horse} @ {Bookmaker}` title, an info box
+        summarizing the selection and market, a plain Stake (AUD)
+        field, then a Betfair info box with Bookmaker Odds/Lay
+        Odds/Commission/Lay $.
+      - Deliberately did NOT copy the rest of that reference tool's
+        own UI, since those parts are specific to what that OTHER tool
+        does (automatically placing/laying bets live) and don't apply
+        here — this feature only ever records a bet into your own
+        tracker, it never places or automates anything:
+        - No "No Open Sessions" warning — there's no live betting
+          session for this feature to track the state of.
+        - No "MIN ODDS" threshold field — there's no automated order
+          waiting on a price to reach.
+        - No "Auto-lay on Betfair" toggle — this never places a lay,
+          it just records what you already laid (or plan to) so your
+          own numbers match your tracker.
+        - No "Schedule for later" — there's nothing to schedule; the
+          bet is recorded the moment you submit.
+      - Also removed the Bonus bet/Promo bet toggle buttons the first
+        version's modal had (itself copied from the reference
+        screenshot) — user feedback: Bet Type shouldn't be a separate
+        choice in this modal at all, since it's already fully decided
+        by whichever Mode (Mug/Bonus/Run 2nd(3rd)) is active elsewhere
+        in the extension, and the stake/odds math shown in the same
+        modal is already computed for that mode. An editable toggle
+        could disagree with it. The modal now just displays the
+        resulting bet type as read-only text.
+      - Verified directly via the local static-preview harness: a
+        click on a specific bookmaker's own price cell opens the modal
+        pre-filled for exactly that bookmaker (title, event text,
+        market line, Back Odds taken straight from the clicked cell);
+        a click on the Best Price cell does the same for whichever
+        bookmaker is actually the best price; the Bet Type line updates
+        correctly across all three modes (Mug bet/Bonus (SNR)/Promo);
+        the final POST body sent to Supabase carries the correct
+        bookie, bet_type, and event fields. Couldn't test a real click
+        inside the actual packaged extension this session (no Chrome
+        extension runtime available) — needs a live click-through once
+        this ships, same caveat as the first version.

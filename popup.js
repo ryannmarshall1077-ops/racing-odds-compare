@@ -2058,9 +2058,13 @@ function renderRace(race) {
         price != null &&
         bookieMetric != null &&
         bookieMetric === bestBookieMetricByBookie.get(b.id);
-      const cellClass = `col-bookie${rowBest ? " row-best" : ""}${colBest ? " col-best" : ""}`;
+      const cellClass = `col-bookie track-bet-cell${rowBest ? " row-best" : ""}${colBest ? " col-best" : ""}`;
       const bg = rowBest ? "rgba(61, 220, 151, 0.22)" : edgeMetricHtml(price == null ? null : bookieMetric).bg;
-      return `<td class="${cellClass}"${hiddenAttr} style="background:${bg}">${bookieCellHtml(price, bookieMetric)}</td>`;
+      // data-bookie only set when there's an actual price to track — a
+      // "—" cell has nothing for the Track Bet click handler below to
+      // open against, same as it ignoring any other empty cell.
+      const bookieAttr = price != null ? ` data-bookie="${b.id}"` : "";
+      return `<td class="${cellClass}"${hiddenAttr}${bookieAttr} style="background:${bg}">${bookieCellHtml(price, bookieMetric)}</td>`;
     }).join("");
 
     // Betfair settling the market and marking a runner WINNER (see
@@ -2094,9 +2098,15 @@ function renderRace(race) {
     // every other re-derived-on-click value in this file already uses.
     row.dataset.selectionId = runner.selectionId;
 
+    // data-bookie on the Best Price cell too — one of the tied-best
+    // bookies (bestBookieIds[0]), same "click the price to track that
+    // exact bookmaker" handling the per-bookie cells below get, not a
+    // separate interaction of its own.
+    const bestPriceAttr = bestPrice != null ? ` data-bookie="${bestBookieIds[0]}"` : "";
+
     row.innerHTML = `
       <td>${runnerNumberBadge}${runnerLabel}${winnerTag}</td>
-      <td class="col-best-price"${bestPriceBgAttr}>${bestPriceCellHtml(bestPrice, bestPriceBadges, bestPriceMetric)}</td>
+      <td class="col-best-price track-bet-cell"${bestPriceBgAttr}${bestPriceAttr}>${bestPriceCellHtml(bestPrice, bestPriceBadges, bestPriceMetric)}</td>
       <td class="col-backlay">${backLayCellHtml(
         runner.betfairBack,
         runner.betfairBackLiquidity,
@@ -2106,7 +2116,6 @@ function renderRace(race) {
       ${bookieCells}
       <td class="lay-dollars" title="Click to copy">${layDollars == null ? "—" : layDollars.toFixed(2)}</td>
       <td class="col-liability">${liability == null ? "—" : liability.toFixed(2)}</td>
-      <td class="col-track-bet"><input type="checkbox" class="track-bet-checkbox" title="Track this bet" /></td>
     `;
 
     tbody.appendChild(row);
@@ -2132,7 +2141,6 @@ function renderRace(race) {
       ${orderedBookieList().map((b) => `<td${displayedBookieIds.has(b.id) ? "" : " hidden"}>—</td>`).join("")}
       <td>—</td>
       <td class="col-liability">—</td>
-      <td class="col-track-bet">—</td>
     `;
     tbody.appendChild(row);
   }
@@ -2155,7 +2163,6 @@ function renderRace(race) {
     ),
     "<td></td>",
     `<td class="col-liability"></td>`,
-    `<td class="col-track-bet"></td>`,
   ];
   document.getElementById("odds-foot").innerHTML = `<tr>${marketCells.join("")}</tr>`;
 
@@ -2242,20 +2249,20 @@ document.getElementById("odds-body").addEventListener("click", async (event) => 
   }
 });
 
-// User-requested: tick a runner's own "Track" checkbox to open a
-// pre-filled bet-tracking popup, rather than making the checkbox
-// itself a persistent "is this bet already tracked" indicator (this
-// file has no way to know that without re-querying the Betting
-// Blueprint site's own tracker for every row on every render) — it's
-// really just a momentary trigger, reset back to unchecked the
-// instant it opens the modal.
-document.getElementById("odds-body").addEventListener("change", (event) => {
-  const checkbox = event.target.closest(".track-bet-checkbox");
-  if (!checkbox) return;
-  checkbox.checked = false;
+// User-requested redesign: click a runner's own odds cell directly —
+// either a specific bookmaker's own price (.col-bookie) or the
+// headline Best Price cell, both tagged .track-bet-cell with their
+// own data-bookie (see renderRace above) — to open a pre-filled
+// bet-tracking popup already set to THAT exact bookmaker, rather than
+// a separate checkbox column needing its own bookmaker picker inside
+// the modal. A "—" cell (no price, no data-bookie) is simply ignored,
+// same as clicking blank space elsewhere in the row already is.
+document.getElementById("odds-body").addEventListener("click", (event) => {
+  const cell = event.target.closest(".track-bet-cell");
+  if (!cell || !cell.dataset.bookie) return;
 
-  const row = checkbox.closest("tr");
-  openTrackBetModal(row.dataset.selectionId);
+  const row = cell.closest("tr");
+  openTrackBetModal(row.dataset.selectionId, cell.dataset.bookie);
 });
 
 // --- Track Bet modal (Betting Blueprint bet tracker) -------------------
@@ -2289,9 +2296,9 @@ const BET_TYPE_BY_MODE = {
 };
 
 const trackBetModalEl = document.getElementById("track-bet-modal");
+const trackBetTitleEl = document.getElementById("track-bet-title");
 const trackBetEventEl = document.getElementById("track-bet-event");
-const trackBetTypeEl = document.getElementById("track-bet-type");
-const trackBetBookieEl = document.getElementById("track-bet-bookie");
+const trackBetMarketEl = document.getElementById("track-bet-market");
 const trackBetBackOddsEl = document.getElementById("track-bet-back-odds");
 const trackBetLayOddsEl = document.getElementById("track-bet-lay-odds");
 const trackBetBackStakeEl = document.getElementById("track-bet-back-stake");
@@ -2300,43 +2307,44 @@ const trackBetLayStakeEl = document.getElementById("track-bet-lay-stake");
 const trackBetStatusEl = document.getElementById("track-bet-status");
 const trackBetSubmitBtn = document.getElementById("track-bet-submit-btn");
 const trackBetCloseBtn = document.getElementById("track-bet-close-btn");
+const trackBetCancelBtn = document.getElementById("track-bet-cancel-btn");
+const trackBetTypeDisplayEl = document.getElementById("track-bet-type-display");
 
-// The specific runner this modal is currently open for — set once, on
-// open, by openTrackBetModal, so the submit handler doesn't have to
-// re-derive it from whatever the bookmaker <select> happens to show.
+// The runner/bookmaker this modal is currently open for — set once,
+// on open, by openTrackBetModal, so the submit handler doesn't have
+// to re-derive either from the page (there's no bookmaker picker in
+// this modal any more — which bookmaker a bet is for is decided by
+// which price cell was actually clicked, see the #odds-body click
+// handler above).
 let trackBetRunner = null;
+let trackBetBookieId = null;
 
-function openTrackBetModal(selectionId) {
+function openTrackBetModal(selectionId, bookieId) {
   if (!currentRace) return;
   const runner = currentRace.runners.find((r) => String(r.selectionId) === String(selectionId));
-  if (!runner) return;
+  const price = runner?.bookmakers?.[bookieId];
+  if (!runner || price == null) return;
   trackBetRunner = runner;
+  trackBetBookieId = bookieId;
+
+  const bookie = BOOKIE_LIST.find((b) => b.id === bookieId);
+  trackBetTitleEl.textContent = `Bet on ${runner.name} @ ${bookie?.label || bookieId}`;
 
   const raceCode = RACE_TYPE_CODE[currentRace.sport] || "";
   const raceLabel = currentRace.raceNumber != null ? ` R${currentRace.raceNumber}` : "";
-  trackBetEventEl.textContent = `${currentRace.track || currentRace.race}${raceLabel}${
+  trackBetEventEl.textContent = `${runner.name} · ${currentRace.track || currentRace.race}${raceLabel}${
     raceCode ? ` (${raceCode})` : ""
-  } — ${runner.name}`;
+  }`;
+  trackBetMarketEl.textContent = `Market: Win @ ${price.toFixed(2)}`;
 
-  trackBetTypeEl.value = BET_TYPE_BY_MODE[currentMode] || "Other";
+  // Bet Type isn't user-editable here — it's already decided by
+  // whichever Mode is active in the extension (Mug/Bonus/Promo), so
+  // the modal just displays it rather than offering its own toggle
+  // that could end up disagreeing with the mode actually used to
+  // calculate the odds/stake above it.
+  trackBetTypeDisplayEl.textContent = BET_TYPE_BY_MODE[currentMode] || "Mug bet";
 
-  // Deliberately every bookmaker with ANY price for this runner, not
-  // just raceDisplayedBookieIds (planned/spotlighted columns) — which
-  // bookmaker a bet actually gets tracked against has nothing to do
-  // with which columns happen to be on screen for comparison; caught
-  // live testing this (an un-spotlighted race showed an empty
-  // dropdown, with no way to track a bet at all).
-  const bookiesWithPrice = orderedBookieList().filter((b) => runner.bookmakers?.[b.id] != null);
-  const { price: bestPrice, bookieIds: bestBookieIds } = bestBookmakerPrices(
-    runner,
-    new Set(bookiesWithPrice.map((b) => b.id))
-  );
-  trackBetBookieEl.innerHTML = bookiesWithPrice
-    .map((b) => `<option value="${b.id}">${b.label} (${runner.bookmakers[b.id].toFixed(2)})</option>`)
-    .join("");
-  trackBetBookieEl.value = bestBookieIds[0] || bookiesWithPrice[0]?.id || "";
-
-  trackBetBackOddsEl.value = bestPrice != null ? bestPrice.toFixed(2) : "";
+  trackBetBackOddsEl.value = price.toFixed(2);
   trackBetLayOddsEl.value = runner.betfair != null ? runner.betfair.toFixed(2) : "";
   trackBetBackStakeEl.value = stakeAmount;
 
@@ -2354,16 +2362,16 @@ function openTrackBetModal(selectionId) {
 function closeTrackBetModal() {
   trackBetModalEl.hidden = true;
   trackBetRunner = null;
+  trackBetBookieId = null;
 }
 
 // Recomputes Lay $ from whatever the modal's own fields currently show
-// — called on open, and again on every change to Back Stake/Odds, Lay
-// Odds, or Commission, so editing any of those (the bookmaker select's
-// own change handler below also edits Back Odds) keeps Lay $ honest
-// rather than leaving it stuck at whatever it was pre-filled with.
-// Same layStake/layStakeBonus formulas rowLayDollars already uses
-// elsewhere, just driven by this modal's own fields instead of the
-// table row's displayed-bookie price.
+// — called on open, and again on every change to Stake/Bookmaker
+// Odds/Lay Odds/Commission, so editing any of those keeps Lay $
+// honest rather than leaving it stuck at whatever it was pre-filled
+// with. Same layStake/layStakeBonus formulas rowLayDollars already
+// uses elsewhere, just driven by this modal's own fields instead of
+// the table row's own displayed-bookie price.
 function recalcTrackBetLayStake() {
   const stake = Number(trackBetBackStakeEl.value);
   const backOdds = Number(trackBetBackOddsEl.value);
@@ -2388,21 +2396,10 @@ for (const el of [trackBetBackStakeEl, trackBetBackOddsEl, trackBetLayOddsEl, tr
 }
 
 trackBetCloseBtn.addEventListener("click", closeTrackBetModal);
-
-// Refreshes the Odds field to whichever bookmaker is actually picked —
-// user-requested convention elsewhere in this file: tracking a bet at
-// a non-"best price" bookmaker (already signed up, already maxed the
-// best one, etc.) is a normal real case, not a mistake to silently
-// correct back.
-trackBetBookieEl.addEventListener("change", () => {
-  if (!trackBetRunner) return;
-  const price = trackBetRunner.bookmakers?.[trackBetBookieEl.value];
-  if (price != null) trackBetBackOddsEl.value = price.toFixed(2);
-  recalcTrackBetLayStake();
-});
+trackBetCancelBtn.addEventListener("click", closeTrackBetModal);
 
 trackBetSubmitBtn.addEventListener("click", async () => {
-  if (!trackBetRunner || !currentRace) return;
+  if (!trackBetRunner || !trackBetBookieId || !currentRace) return;
 
   trackBetSubmitBtn.disabled = true;
   trackBetStatusEl.textContent = "Saving…";
@@ -2413,7 +2410,7 @@ trackBetSubmitBtn.addEventListener("click", async () => {
       throw new Error("Not logged in.");
     }
 
-    const bookie = BOOKIE_LIST.find((b) => b.id === trackBetBookieEl.value);
+    const bookie = BOOKIE_LIST.find((b) => b.id === trackBetBookieId);
 
     // placed_on/result/manual_pl/profit all left out — public.bets'
     // own defaults (today, "Pending", null, 0) already do the right
@@ -2427,8 +2424,8 @@ trackBetSubmitBtn.addEventListener("click", async () => {
         Prefer: "return=minimal",
       },
       body: JSON.stringify({
-        bookie: bookie?.label || trackBetBookieEl.value,
-        bet_type: trackBetTypeEl.value,
+        bookie: bookie?.label || trackBetBookieId,
+        bet_type: BET_TYPE_BY_MODE[currentMode] || "Mug bet",
         event: trackBetEventEl.textContent,
         back_stake: Number(trackBetBackStakeEl.value) || 0,
         back_odds: Number(trackBetBackOddsEl.value) || 0,
