@@ -1165,6 +1165,18 @@ body.show-liability .col-liability {
   display: table-cell;
 }
 
+.col-track-bet {
+  text-align: center;
+  width: 40px;
+}
+
+.track-bet-checkbox {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
 th:first-child, td:first-child {
   text-align: left;
   white-space: normal;
@@ -1459,15 +1471,18 @@ footer {
 
 /* An id selector beats the UA stylesheet's own [hidden] rule, so this has
    to be spelled out explicitly or the modal would stay visible even
-   while hidden. Covers both modals sharing this markup pattern
-   (settings-modal, planner-modal) rather than a separate copy each —
-   #auth-gate, #membership-gate, and #app-layout have the exact same
-   issue (their own display: flex rules) for the same reason, caught
-   live: toggling either one's hidden attribute alone did nothing
-   until this was added — both auth-gate and the real UI rendered
-   stacked on top of each other instead of one replacing the other. */
+   while hidden. Covers every modal sharing this markup pattern
+   (settings-modal, planner-modal, track-bet-modal) rather than a
+   separate copy each — #auth-gate, #membership-gate, and #app-layout
+   have the exact same issue (their own display: flex rules) for the
+   same reason, caught live (repeatedly — track-bet-modal is the third
+   time this exact gotcha has bitten a new modal/gate added here):
+   toggling the hidden attribute alone did nothing until the element
+   was added here, rendering stacked on top of whatever else was
+   showing instead of replacing it. */
 #settings-modal[hidden],
 #planner-modal[hidden],
+#track-bet-modal[hidden],
 #auth-gate[hidden],
 #membership-gate[hidden],
 #app-layout[hidden] {

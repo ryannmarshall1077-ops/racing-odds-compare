@@ -182,6 +182,7 @@
                      move these, not just toggle each one's own hidden attribute. -->
                 <th id="th-lay-dollars">Lay $</th>
                 <th class="col-liability" title="What you'd owe if the lay bet loses: Lay $ × (Betfair odds − 1)">Liability</th>
+                <th class="col-track-bet" title="Track this bet to your Betting Blueprint dashboard">Track</th>
               </tr>
             </thead>
             <tbody id="odds-body">
@@ -587,6 +588,73 @@
           <div class="modal-footer-actions">
             <button id="planner-clear-btn" class="link-btn" type="button">Clear all</button>
             <button id="planner-save-btn" class="modal-done-btn">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- User-requested: tick a runner's own Track checkbox (odds-table,
+         far right) to open this, pre-filled from that row/the current
+         Mode/Stake/Hedge — same modal pattern as settings-modal/
+         planner-modal above. Track Bet inserts straight into the
+         Betting Blueprint site's own existing public.bets table via
+         Supabase's REST API (popup.js's own trackBetSubmitBtn handler)
+         rather than a custom website route — that table's own RLS
+         policy already lets a signed-in member insert their own row. -->
+    <div id="track-bet-modal" class="modal-overlay" hidden>
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2>Track Bet</h2>
+          <button id="track-bet-close-btn" class="modal-close" title="Close">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <p class="field-hint" id="track-bet-event"></p>
+
+          <label>
+            Bet Type
+            <select id="track-bet-type">
+              <option value="Mug bet">Mug</option>
+              <option value="Bonus (SNR)">SNR</option>
+              <option value="Promo">Promo</option>
+            </select>
+          </label>
+
+          <label>
+            Bookmaker
+            <select id="track-bet-bookie"></select>
+          </label>
+
+          <label>
+            Bookmaker Odds
+            <input type="number" id="track-bet-back-odds" step="0.01" min="1" />
+          </label>
+
+          <label>
+            Betfair Lay Odds
+            <input type="number" id="track-bet-lay-odds" step="0.01" min="1" />
+          </label>
+
+          <label>
+            Back Stake ($)
+            <input type="number" id="track-bet-back-stake" step="1" min="0" />
+          </label>
+
+          <label>
+            Betfair Commission (%)
+            <input type="number" id="track-bet-commission" step="0.1" min="0" />
+          </label>
+
+          <label>
+            Lay $
+            <input type="number" id="track-bet-lay-stake" step="0.01" min="0" />
+          </label>
+        </div>
+
+        <div class="modal-footer">
+          <span id="track-bet-status" class="status"></span>
+          <div class="modal-footer-actions">
+            <button id="track-bet-submit-btn" class="modal-done-btn">Track Bet</button>
           </div>
         </div>
       </div>
