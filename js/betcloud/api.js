@@ -52,8 +52,11 @@ const BETCLOUD_TENANTS = {
 // "Harness Racing", "Albion Park") carried through verbatim from
 // whatever real link betcloudMeetings.js scraped them from.
 function betcloudRaceUrlFromCodes(betcloudRaceCodes, tenantConfig, track, sport, raceNumber) {
-  const key = `${normalizeVenue(track)}|${sport}|${raceNumber}`;
-  const learned = betcloudRaceCodes[key];
+  // findLearnedCodeEntry lives in background.js — reachable here because
+  // this file is loaded via importScripts into the same service-worker
+  // scope (same reason normalizeVenue already was). See its own comment
+  // for why this can't be a plain codes[key] lookup any more.
+  const learned = findLearnedCodeEntry(betcloudRaceCodes, track, sport, raceNumber);
   if (!learned) return null;
 
   return `https://${tenantConfig.pageDomain}/racing/${encodeURIComponent(
